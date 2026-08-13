@@ -42,7 +42,7 @@ The original principles survive, with a sharper boundary:
   the source of observed device state. Agent processes can be reconstructed
   from those two sources after a crash.
 - The invocation log becomes a causal execution record: input signal → parsed
-  intent → proposed plan → ratification → HA command → observed outcome.
+  intent → proposed plan → execution gate → HA command → observed outcome.
 - The LLM is off the normal event path. HA events never wake it by default.
 
 The convenience scope remains: lights, media, climate, notifications, presence,
@@ -161,7 +161,7 @@ The language lane. It receives only intents the deterministic command parser
 cannot resolve. On the interactive path, Dobby assembles a compact, read-only
 `HouseContext` from ETS before the model call: relevant spaces, capabilities,
 aliases, preferences, current state, and recent conversation context. The agent
-then makes one structured-output request and returns an `EffectPlan` or a
+then makes one structured-output request and returns a `ProposedPlan` or a
 clarifying question. It does not enter a ReAct/tool loop to rediscover context
 the application already has.
 
@@ -269,23 +269,23 @@ sequenceDiagram
     participant U as User / automation
     participant R as IntentRouter
     participant L as ConversationAgent
-    participant V as Ratifier
+    participant V as ExecutionGate
     participant A as House / Space agent
     participant X as HA Executor
     participant H as Home Assistant
 
     U->>R: intent.received
     alt exact command
-      R->>V: typed EffectPlan
+      R->>V: typed ProposedPlan
     else ambiguous language
       R->>L: intent.ambiguous + read-only context
-      L->>V: proposed EffectPlan
+      L->>V: ProposedPlan
     end
     V->>V: resolve targets, policy, bounds, freshness
     alt rejected or unclear
       V-->>U: explanation / clarifying question
-    else ratified
-      V->>A: plan.ratified
+    else executable
+      V->>A: plan.ready
       A->>X: semantic effects
       X->>H: call_service
       H-->>X: accepted + HA context id
@@ -301,7 +301,7 @@ the expected HA event is observed or a capability-specific readback confirms
 it. The HA context ID returned by the WebSocket API is carried through the
 execution record and correlated with subsequent events when possible.
 
-For voice, Dobby may acknowledge with “Okay” after ratification and HA
+For voice, Dobby may acknowledge with “Okay” after the execution gate and HA
 acceptance, then observe completion asynchronously. It must not say “done” until
 the effect is observed. A timeout or failure produces a brief follow-up instead
 of making the user wait in silence for every device readback.
@@ -318,14 +318,14 @@ a pleasant way to spend a month without improving the house.
 There is at most one LLM request between an ambiguous command and its first
 effect. The HouseCoordinator is deterministic and never performs a second model
 review. That second call would add latency without adding a safety boundary;
-the Ratifier provides the safety boundary with code.
+the ExecutionGate provides the safety boundary with code.
 
 The three interactive paths are:
 
 | Path | Model calls | Completion boundary |
 |---|---:|---|
-| Dashboard control or exact command | 0 | Ratify and dispatch immediately |
-| Ambiguous command such as “make it cozy” | 1 | One schema-constrained `EffectPlan`, then ratify and dispatch |
+| Dashboard control or exact command | 0 | Validate, resolve, and dispatch immediately |
+| Ambiguous command such as “make it cozy” | 1 | One schema-constrained `ProposedPlan`, then pass the execution gate and dispatch |
 | Standing-policy request | 1 | One schema-constrained `PolicyDraft`, then compile, validate, preview, and persist |
 
 The model never selects a Jido process or HA entity directly. It selects semantic
@@ -336,12 +336,12 @@ independent effects concurrently.
 Initial launch budgets, measured from receipt of a final text transcript:
 
 - exact command: p95 under 100 ms to first HA dispatch;
-- ambiguous command: p50 under 500 ms and p95 under 1.2 seconds to a ratified
-  plan;
+- ambiguous command: p50 under 500 ms and p95 under 1.2 seconds to an
+  `ExecutablePlan`;
 - voice: p95 under 2 seconds from final transcript to first visible actuation.
 
 These are acceptance targets, not provider claims. Provider/network time,
-schema validity, ratification rejection rate, and time-to-first-effect are
+schema validity, execution-gate rejection rate, and time-to-first-effect are
 recorded separately. A model that misses the latency budget does not ship in the
 interactive alias, however impressive its general benchmarks are.
 
@@ -350,23 +350,23 @@ aliases by workload rather than scatter provider IDs through agent modules:
 
 | Alias | Workload | Initial candidate | Comparison set |
 |---|---|---|---|
-| `:intent_fast` | `EffectPlan` compilation | `openai:gpt-5.6-luna`, reasoning `none` | Gemini 3.5 Flash-Lite at minimal thinking; Claude Haiku 4.5 |
+| `:intent_fast` | `ProposedPlan` compilation | `openai:gpt-5.6-luna`, reasoning `none` | Gemini 3.5 Flash-Lite at minimal thinking; Claude Haiku 4.5 |
 | `:policy_capable` | durable `PolicyDraft` authoring | `openai:gpt-5.6-terra`, reasoning `low` | Gemini 3.6 Flash; Claude Sonnet 5 |
 | `:steward_capable` | anomaly interpretation and prose, off the hot path | same as `:policy_capable` initially | change only when the eval corpus shows a reason |
 
 The initial mapping is a starting hypothesis. Before implementation locks it
 in, run the same Dobby-specific corpus against all candidates and compare valid
-schema rate, semantic exactness, clarification quality, ratifier rejection,
+schema rate, semantic exactness, clarification quality, execution-gate rejection,
 p50/p95 latency, and cost. Keep prompts small, cap output to the schema, disable
 unneeded reasoning, and avoid tools on the command path. Provider portability
 is useful here because household language, not a public leaderboard, determines
 the winner.
 
-## 8. Ratification boundary
+## 8. Execution gate
 
-`Dobby.Ratifier` is a pure, heavily tested module. It accepts an `EffectPlan`, a
-fresh catalog snapshot, household policy, and request context. It either emits a
-normalized `RatifiedPlan` or a typed rejection.
+`Dobby.ExecutionGate` is a pure, heavily tested module. It accepts a
+`ProposedPlan`, a fresh catalog snapshot, household policy, and request context.
+It either emits a normalized `ExecutablePlan` or a typed rejection.
 
 Checks include:
 
@@ -381,9 +381,9 @@ Checks include:
 - Duplicate plan/effect IDs do not execute twice.
 - A manual-override lease does not forbid the proposed ambient change.
 
-The ratifier does not use an LLM. It does not decide whether “cozy” means 35%
-brightness; interpretation happened above the boundary. It decides whether the
-concrete proposal is valid and currently permissible.
+The execution gate does not use an LLM. It does not decide whether “cozy” means
+35% brightness; interpretation happened above the boundary. It decides whether
+the concrete proposal is valid and currently permissible.
 
 There is no true transaction across household devices. Multi-effect plans are
 best-effort with explicit per-effect outcomes. Dobby should not perform a
@@ -414,7 +414,7 @@ tick in the house.
 
 ### Outbound
 
-- Compile ratified effects to absolute HA service calls where possible. Prefer
+- Compile executable effects to absolute HA service calls where possible. Prefer
   `set brightness to 35` over `increase brightness`; avoid `toggle` in any path
   that may retry.
 - Attach execution provenance and retain HA's response context ID.
@@ -445,7 +445,7 @@ ha.event.doorbell.detected
 dobby.intent.received
 dobby.intent.ambiguous
 dobby.plan.proposed
-dobby.plan.ratified
+dobby.plan.ready
 dobby.plan.rejected
 dobby.effect.dispatched
 dobby.effect.observed
@@ -507,14 +507,14 @@ A `PolicyDraft` contains only:
 - a typed trigger, such as a domain signal, state transition, or bounded cron;
 - typed conditions over household mode, presence, time, current state, and
   manual-override status;
-- semantic effects from the same closed vocabulary as `EffectPlan`;
+- semantic effects from the same closed vocabulary as `ProposedPlan`;
 - cooldown, expiry, priority, and enabled/draft status;
 - a plain-language readback generated from the normalized policy, not trusted
   model prose.
 
 `Dobby.PolicyCompiler` resolves names, rejects unknown or cyclic dependencies,
 checks schedule and automation ownership conflicts, applies the same capability
-bounds as the Ratifier, and stores an immutable policy version. An explicit
+bounds as the ExecutionGate, and stores an immutable policy version. An explicit
 imperative to create or change a rule may enable it immediately; tentative or
 ambiguous language remains a draft or prompts a question. Every write is
 versioned, visible in the household dashboard, reversible, and exercised once
@@ -579,7 +579,7 @@ HA's own dashboard remains the detailed device-control surface.
 
 Phoenix LiveDashboard plus the beta `jido_live_dashboard` package can provide
 agent discovery, live processes, telemetry traces, and signal/directive timing
-during development. Dobby adds domain pages for plan ratification, effect
+during development. Dobby adds domain pages for execution-gate decisions, effect
 correlation, HA bridge health, queue depth, LLM cost/latency, and rejected plans.
 
 Jido emits telemetry for agent commands, signals, directives, queues, strategies,
@@ -599,7 +599,7 @@ intent ingress and carries them through every signal and DB record.
 | Crash after service call | Reconcile observed state before deciding whether to retry |
 | Manual device change | Manual override wins over ambient policy |
 | Partial multi-device plan | Record each outcome and report partial completion; no automatic global rollback |
-| Stale LLM plan | Ratifier rejects on version/precondition mismatch and requests a fresh plan |
+| Stale LLM plan | ExecutionGate rejects on version/precondition mismatch and requests a fresh plan |
 
 ## 16. Dependency posture
 
@@ -637,7 +637,7 @@ continue operating when the other house or the tunnel is unavailable.
 
 ## 18. Verification strategy
 
-- Test Actions and Ratifier as pure functions with no processes or model calls.
+- Test Actions and ExecutionGate as pure functions with no processes or model calls.
 - Property-test value bounds, target resolution, denylisting, duplicate effects,
   and stale-plan rejection.
 - Run AgentServer tests for routing, queue behavior, crash recovery, and
@@ -662,7 +662,7 @@ HA state, and HA-owned automations. This still ships household value before AI.
 ### Slice 1 — Deterministic kernel
 
 Create Phoenix/Postgres/Jido; build the fake HA adapter, signal conventions,
-StateMirror, catalog, one SpaceAgent, Effect/Plan schemas, Ratifier, executor,
+StateMirror, catalog, one SpaceAgent, Effect/Plan schemas, ExecutionGate, executor,
 and causal trace UI. Demonstrate one exact command end to end with no LLM.
 
 ### Slice 2 — Real HA bridge
@@ -674,9 +674,9 @@ real light change in one room.
 ### Slice 3 — Ambiguous intent
 
 Add Jido AI and the ConversationAgent. The proving phrase is “make the family
-room cozy”: compile it to semantic lighting and media effects, ratify them,
-execute them, observe outcomes, and show the entire trace. Add evaluation cases
-before adding more device domains.
+room cozy”: compile it to semantic lighting and media effects, pass them through
+the execution gate, execute them, observe outcomes, and show the entire trace.
+Add evaluation cases before adding more device domains.
 
 ### Slice 4 — Ambient stewardship
 
@@ -707,7 +707,7 @@ second house only as each capability earns its place.
    suspend Dobby ambient policy for that capability and space.
 5. **First vertical slice.** Recommend one real room and the phrase “make it
    cozy,” after the same room works through the deterministic path.
-6. **Policy authoring (ratified).** Natural language may author standing Dobby
+6. **Policy authoring (decided).** Natural language may author standing Dobby
    policies through PolicyAuthorAgent, the closed policy DSL, PolicyCompiler,
    immutable versions, and reversible activation. It cannot author arbitrary
    code or raw HA calls.

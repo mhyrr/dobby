@@ -14,7 +14,7 @@ Dobby is a house-scoped AI agent. Anyone on the home WiFi can converse with it (
 1. **Deterministic below, probabilistic above.** Home Assistant (HA) owns protocols, device state, and dumb automations. Hermes owns intent, judgment, and conversation. The model never improvises plumbing.
 2. **LAN residency of the control plane.** No inbound ports. Credentials and device control never leave the box.
 3. **Flat trust.** WiFi password = full household access. No tiers, no per-person permissions. Identity exists only for personalization ("play _my_ playlist"), never for gatekeeping.
-4. **Convenience scope.** Dobby controls media, lights, climate, and notifications. Locks, alarms, and anything security-critical stay in their own vendor systems, out of Dobby's tool set entirely. (If that ever changes, that's the moment to introduce a ratification gate — not before.)
+4. **Convenience scope.** Dobby controls media, lights, climate, and notifications. Locks, alarms, and anything security-critical stay in their own vendor systems, out of Dobby's tool set entirely. (If that ever changes, add an explicit execution gate — not before.)
 5. **Schedules are deterministic.** Time-based device behavior lives in HA automations; Hermes authors and explains schedules but never executes them. (Detail in §7.5.)
 6. **Agent amnesia, explicit state.** Hermes invocations are stateless. All memory (pairings, preferences, standing instructions) lives in gateway-owned storage. No self-modifying workspace.
 7. **Log everything from day one.** Every invocation and tool call recorded — for debugging, for evals, and because the corpus is useful R\&D.

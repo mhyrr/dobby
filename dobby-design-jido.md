@@ -1,6 +1,6 @@
 # Dobby — Jido Architecture
 
-**Draft v0.3 — August 2026**  
+**Draft v0.4 — August 2026**  
 **Status:** design for review; supersedes the Hermes runtime sections of
 `dobby-design-original.md`, but preserves its household, hardware, trust, and
 availability decisions unless this document says otherwise.
@@ -103,26 +103,28 @@ Dobby.Application
 ### 4.2 Jido domain hierarchy
 
 ```text
-HouseAgent (Direct; deterministic root)
+HouseCoordinator (Direct; deterministic control root)
 ├── SpaceAgent: kitchen
 ├── SpaceAgent: family_room
 ├── SpaceAgent: primary_bedroom
 ├── PresenceAgent
 ├── StewardAgent
 ├── ConversationAgent: <session>       dynamic; LLM only when needed
+├── PolicyAuthorAgent: <session>       dynamic; durable-rule authoring
 └── WorkflowAgent: <execution>         dynamic; bounded lifetime
 ```
 
-The LLM is not the root process. A slow model request must not serialize house
-events or become a dependency of deterministic behavior. There is one
-`ConversationAgent` design and prompt, but one process per active conversation
-or invocation. Jido AI agents process requests serially and expose policies for
-concurrent requests; a global singleton would turn two simultaneous voice
-requests into needless contention.
+The HouseCoordinator is not an LLM. A slow model request must not serialize
+house events or become a dependency of deterministic behavior. Model use is
+confined to ConversationAgent, PolicyAuthorAgent, and optional background calls
+from StewardAgent. There is one design and prompt per agent role, but one process
+per active session or invocation. Jido AI agents process requests serially and
+expose policies for concurrent requests; a global singleton would turn two
+simultaneous voice requests into needless contention.
 
 ## 5. Agent taxonomy
 
-### HouseAgent
+### HouseCoordinator
 
 The deterministic coordinator and owner of house-wide modes such as `home`,
 `away`, `sleep`, `guest`, and `vacation`. It routes cross-area goals, applies
@@ -156,13 +158,25 @@ would materially help.
 ### ConversationAgent
 
 The language lane. It receives only intents the deterministic command parser
-cannot resolve. Its tools are read-only context tools: current house snapshot,
-capability discovery, target/alias lookup, preferences, and recent conversation
-context. Its output is a structured `EffectPlan` or a clarifying question.
+cannot resolve. On the interactive path, Dobby assembles a compact, read-only
+`HouseContext` from ETS before the model call: relevant spaces, capabilities,
+aliases, preferences, current state, and recent conversation context. The agent
+then makes one structured-output request and returns an `EffectPlan` or a
+clarifying question. It does not enter a ReAct/tool loop to rediscover context
+the application already has.
 
 It has no HA client, raw service-call tool, `execute_plan` tool, or device
 credential. Jido supports effectful LLM tools, but Dobby deliberately does not
 expose them.
+
+### PolicyAuthorAgent
+
+A dynamic, bounded LLM agent for requests such as “when the last person leaves,
+turn off the downstairs lights.” It emits a typed `PolicyDraft`; deterministic
+code resolves its triggers, conditions, targets, effects, ownership conflicts,
+and quiet-hour implications before anything is persisted or enabled. Policy
+authoring is separate from immediate intent compilation because its output is
+durable and deserves a different schema, prompt, model budget, and audit trail.
 
 ### WorkflowAgent
 
@@ -178,6 +192,17 @@ HA's entity state: a thermostat hold with expiry and recovery, a complex media
 session, or a flaky endpoint needing bounded reconciliation. A light, binary
 sensor, camera snapshot endpoint, or WiFi-presence entity normally remains a
 typed capability binding.
+
+### Strategy selection
+
+Direct is the default strategy for HouseCoordinator, SpaceAgent, PresenceAgent,
+and most device behavior. The FSM strategy belongs where the domain has named,
+guarded phases across commands: `idle → announcing → restoring → completed`, or
+`scheduled → holding → expiring → restored`. A light being `on` or a person
+being `home` is observed domain state, not an FSM workflow phase. Modeling it as
+one would duplicate HA and make external changes look like illegal transitions.
+ConversationAgent and PolicyAuthorAgent use one-shot Jido AI structured output,
+not an autonomous tool-using strategy.
 
 ## 6. Semantic device model
 
@@ -222,6 +247,21 @@ The LLM may produce that vocabulary. It may not produce this:
 
 The latter is an adapter concern and changes as HA integrations change.
 
+### 6.1 Default representation by endpoint type
+
+| Endpoint | Default Dobby representation | When it earns an agent |
+|---|---|---|
+| Light, switch, outlet | `EntityRef` + lighting/power Binding | Almost never; HA already owns its state |
+| Temperature, motion, leak sensor | Read-only EntityRef producing filtered Signals | Never unless it becomes a standalone diagnostic workflow |
+| Sonos player/zone | Media Binding attached to a SpaceAgent | A bounded WorkflowAgent for announce/pause/restore coordination |
+| Thermostat | Climate Binding attached to a SpaceAgent | Holds, expiry, recovery, or competing schedule ownership need an FSM |
+| Camera/doorbell | Observation Binding + event Signals | A bounded delivery/event WorkflowAgent, not a permanent camera process |
+| WiFi endpoint | Endpoint-health Binding | Persistent health/recovery policy with backoff and escalation |
+| Person/device tracker | Input to PresenceAgent | PresenceAgent owns the derived model; trackers do not each become agents |
+
+These are defaults, not a class hierarchy. Behavior promotes an endpoint into
+an agent; its vendor category does not.
+
 ## 7. Intent and execution flow
 
 ```mermaid
@@ -261,12 +301,66 @@ the expected HA event is observed or a capability-specific readback confirms
 it. The HA context ID returned by the WebSocket API is carried through the
 execution record and correlated with subsequent events when possible.
 
+For voice, Dobby may acknowledge with “Okay” after ratification and HA
+acceptance, then observe completion asynchronously. It must not say “done” until
+the effect is observed. A timeout or failure produces a brief follow-up instead
+of making the user wait in silence for every device readback.
+
 The deterministic fast path should initially cover a deliberately small set of
 common command forms: on/off, absolute brightness, absolute temperature,
 play/pause, absolute volume, announcements, and direct state questions. Misses
 go to the LLM. The transcript corpus will tell us which additional forms deserve
 deterministic handling; guessing a complete household grammar up front would be
 a pleasant way to spend a month without improving the house.
+
+### 7.1 Latency architecture and model routing
+
+There is at most one LLM request between an ambiguous command and its first
+effect. The HouseCoordinator is deterministic and never performs a second model
+review. That second call would add latency without adding a safety boundary;
+the Ratifier provides the safety boundary with code.
+
+The three interactive paths are:
+
+| Path | Model calls | Completion boundary |
+|---|---:|---|
+| Dashboard control or exact command | 0 | Ratify and dispatch immediately |
+| Ambiguous command such as “make it cozy” | 1 | One schema-constrained `EffectPlan`, then ratify and dispatch |
+| Standing-policy request | 1 | One schema-constrained `PolicyDraft`, then compile, validate, preview, and persist |
+
+The model never selects a Jido process or HA entity directly. It selects semantic
+targets and effects. The deterministic coordinator resolves those against the
+live registry and catalog, starts any bounded workflows, and dispatches
+independent effects concurrently.
+
+Initial launch budgets, measured from receipt of a final text transcript:
+
+- exact command: p95 under 100 ms to first HA dispatch;
+- ambiguous command: p50 under 500 ms and p95 under 1.2 seconds to a ratified
+  plan;
+- voice: p95 under 2 seconds from final transcript to first visible actuation.
+
+These are acceptance targets, not provider claims. Provider/network time,
+schema validity, ratification rejection rate, and time-to-first-effect are
+recorded separately. A model that misses the latency budget does not ship in the
+interactive alias, however impressive its general benchmarks are.
+
+Jido AI and ReqLLM support application-level model aliases. Dobby should define
+aliases by workload rather than scatter provider IDs through agent modules:
+
+| Alias | Workload | Initial candidate | Comparison set |
+|---|---|---|---|
+| `:intent_fast` | `EffectPlan` compilation | `openai:gpt-5.6-luna`, reasoning `none` | Gemini 3.5 Flash-Lite at minimal thinking; Claude Haiku 4.5 |
+| `:policy_capable` | durable `PolicyDraft` authoring | `openai:gpt-5.6-terra`, reasoning `low` | Gemini 3.6 Flash; Claude Sonnet 5 |
+| `:steward_capable` | anomaly interpretation and prose, off the hot path | same as `:policy_capable` initially | change only when the eval corpus shows a reason |
+
+The initial mapping is a starting hypothesis. Before implementation locks it
+in, run the same Dobby-specific corpus against all candidates and compare valid
+schema rate, semantic exactness, clarification quality, ratifier rejection,
+p50/p95 latency, and cost. Keep prompts small, cap output to the schema, disable
+unneeded reasoning, and avoid tools on the command path. Provider portability
+is useful here because household language, not a public leaderboard, determines
+the winner.
 
 ## 8. Ratification boundary
 
@@ -313,7 +407,7 @@ idempotent.
 - Use reconnect backoff and require a complete resync before declaring the HA
   bridge healthy.
 
-The raw event stream does not fan into HouseAgent. It is filtered and
+The raw event stream does not fan into HouseCoordinator. It is filtered and
 partitioned by site, space, and capability first. Jido AgentServers process
 signals serially, so a single root mailbox is the wrong place for every sensor
 tick in the house.
@@ -400,6 +494,31 @@ be rebuilt and the dashboard can explain what will happen.
 The rule remains simple: if the value is the physical action happening on time,
 HA owns it. If the value is Dobby waking up to observe, decide, or explain, Jido
 owns it.
+
+### 11.1 Standing-policy authoring
+
+Household members may create, revise, disable, and inspect Dobby policies in
+natural language. PolicyAuthorAgent compiles the request into Dobby's closed
+policy DSL; it cannot emit Elixir, SQL, templates, raw signal routes, HA service
+names, or entity IDs.
+
+A `PolicyDraft` contains only:
+
+- a typed trigger, such as a domain signal, state transition, or bounded cron;
+- typed conditions over household mode, presence, time, current state, and
+  manual-override status;
+- semantic effects from the same closed vocabulary as `EffectPlan`;
+- cooldown, expiry, priority, and enabled/draft status;
+- a plain-language readback generated from the normalized policy, not trusted
+  model prose.
+
+`Dobby.PolicyCompiler` resolves names, rejects unknown or cyclic dependencies,
+checks schedule and automation ownership conflicts, applies the same capability
+bounds as the Ratifier, and stores an immutable policy version. An explicit
+imperative to create or change a rule may enable it immediately; tentative or
+ambiguous language remains a draft or prompts a question. Every write is
+versioned, visible in the household dashboard, reversible, and exercised once
+in dry-run form against the current house snapshot before activation.
 
 ## 12. Manual changes and competing intent
 
@@ -561,8 +680,9 @@ before adding more device domains.
 
 ### Slice 4 — Ambient stewardship
 
-Add PresenceAgent, StewardAgent, policy persistence, heartbeats, quiet hours,
-and one cross-device policy such as the last-person-out sweep.
+Add PresenceAgent, StewardAgent, PolicyAuthorAgent, policy persistence,
+heartbeats, quiet hours, and one cross-device policy such as the
+last-person-out sweep.
 
 ### Slice 5 — Household interfaces
 
@@ -574,19 +694,23 @@ adapter, voice pipeline, and Sonos announcements.
 Add climate, delivery/camera events, energy/history, health monitoring, and the
 second house only as each capability earns its place.
 
-## 20. Decisions to ratify before implementation
+## 20. Decisions and current recommendations
 
 1. **Agent granularity.** Recommend behavior/space agents with exceptional
    device agents, not one agent per HA entity.
-2. **Root topology.** Recommend a deterministic HouseAgent root and dynamic
-   ConversationAgent children; the LLM is the top of the language lane, not the
-   house runtime.
+2. **Root topology.** Use a deterministic HouseCoordinator control root and
+   dynamic ConversationAgent children; the LLM is the top of the language lane,
+   not the house runtime.
 3. **Schedule ownership.** Recommend HA for must-run physical schedules; Jido
    for observation, ambient policy evaluation, and cognitive recurrence.
 4. **Manual override.** Recommend external/unknown device changes temporarily
    suspend Dobby ambient policy for that capability and space.
 5. **First vertical slice.** Recommend one real room and the phrase “make it
    cozy,” after the same room works through the deterministic path.
+6. **Policy authoring (ratified).** Natural language may author standing Dobby
+   policies through PolicyAuthorAgent, the closed policy DSL, PolicyCompiler,
+   immutable versions, and reversible activation. It cannot author arbitrary
+   code or raw HA calls.
 
 ## Sources
 
@@ -597,11 +721,20 @@ second house only as each capability earns its place.
 - [Jido directives and scheduling](https://jido.run/docs/concepts/directives)
 - [Jido parent-child hierarchies](https://jido.run/docs/learn/parent-child-agent-hierarchies)
 - [Jido AI agents with tools](https://jido.run/docs/learn/ai-agent-with-tools)
+- [Jido AI structured output](https://jido-ai.hexdocs.pm/llm_facade_quickstart.html)
+- [Jido ReqLLM and model aliases](https://jido.run/docs/reference/req-llm-and-llmdb)
 - [Jido telemetry and observability](https://jido.run/docs/reference/telemetry-and-observability)
 - [Jido 2.x changelog](https://github.com/agentjido/jido/blob/main/CHANGELOG.md)
+- [Current Jido package release](https://hex.pm/packages/jido)
+- [Current Jido AI package release](https://hex.pm/packages/jido_ai)
 - [Jido Ecto status](https://github.com/agentjido/jido_ecto)
 - [Jido LiveDashboard](https://github.com/agentjido/jido_live_dashboard)
 - [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
 - [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/)
 - [Home Assistant ConversationEntity](https://developers.home-assistant.io/docs/core/entity/conversation/)
 - [Home Assistant Assist pipelines](https://developers.home-assistant.io/docs/voice/pipelines/)
+- [OpenAI GPT-5.6 model guidance](https://developers.openai.com/api/docs/guides/latest-model)
+- [OpenAI GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+- [OpenAI GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)
+- [Google current Gemini Flash models](https://ai.google.dev/gemini-api/docs/latest-model)
+- [Anthropic model selection](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)

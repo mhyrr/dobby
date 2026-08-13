@@ -1,6 +1,6 @@
 # Dobby — Simple Jido Design
 
-**Draft v0.6 — August 2026**
+**Draft v0.7 — August 2026**
 
 **Status:** first build; supersedes the broader v0.4 architecture. The original
 household vision remains in `dobby-design-original.md`.
@@ -143,7 +143,139 @@ HA voice satellite → HA Assist → local Phoenix endpoint → DobbyAgent
 Voice changes how a request enters the application; it does not create another
 Dobby brain or another device-control path.
 
-## 4. Runtime shape
+## 4. Defining a home
+
+The codebase contains a reusable library of device-agent modules. A particular
+home is data: one committed manifest declares the home, its networks, and the
+agent instances that should run there.
+
+Use `config/home.exs`. It is ordinary Elixir configuration, imported by
+`config/config.exs`, so v1 needs no configuration parser or additional file
+format dependency. Changes take effect after an application restart.
+
+An illustrative home definition:
+
+```elixir
+import Config
+
+config :dobby, Dobby.Home,
+  id: "foo",
+  name: "Foo Home",
+  timezone: "America/New_York",
+  home_assistant: [
+    url: "http://homeassistant.local:8123"
+  ],
+  networks: [
+    %{id: :home_wifi, name: "Foo", ssid: "foo"}
+  ],
+  devices: [
+    %{
+      id: "thermostat:main",
+      name: "main thermostat",
+      aliases: ["downstairs thermostat"],
+      agent_module: Dobby.DeviceAgents.Thermostat,
+      ha_integration: :nest,
+      bindings: %{climate: "climate.main_floor"},
+      settings: %{min_temperature_f: 60, max_temperature_f: 76}
+    },
+    %{
+      id: "wifi:kitchen_tv",
+      name: "kitchen TV",
+      aliases: ["kitchen television"],
+      agent_module: Dobby.DeviceAgents.WifiEndpoint,
+      network: :home_wifi,
+      ha_integration: :ping,
+      bindings: %{connectivity: "binary_sensor.kitchen_tv"},
+      settings: %{}
+    }
+  ]
+```
+
+The Home Assistant token and model API key do not belong in this file. They are
+runtime secrets supplied to the Debian VM. The manifest may contain household
+names, aliases, HA entity IDs, and the Wi-Fi SSID; it never contains the Wi-Fi
+password or vendor credentials.
+
+This separates three things that should not collapse into one class hierarchy:
+
+- **agent module** — reusable behavior such as `Thermostat` or `WifiEndpoint`;
+- **device instance** — `thermostat:main` with its name, settings, and bindings;
+- **HA integration** — Nest, Ping, Nuheat, or another implementation underneath
+  HA's normalized entity model.
+
+We therefore do not create `NestThermostatAgent` and
+`NuheatThermostatAgent`. Both should use the same thermostat module when HA
+exposes the behavior Dobby needs. Vendor information remains useful for
+inventory and debugging but does not determine Dobby's orchestration.
+
+A physical device may have several HA entities. `bindings` is a named map rather
+than a single `entity_id` for that reason. A future camera instance might bind
+`:stream`, `:motion`, and `:package_event` to three HA entities while using one
+reusable `Camera` agent module.
+
+Every physical device Dobby manages gets its own manifest entry. A home with one
+thermostat, two cameras, and three Wi-Fi endpoints therefore has six device
+entries but only three reusable agent modules. The manifest records which
+physical thing is which; it never says merely `camera_count: 2`.
+
+### 4.1 Home startup
+
+`Dobby.Home` performs one small bootstrap job:
+
+1. load and validate the manifest;
+2. reject duplicate IDs, aliases, missing networks, unknown agent modules, or
+   invalid module-specific settings;
+3. start one Jido agent instance for each device entry;
+4. start DobbyAgent with a roster containing names, aliases, IDs, and advertised
+   actions;
+5. configure the shared HA client with the entity-to-agent routing table derived
+   from the bindings.
+
+Configuration errors fail application startup with the exact device and field
+that are wrong. Silently skipping a thermostat because of a typo would make the
+house unusually philosophical about heating.
+
+### 4.2 Device-agent library
+
+The initial in-project library is:
+
+```text
+lib/dobby/device_agents/
+├── thermostat.ex
+├── thermostat/
+│   ├── get_status.ex
+│   └── set_temperature.ex
+├── wifi_endpoint.ex
+└── wifi_endpoint/
+    └── get_status.ex
+```
+
+Each agent module supplies four things:
+
+- a schema for its `bindings` and `settings`;
+- the Jido Actions it permits and advertises to DobbyAgent;
+- translation from relevant HA state into its deterministic agent state;
+- translation from effectful Actions into HA Directives.
+
+That is the extension contract. We should implement it plainly for Thermostat
+and WifiEndpoint before extracting a macro or separate Hex package. The shared
+shape has to emerge from real modules first.
+
+Adding a supported device behavior later means:
+
+1. add one module under `Dobby.DeviceAgents` and its Actions;
+2. test its configuration, HA state translation, and HA Directives;
+3. add one or more instances to `config/home.exs`;
+4. restart Dobby.
+
+The bootstrap automatically starts the instances, routes their HA entities, and
+adds their actions to the DobbyAgent roster. No central switch statement changes.
+
+The manifest defines what Dobby currently manages, not every object HA knows
+about. When `Camera` exists, the two Nest cameras are added to the manifest. HA
+remains the full hardware inventory in the meantime.
+
+## 5. Runtime shape
 
 The two VM boundaries and the Elixir processes inside Dobby are:
 
@@ -161,12 +293,16 @@ Debian services VM
     ├── Dobby.PubSub
     ├── DobbyWeb.Endpoint
     ├── Dobby.HomeAssistant.Client          one shared HA connection
-    └── Dobby.Jido
-        ├── DobbyAgent                      LLM-backed
-        ├── ThermostatAgent: main           deterministic
-        ├── WifiEndpointAgent: endpoint_a   deterministic
-        └── WifiEndpointAgent: endpoint_b   deterministic
+    ├── Dobby.Jido
+    │   ├── DobbyAgent                      LLM-backed
+    │   ├── ThermostatAgent: main           deterministic
+    │   ├── WifiEndpointAgent: endpoint_a   deterministic
+    │   └── WifiEndpointAgent: endpoint_b   deterministic
+    └── Dobby.Home                          validates config and starts agents
 ```
+
+The Jido runtime and HA client start before `Dobby.Home` bootstraps DobbyAgent
+and the configured device agents.
 
 The endpoint names are placeholders until inventory. V1 starts agents only for
 devices configured explicitly. It does not discover every HA entity and turn it
@@ -177,7 +313,7 @@ Each device agent has a stable Dobby ID such as `thermostat:main` or
 to find the processes. Process IDs and HA entity IDs never appear in model
 output.
 
-## 5. DobbyAgent and multi-agent dispatch
+## 6. DobbyAgent and multi-agent dispatch
 
 `DobbyAgent` is Dobby's language and orchestration agent. It sees:
 
@@ -225,7 +361,7 @@ fast and reliable.
 There is no separate parser, planner, coordinator, generic effect language, or
 approval component in v1.
 
-## 6. Device agents and the Home Assistant boundary
+## 7. Device agents and the Home Assistant boundary
 
 A device agent is a Jido AgentServer running a direct deterministic strategy.
 It owns:
@@ -259,7 +395,7 @@ In Jido terms, a device agent validates an Action and emits a Home Assistant
 Directive. The shared client executes that Directive. Inbound HA state changes
 become Signals sent to the device agent. Those are the only two directions.
 
-### 6.1 ThermostatAgent
+### 7.1 ThermostatAgent
 
 State:
 
@@ -282,7 +418,7 @@ V1 actions:
 for `climate.set_temperature`. Mode changes, schedules, holds, and recovery
 behavior wait until the basic agent works with the installed thermostat.
 
-### 6.2 WifiEndpointAgent
+### 7.2 WifiEndpointAgent
 
 State:
 
@@ -303,7 +439,7 @@ This agent is read-only. It translates the configured HA entity into `online`,
 `offline`, or `unknown`. Restarting routers, blocking clients, presence
 inference, and alerts are later behaviors.
 
-## 7. Requests end to end
+## 8. Requests end to end
 
 For “set the main thermostat to 70”:
 
@@ -326,7 +462,7 @@ Direct controls in Phoenix bypass the LLM but follow the same lower path:
 Phoenix control → ThermostatAgent → HA client → HAOS → thermostat
 ```
 
-## 8. Phoenix surface and persistence
+## 9. Phoenix surface and persistence
 
 The first LiveView contains:
 
@@ -341,7 +477,7 @@ gives us a no-LLM path for testing and for model outages.
 Postgres stores conversations and the request/result log. Device state remains
 owned by HA and is rebuilt in the agents after restart.
 
-## 9. What we are deliberately not designing yet
+## 10. What we are deliberately not designing yet
 
 - room and space agents;
 - a HouseCoordinator;
@@ -351,7 +487,7 @@ owned by HA and is rebuilt in the agents after restart.
 - schedules and cron behavior;
 - workflows, scenes, and multi-device transactions;
 - Telegram, voice, cameras, Sonos, and a broad dashboard;
-- automatic device discovery;
+- automatic device discovery or dashboard editing of `home.exs`;
 - multiple houses;
 - local model hosting.
 
@@ -359,7 +495,7 @@ These remain possible. None is allowed to shape the first implementation until
 the thermostat and Wi-Fi agents work through both direct Phoenix controls and
 the DobbyAgent.
 
-## 10. Build order
+## 11. Build order
 
 ### Step 1 — Server and HAOS
 
@@ -367,17 +503,18 @@ Install Proxmox on the mini-server, create the HAOS VM from the official image,
 attach it to the LAN bridge, assign a stable DHCP lease, and complete HA
 onboarding.
 
-### Step 2 — Real HA entities
+### Step 2 — Real HA entities and home manifest
 
 Identify and configure the installed thermostat integration. Configure two or
 three fixed endpoints through HA Ping or another proven integration. Record the
 actual entity IDs, states, attributes, and thermostat actions. This is the only
-required inventory.
+required inventory. Write those instances into `config/home.exs`.
 
 ### Step 3 — Debian and Phoenix
 
 Create the Debian services VM, install Postgres, and create the Phoenix/Jido
-application. Start the configured device agents with explicit bindings.
+application. Implement `Dobby.Home` validation and start the device agents from
+the manifest.
 
 ### Step 4 — Shared HA client
 
@@ -404,10 +541,10 @@ schemas. Prove:
 ### Step 7 — Use it on the LAN
 
 Serve the LiveView at `dobby.local`, use it against the real house, and record
-failures and latency. The next ingress, device type, or abstraction is chosen
+failures and latency. The next ingress, device behavior, or abstraction is chosen
 from actual use.
 
-## 11. Current decisions
+## 12. Current decisions
 
 1. Phoenix is the first ingress and household interface; later ingress channels
    feed the same DobbyAgent.
@@ -420,7 +557,11 @@ from actual use.
 6. HAOS runs in its own Proxmox VM and owns physical device integration and
    observed state.
 7. V1 includes only one thermostat and a few read-only Wi-Fi endpoints.
-8. The first implementation optimizes for a working vertical slice, not a
+8. Reusable agent modules live in `Dobby.DeviceAgents`; concrete homes and
+   device instances are declared in `config/home.exs`.
+9. Vendor integration is metadata and an HA concern, not the device-agent class
+   hierarchy.
+10. The first implementation optimizes for a working vertical slice, not a
    general smart-home ontology.
 
 ## Sources

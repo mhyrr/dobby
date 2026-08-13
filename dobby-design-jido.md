@@ -1,6 +1,6 @@
 # Dobby — Simple Jido Design
 
-**Draft v0.9 — August 2026**
+**Draft v0.10 — August 2026**
 
 **Status:** first build; supersedes v0.7/v0.8 after research against the Jido
 2.x docs (jido 2.3.3, jido_ai 2.3.0) and the design session of 2026-08-13. The
@@ -13,6 +13,13 @@ fired deterministically — reversing the original design's rule that HA
 executes all schedules (§9); an admin dashboard carries the activity feed and
 scheduler; and the build order is test-rig-first, with hardware in parallel
 rather than as a prerequisite.
+
+Changes from v0.9: Dobby is one Phoenix application, not an umbrella, deployed
+as an OTP release under `/opt/dobby` (§2.3–2.4); the home manifest is read at
+runtime from the box rather than compiled in, so editing the house costs a
+restart and not a rebuild (§4); and device agents discover their capabilities
+from Home Assistant and consult an optional vendor profile keyed by
+`ha_integration` (§4.3).
 
 ## 1. The first thing we are building
 
@@ -59,7 +66,7 @@ For the first build, there are only two device-agent types:
 Plus one deterministic house-level agent: `SchedulerAgent`, which fires stored
 schedules (§9). Nothing else belongs in v1.
 
-## 2. Physical deployment
+## 2. Deployment
 
 ### 2.1 One Linux mini-server
 
@@ -131,6 +138,86 @@ reports router health but does not provide a client roster. Phones are also poor
 ping targets because they may sleep their Wi-Fi radios. Presence stays deferred
 until we have a reliable `device_tracker` source.
 
+### 2.3 Application structure
+
+One Phoenix application, not an umbrella. §5's boot order — the Jido instance
+and the HA client up before `Dobby.Home` starts agents — is one supervision
+tree; an umbrella would split it into several and turn that ordering into a
+`mix.exs` puzzle, for a boundary it does not really provide since umbrella
+children share configuration anyway. When the device library earns a boundary
+it becomes a `Jido.Plugin` (§4.2), which is a library and can be extracted from
+a single application without restructuring anything.
+
+```text
+dobby/
+├── config/
+│   ├── config.exs dev.exs test.exs prod.exs
+│   ├── runtime.exs                  secrets and the home manifest (§4)
+│   └── homes/
+│       ├── foo.exs                  the real house
+│       └── rig.exs                  FakeHA bindings for dev and test
+├── lib/
+│   ├── dobby/
+│   │   ├── application.ex
+│   │   ├── jido.ex                  use Jido, otp_app: :dobby
+│   │   ├── home.ex                  bootstrap (§4.1)
+│   │   ├── home/{manifest,device,validator,tools}.ex
+│   │   ├── device_agents/           §4.2
+│   │   ├── profiles/                §4.3
+│   │   ├── home_assistant/
+│   │   │   ├── client.ex            behaviour
+│   │   │   ├── websocket.ex         real client
+│   │   │   └── fake.ex              the rig (§12)
+│   │   ├── directives/ha_call.ex
+│   │   ├── agent.ex                 DobbyAgent
+│   │   ├── scheduler/{agent,schedule}.ex
+│   │   ├── conversation/{utterance,transcript}.ex
+│   │   └── activity/log.ex
+│   └── dobby_web/                   thread, cards, admin, endpoint, router
+├── priv/repo/migrations/
+├── rel/                             release overlays
+└── test/support/{trace,scripted_model}.ex
+```
+
+`FakeHA` lives in `lib/`, not `test/support/`, because the rig is a runtime
+surface and not only a test fixture: `mix phx.server` in dev boots the entire
+application — thread, cards, scheduler — against it with no VM present.
+
+### 2.4 Deploying and running
+
+Dobby ships as an OTP release built on the Debian VM itself, which avoids the
+ERTS and glibc mismatches that come from building elsewhere. Code lives in git;
+state lives on the box:
+
+```text
+/opt/dobby/
+├── src/                        git clone — built from, never run
+├── releases/
+│   └── 2026-09-14-3f1e0cd/     self-contained, includes ERTS
+├── current -> releases/2026-09-14-3f1e0cd
+├── config/
+│   ├── home.exs                the deployed manifest (§4)
+│   └── dobby.env               chmod 600: DATABASE_URL, SECRET_KEY_BASE,
+│                               HA token, model API key
+└── data/backups/               pg_dump output
+```
+
+Deploy is: pull; `MIX_ENV=prod mix do deps.get, compile, assets.deploy, release
+--path releases/$STAMP`; copy the manifest into `/opt/dobby/config/`; repoint
+`current`; `bin/dobby eval "Dobby.Release.migrate()"`; `systemctl restart
+dobby`. Postgres is an ordinary package install on the same VM, and `dobby.env`
+is the systemd unit's `EnvironmentFile`.
+
+**Changing the house does not require a release.** Both files under
+`/opt/dobby/config/` are read at boot by `runtime.exs` (§4), so correcting an
+entity ID, adding an endpoint, or rotating a token is edit-and-restart. Only
+changes to code or to compile-time configuration need a rebuild.
+
+Containers were considered and set aside. `/opt/dobby/current/bin/dobby remote`
+— a live IEx shell into the running node, for inspecting device-agent state or
+replaying a signal against the real house — is the primary debugging surface
+for this system, and a container layer buys nothing on a single-tenant box.
+
 ## 3. Network and ingress
 
 Both VMs attach to Proxmox's LAN bridge and receive stable DHCP leases. The
@@ -176,9 +263,29 @@ The codebase contains a reusable library of device-agent modules. A particular
 home is data: one committed manifest declares the home, its networks, and the
 agent instances that should run there.
 
-Use `config/home.exs`. It is ordinary Elixir configuration, imported by
-`config/config.exs`, so v1 needs no configuration parser or additional file
-format dependency. Changes take effect after an application restart.
+A manifest is ordinary Elixir configuration, so v1 needs no configuration
+parser or additional file-format dependency. Manifests live in `config/homes/`
+and are read at boot by `runtime.exs` — deliberately *not* imported by
+`config/config.exs`:
+
+```elixir
+manifest =
+  System.get_env("DOBBY_HOME_MANIFEST") ||
+    case config_env() do
+      :prod -> "/opt/dobby/config/home.exs"
+      _ -> "config/homes/rig.exs"
+    end
+
+config :dobby, Dobby.Home, get_in(Config.Reader.read!(manifest), [:dobby, Dobby.Home])
+```
+
+Reading it at runtime is what makes "changes take effect after a restart" true
+on the box (§2.4). Imported into `config/config.exs` it would be compile-time
+configuration frozen into the release, and every corrected entity ID would cost
+a rebuild and a redeploy. The manifest is still committed — it is the versioned
+truth about the house — and the deploy step copies it to
+`/opt/dobby/config/home.exs`. (`import_config` is unavailable in
+`runtime.exs`; `Config.Reader.read!/1` is the supported path.)
 
 An illustrative home definition:
 
@@ -201,9 +308,9 @@ config :dobby, Dobby.Home,
       name: "main thermostat",
       aliases: ["downstairs thermostat"],
       agent_module: Dobby.DeviceAgents.Thermostat,
-      ha_integration: :nest,
+      ha_integration: :nest,          # profile key (§4.3); omit to auto-detect
       bindings: %{climate: "climate.main_floor"},
-      settings: %{min_temperature_f: 60, max_temperature_f: 76}
+      settings: %{min_temperature_f: 60, max_temperature_f: 76}  # policy only (§4.3)
     },
     %{
       id: "wifi:kitchen_tv",
@@ -231,9 +338,9 @@ This separates three things that should not collapse into one class hierarchy:
   HA's normalized entity model.
 
 We therefore do not create `NestThermostatAgent` and
-`NuheatThermostatAgent`. Both should use the same thermostat module when HA
-exposes the behavior Dobby needs. Vendor information remains useful for
-inventory and debugging but does not determine Dobby's orchestration.
+`NuheatThermostatAgent`. Both use the same thermostat module. Vendor identity
+is a lookup key into an optional profile of device-specific semantics (§4.3) —
+never a subclass, and never a second orchestration path.
 
 A physical device may have several HA entities. `bindings` is a named map rather
 than a single `entity_id` for that reason. A future camera instance might bind
@@ -299,7 +406,7 @@ Adding a supported device behavior later means:
 
 1. add one module under `Dobby.DeviceAgents` and its Actions;
 2. test its configuration, HA state translation, and HA command directives;
-3. add one or more instances to `config/home.exs`;
+3. add one or more instances to `config/homes/foo.exs`;
 4. restart Dobby.
 
 The bootstrap automatically starts the instances, routes their HA entities, and
@@ -309,6 +416,63 @@ changes.
 The manifest defines what Dobby currently manages, not every object HA knows
 about. When `Camera` exists, the two Nest cameras are added to the manifest. HA
 remains the full hardware inventory in the meantime.
+
+### 4.3 Capabilities and device profiles
+
+HA normalizes the *shape* of a device — a `climate` entity has a target
+temperature, hvac modes, bounds, a step, presets — but not its *meaning*. That
+distinction produces two rules.
+
+**Capabilities are discovered, not declared.** On first state sync a device
+agent reads `min_temp`, `max_temp`, `target_temp_step`, `hvac_modes`,
+`preset_modes`, and `supported_features` from its bound entity. That is the
+device's real envelope. The manifest's `settings` only narrow it to household
+policy, and validation is the intersection of the two. A manifest can then no
+longer authorize a setpoint the hardware rejects, and the tool schema the model
+sees derives from the actual device rather than from a number typed months
+earlier.
+
+**Semantics need a profile.** NuHeat is the concrete case: its preset modes are
+Run Schedule, Temporary Hold, and Permanent Hold, and `climate.set_temperature`
+means different things depending on mode — in auto it holds until the next
+scheduled event; in heat mode it holds *permanently*. A generic agent mapping
+`set_temperature → climate.set_temperature` would therefore silently destroy
+the thermostat's onboard schedule, which is the original design's §7.5 Nuheat
+wrinkle resurfacing one layer down. None of it is visible in
+`supported_features`. Nest fails differently: `heat_cool` wants a range rather
+than a scalar, and eco mode swallows setpoints. Radiant floor heat also carries
+45–90 minutes of thermal lag, which makes "70 by 8pm" a materially different
+request than it is on forced air — exactly the ambiguity §6.2 asks the model to
+clarify.
+
+A profile is keyed by `ha_integration` and supplies up to three things:
+
+- semantic flags the module's actions consult — `setpoint_semantics: :hold`,
+  `owns_onboard_schedule: true`, `thermal_lag: :high`;
+- prose merged into DobbyAgent's device snapshot (§6.3), so judgment about lag
+  and holds reaches the model as context rather than being hard-coded;
+- rarely, an overridden HA mapping — a `set_preset_mode` and `set_temperature`
+  pair, or a vendor-domain action such as `nuheat.set_temperature`.
+
+Profiles are **optional**. With none, the agent behaves generically from
+discovered capabilities alone. A NuHeat thermostat therefore works the day it
+is added to the manifest; the profile makes it correct. That property is what
+keeps the library from becoming a compatibility matrix that must be extended
+before anyone can add hardware.
+
+`ha_integration` may be omitted entirely. HA's WebSocket API exposes
+`config/entity_registry/list`, whose entries carry the providing `platform`,
+and `config/device_registry/list`, which carries `manufacturer` and `model`.
+Dobby detects the integration from the entity registry at boot and treats a
+manifest value as an override, logging any mismatch. The same lookup supplies
+most of the inventory work in §12.6.
+
+Profiles are deferred, not scaffolded. Thermostat and WifiEndpoint are built
+generically with capability discovery in Phase A; the first profile is written
+in Phase C against the real thermostat, out of a real conflict — the same
+discipline §4.2 applies to the Plugin extraction. The one concession made in
+advance is the seam: actions take a profile that defaults to a generic one, so
+adding NuHeat later is a new module rather than a rewrite.
 
 ## 5. Runtime shape
 
@@ -537,8 +701,10 @@ V1 actions:
 - `get_status`
 - `set_temperature`
 
-`set_temperature` validates the configured household range and returns the
-`HACall` directive for `climate.set_temperature`. Mode changes, schedules,
+`set_temperature` validates against the intersection of the entity's discovered
+envelope and the configured household range (§4.3), then returns the `HACall`
+directive for `climate.set_temperature` — or whatever mapping the device's
+profile supplies instead. Mode changes, schedules,
 holds, and recovery behavior wait until the basic agent works with the
 installed thermostat.
 
@@ -754,11 +920,12 @@ before the server exists. Phase B can proceed in parallel.
    image, LAN bridge, stable DHCP lease, HA onboarding.
 6. **Inventory.** Identify the installed thermostat integration; configure two
    or three fixed endpoints via HA Ping; record actual entity IDs, states,
-   attributes, and actions; write the real instances into `config/home.exs`.
+   attributes, and actions — the entity and device registries give most of this
+   directly (§4.3) — and write the real instances into `config/homes/foo.exs`.
 
 ### Phase C — integration
 
-7. **Real client.** Debian services VM, Postgres, deploy; swap FakeHA for the
+7. **Real client.** Debian services VM, Postgres, deploy (§2.4); swap FakeHA for the
    real WebSocket client; prove direct deterministic actions against the real
    house, including invalid-temperature and unavailable-device behavior.
 8. **Live.** DobbyAgent and schedules against the real house at
@@ -796,12 +963,18 @@ before the server exists. Phase B can proceed in parallel.
 11. V1 includes one thermostat, a few read-only Wi-Fi endpoints, and the
    scheduler.
 12. Reusable agent modules live in `Dobby.DeviceAgents`; concrete homes and
-   device instances are declared in `config/home.exs`; the future extraction
-   target for shared device behavior is a `Jido.Plugin`.
-13. Vendor integration is metadata and an HA concern, not the device-agent
-   class hierarchy.
+   device instances are declared in `config/homes/*.exs` and read at runtime;
+   the future extraction target for shared device behavior is a `Jido.Plugin`.
+13. Vendor integration is an HA concern and a profile lookup key (§4.3), not
+   the device-agent class hierarchy. Device capabilities are discovered from
+   HA; the manifest only narrows them to household policy.
 14. The first implementation optimizes for a working vertical slice, not a
    general smart-home ontology.
+15. Dobby is one Phoenix application, not an umbrella, deployed as an OTP
+   release under `/opt/dobby` and supervised by systemd.
+16. Configuration on the box — the home manifest and the secrets file — is read
+   at boot from outside the release, so changing the house is a restart rather
+   than a rebuild.
 
 ## Sources
 
@@ -817,6 +990,8 @@ before the server exists. Phase B can proceed in parallel.
 - [ReqLLM](https://hexdocs.pm/req_llm)
 - [Home Assistant OS virtual-machine installation](https://www.home-assistant.io/installation/alternative/)
 - [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
+- [Home Assistant climate platform](https://www.home-assistant.io/integrations/climate/)
+- [Home Assistant NuHeat integration](https://www.home-assistant.io/integrations/nuheat/)
 - [Home Assistant Ping integration](https://www.home-assistant.io/integrations/ping/)
 - [Home Assistant device trackers](https://www.home-assistant.io/integrations/device_tracker/)
 - [Home Assistant Google Wifi integration](https://www.home-assistant.io/integrations/google_wifi/)

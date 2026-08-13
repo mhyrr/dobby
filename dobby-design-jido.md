@@ -1,19 +1,30 @@
 # Dobby — Simple Jido Design
 
-**Draft v0.7 — August 2026**
+**Draft v0.9 — August 2026**
 
-**Status:** first build; supersedes the broader v0.4 architecture. The original
-household vision remains in `dobby-design-original.md`.
+**Status:** first build; supersedes v0.7/v0.8 after research against the Jido
+2.x docs (jido 2.3.3, jido_ai 2.3.0) and the design session of 2026-08-13. The
+original household vision remains in `dobby-design-original.md`.
+
+Changes from v0.8: the household surface is one shared Discord-like thread
+with system lines for actuations; device identity is cookie-pinned, not
+MAC-based; Dobby owns schedules as Postgres rows authored conversationally and
+fired deterministically — reversing the original design's rule that HA
+executes all schedules (§9); an admin dashboard carries the activity feed and
+scheduler; and the build order is test-rig-first, with hardware in parallel
+rather than as a prerequisite.
 
 ## 1. The first thing we are building
 
 Dobby v1 is a Phoenix application with one LLM-backed Jido agent and a small
 set of deterministic Jido device agents.
 
-The LLM-backed `DobbyAgent` receives what someone says, determines which device
-agents should handle it, and sends each one a typed action. Device agents own
-their allowed behavior and use Home Assistant to reach the physical devices.
-The LLM never calls Home Assistant or invents a device operation.
+The LLM-backed `DobbyAgent` is a long-running conversational agent. It holds
+the household conversation, keeps a current picture of every managed device,
+and acts through a closed set of typed device tools. Each tool dispatches to a
+deterministic device agent; device agents own their allowed behavior and use
+Home Assistant to reach the physical devices. The LLM never calls Home
+Assistant and cannot invent a device operation.
 
 The whole system is:
 
@@ -23,16 +34,30 @@ User → Phoenix → DobbyAgent ─┬→ ThermostatAgent ─┐
                              └→ WifiEndpointAgent ┘
 ```
 
-One request may target one device agent or several. “Set the thermostat to 70
-and tell me which endpoints are offline” produces a list of typed actions that
-are dispatched to the relevant agents concurrently.
+One request may touch one device agent or several. “Set the thermostat to 70
+and tell me which endpoints are offline” becomes tool calls against the
+thermostat agent and every Wi-Fi endpoint agent, and the model composes one
+reply from their actual results.
+
+Utterances arrive as an envelope, not a bare string:
+
+```elixir
+%Dobby.Utterance{speaker: "greg", channel: :web, text: "set the thermostat to 70"}
+```
+
+Anyone in the house talks to the same Dobby, in the same thread. `speaker`
+exists for personalization and attribution, never for permissions — the Wi-Fi
+password remains the trust boundary, as in the original design. `channel` is
+`:web` today and `:voice` later; a new channel changes how an utterance
+enters, not what handles it.
 
 For the first build, there are only two device-agent types:
 
 - `ThermostatAgent` — reports thermostat state and changes its setpoint.
 - `WifiEndpointAgent` — reports whether a configured Wi-Fi endpoint is online.
 
-Nothing else belongs in v1.
+Plus one deterministic house-level agent: `SchedulerAgent`, which fires stored
+schedules (§9). Nothing else belongs in v1.
 
 ## 2. Physical deployment
 
@@ -46,10 +71,10 @@ Start with the cloud-inference hardware option from the original design:
 - wired Ethernet to the home router or mesh node;
 - a small UPS.
 
-No GPU is required for v1 because the DobbyAgent uses a cloud model. The model
-provider remains configurable through Jido AI/ReqLLM. If household use later
-justifies local inference, a GPU machine can replace the model endpoint without
-changing the device-agent design.
+No GPU is required for v1 because the DobbyAgent uses a cloud model. Jido AI
+resolves models through configured aliases backed by ReqLLM, and ReqLLM
+accepts a `base_url` override, so pointing the same alias at a local
+OpenAI-compatible server later is a configuration change, not a design change.
 
 Install Proxmox VE on the physical server and run two virtual machines:
 
@@ -127,9 +152,9 @@ DobbyAgent ── outbound HTTPS only ──► model provider
 ```
 
 V1 ingress is the Phoenix LiveView at `http://dobby.local`. Phoenix owns the
-browser session, conversation UI, and request log, then sends each utterance to
-the DobbyAgent. A static IP address remains the fallback if mDNS does not cross
-the mesh cleanly.
+browser session, speaker identity, the thread UI, and the request log, then
+sends each utterance envelope to the DobbyAgent. A static IP address remains
+the fallback if mDNS does not cross the mesh cleanly.
 
 There is no inbound port forwarding. Dobby and HA are available only on the
 home LAN. Tailscale remote access, Telegram, and voice are later additions.
@@ -140,8 +165,10 @@ Phoenix remains the common ingress when voice arrives:
 HA voice satellite → HA Assist → local Phoenix endpoint → DobbyAgent
 ```
 
-Voice changes how a request enters the application; it does not create another
-Dobby brain or another device-control path.
+Voice enters as `channel: :voice` with the speaker resolved by room default or
+left unknown until speaker identification exists, and its utterances appear in
+the same thread as everyone else's. It does not create another Dobby brain or
+another device-control path.
 
 ## 4. Defining a home
 
@@ -225,10 +252,12 @@ physical thing is which; it never says merely `camera_count: 2`.
 1. load and validate the manifest;
 2. reject duplicate IDs, aliases, missing networks, unknown agent modules, or
    invalid module-specific settings;
-3. start one Jido agent instance for each device entry;
-4. start DobbyAgent with a roster containing names, aliases, IDs, and advertised
-   actions;
-5. configure the shared HA client with the entity-to-agent routing table derived
+3. start one Jido agent instance for each device entry, registered in
+   `Jido.Registry` under its Dobby ID;
+4. start SchedulerAgent, which loads enabled schedules from Postgres (§9);
+5. start DobbyAgent with a roster containing names, aliases, IDs, and the tool
+   set derived from the configured agent modules;
+6. configure the shared HA client with the entity-to-agent routing table derived
    from the bindings.
 
 Configuration errors fail application startup with the exact device and field
@@ -253,23 +282,29 @@ lib/dobby/device_agents/
 Each agent module supplies four things:
 
 - a schema for its `bindings` and `settings`;
-- the Jido Actions it permits and advertises to DobbyAgent;
+- the Jido Actions it permits, which are also what DobbyAgent advertises to the
+  model as tools;
 - translation from relevant HA state into its deterministic agent state;
-- translation from effectful Actions into HA Directives.
+- translation from effectful Actions into HA commands, emitted as directives
+  (§7).
 
 That is the extension contract. We should implement it plainly for Thermostat
-and WifiEndpoint before extracting a macro or separate Hex package. The shared
-shape has to emerge from real modules first.
+and WifiEndpoint before extracting anything. When extraction happens, the
+target is a `Jido.Plugin` — Jido 2.x's packaging for a reusable bundle of
+actions, state slice, signal routes, and config schema (the concept that
+replaced 1.x Skills) — not a bespoke macro. The shared shape still has to
+emerge from real modules first.
 
 Adding a supported device behavior later means:
 
 1. add one module under `Dobby.DeviceAgents` and its Actions;
-2. test its configuration, HA state translation, and HA Directives;
+2. test its configuration, HA state translation, and HA command directives;
 3. add one or more instances to `config/home.exs`;
 4. restart Dobby.
 
 The bootstrap automatically starts the instances, routes their HA entities, and
-adds their actions to the DobbyAgent roster. No central switch statement changes.
+adds their actions to the DobbyAgent tool set. No central switch statement
+changes.
 
 The manifest defines what Dobby currently manages, not every object HA knows
 about. When `Camera` exists, the two Nest cameras are added to the manifest. HA
@@ -292,85 +327,147 @@ Debian services VM
     ├── Dobby.Repo
     ├── Dobby.PubSub
     ├── DobbyWeb.Endpoint
-    ├── Dobby.HomeAssistant.Client          one shared HA connection
-    ├── Dobby.Jido
-    │   ├── DobbyAgent                      LLM-backed
-    │   ├── ThermostatAgent: main           deterministic
-    │   ├── WifiEndpointAgent: endpoint_a   deterministic
-    │   └── WifiEndpointAgent: endpoint_b   deterministic
-    └── Dobby.Home                          validates config and starts agents
+    ├── Dobby.Jido                            Jido instance: registry, supervisors
+    ├── Dobby.HomeAssistant.Client            one shared HA connection
+    ├── DobbyAgent                            Jido.AI agent (ReAct), long-running
+    ├── SchedulerAgent                        Jido agent, Direct strategy, fires schedules
+    ├── ThermostatAgent  "thermostat:main"    Jido agent, Direct strategy
+    ├── WifiEndpointAgent "wifi:endpoint_a"   Jido agent, Direct strategy
+    ├── WifiEndpointAgent "wifi:endpoint_b"   Jido agent, Direct strategy
+    └── Dobby.Home                            validates config and starts agents
 ```
 
-The Jido runtime and HA client start before `Dobby.Home` bootstraps DobbyAgent
-and the configured device agents.
+`Dobby.Jido` (`use Jido, otp_app: :dobby`) provides the registry and
+supervisors. The Jido instance and HA client start before `Dobby.Home`
+bootstraps DobbyAgent and the configured device agents. All agents are static
+children started from the manifest; nothing is spawned dynamically in v1, so
+Jido's parent-child spawning machinery stays unused.
 
 The endpoint names are placeholders until inventory. V1 starts agents only for
 devices configured explicitly. It does not discover every HA entity and turn it
 into an agent.
 
 Each device agent has a stable Dobby ID such as `thermostat:main` or
-`wifi:endpoint_a`. The LLM selects those IDs; ordinary code uses Jido's registry
-to find the processes. Process IDs and HA entity IDs never appear in model
-output.
+`wifi:endpoint_a`, which is also its `Jido.Registry` ID. The LLM selects those
+IDs in tool arguments; ordinary code resolves them through the registry.
+Process IDs and HA entity IDs never appear in model output.
 
-## 6. DobbyAgent and multi-agent dispatch
+## 6. DobbyAgent
 
-`DobbyAgent` is Dobby's language and orchestration agent. It sees:
+`DobbyAgent` is Dobby's language and orchestration agent, and it is where the
+design leans hardest on Jido: one long-lived `Jido.AI.Agent` process (the ReAct
+strategy) that accumulates the household conversation, holds a live picture of
+device state, and reaches the world only through typed tools.
 
-- the user's utterance;
-- short conversation history;
-- the configured device agents, their names, and their allowed actions.
-
-It returns a clarification, a conversational response, or a list of typed
-device actions:
+### 6.1 Shape
 
 ```elixir
-[
-  %Dobby.DeviceAction{
-    id: "action-1",
-    target: "thermostat:main",
-    action: :set_temperature,
-    args: %{temperature_f: 70}
-  },
-  %Dobby.DeviceAction{
-    id: "action-2",
-    target: "wifi:endpoint_a",
-    action: :get_status,
-    args: %{}
-  }
-]
+defmodule Dobby.DobbyAgent do
+  use Jido.AI.Agent,
+    name: "dobby",
+    model: :capable,                      # alias in config, swappable per §2.1
+    tools: Dobby.Home.tools(),            # derived from configured agent modules
+    system_prompt: ...,                   # house identity, rules, tone
+    max_iterations: 5,
+    streaming: true
+end
 ```
 
-The output schema is closed. Every target must be a registered device-agent ID;
-every action must be advertised by that agent type; and its arguments must match
-the action schema.
+Phoenix delivers each utterance with `ask_stream/3`; the reply streams back to
+the LiveView. The default request policy serializes turns, which is correct for
+a household: one thing at a time, in one shared conversation.
 
-DobbyAgent dispatches all actions after the one structured model response. It
-does not call the model once per device. Each device agent returns a result with
-the same request and action IDs. DobbyAgent gathers the results and completes
-the request even when one device fails:
+### 6.2 Tools, closed by construction
+
+The model's only means of acting is the `tools:` list — one tool per agent
+module action, with a `device` argument constrained to the configured roster,
+plus the schedule-authoring tools:
 
 ```text
-Thermostat set to 70°. Endpoint A is online. Endpoint B did not respond.
+thermostat_get_status(device)
+thermostat_set_temperature(device, temperature_f)
+wifi_get_status(device)
+
+create_schedule(label, cron, device, action, args)
+list_schedules()
+pause_schedule(id) / resume_schedule(id) / delete_schedule(id)
 ```
 
-V1 uses deterministic result templates, so aggregation does not require a
-second model call. We can add richer conversational rendering after this path is
-fast and reliable.
+Each tool is a thin `Jido.Action` whose arguments are validated against its
+schema before it runs — malformed or unknown-device calls are rejected and the
+error returns to the model as an observation, not an exception. Its `run/2`
+dispatches to the target device agent through the registry and returns the
+device agent's actual result to the model. Domain validation (the household
+temperature range, device availability) still lives in the device agent; the
+tool layer adds nothing but transport.
+
+Reads are answered from device-agent state immediately — no HA round trip,
+because agent state is kept current by the HA subscription (§7). Writes return
+acceptance: the device agent validated the command and emitted it to HA.
+Physical confirmation arrives asynchronously as a state change, and the system
+prompt tells the model to report what it commanded, not to claim observation of
+what it cannot see. The same rule extends to schedules: the model reports a
+schedule as created, never as already-applied device state.
+
+Schedule authoring is where language work concentrates: “I always want the
+thermostat at 70 by 8pm on weekdays” must normalize to an explicit cron spec
+and typed action — and “at 70 by 8pm” is genuinely ambiguous (at 8pm sharp, or
+ramped to reach 70 by then?), so the model clarifies rather than guesses.
+
+### 6.3 State and awareness
+
+DobbyAgent's statefulness is explicit, not incidental:
+
+- **Conversation.** The ReAct strategy accumulates turns in `Jido.AI.Context`
+  automatically for the life of the process. Jido provides no compaction, so
+  Dobby caps the projected history at the last N turns and persists the full
+  transcript to Postgres; summarization can replace truncation later without
+  changing the shape.
+- **World model.** Device agents emit a `dobby.device.state_changed` signal on
+  every meaningful change (§7). DobbyAgent routes that signal into a snapshot
+  of last-known device state. Each turn, the request pipeline (Jido AI's
+  per-turn request shaping hook, with `Jido.AI.PromptBuilder` as fallback)
+  injects the roster and current snapshot as tagged context on the user
+  message — deliberately not the system prompt, to preserve prompt caching.
+
+So the model always knows what devices exist, what state they were last in,
+and who is speaking, before it decides whether to answer, clarify, or act.
+The world model is also the seam future proactive behavior hangs off — the
+signals already arrive; v1 simply does nothing with them beyond awareness.
+
+### 6.4 Multi-user
+
+The household shares one conversation on one long-lived process — Jido AI's
+documented pattern is one agent process per conversation, and the house is one
+conversation. Each user message is prefixed with its speaker
+(`[greg] set the thermostat to 70`), so the model can attribute, personalize,
+and address people by name across interleaved speakers. Per-user private
+threads, if ever wanted, are per-speaker agent instances sharing the same
+device agents; that stays deferred.
+
+### 6.5 Replies and cost
+
+The model composes every reply from real tool results inside the ReAct loop.
+Rendering "Thermostat set to 70°. Endpoint B did not respond." is exactly what
+the loop's final turn is for, and clarification questions fall out of the same
+mechanism instead of needing a schema branch. The price is two to three model
+calls per actuating request instead of one; `max_iterations` caps the loop,
+and Jido AI's quota and model-routing plugins are available knobs if cost ever
+argues for them.
 
 There is no separate parser, planner, coordinator, generic effect language, or
 approval component in v1.
 
 ## 7. Device agents and the Home Assistant boundary
 
-A device agent is a Jido AgentServer running a direct deterministic strategy.
-It owns:
+A device agent is a `Jido.Agent` on the default Direct strategy running under
+`Jido.AgentServer` — deterministic, signal-driven, long-lived. It owns:
 
 - its stable Dobby ID and friendly name;
-- its HA entity binding;
+- its HA entity bindings;
 - its small set of permitted actions;
-- interpretation of that entity's HA state;
-- translation of permitted actions into HA operations;
+- interpretation of its entities' HA state;
+- translation of permitted actions into HA commands;
 - validation particular to that device.
 
 It does not own an HA credential or network connection. All device agents share
@@ -382,18 +479,44 @@ one `Dobby.HomeAssistant.Client`, which owns:
 - the `state_changed` subscription;
 - routing entity updates to the bound device agent.
 
-This prevents one connection per device and keeps networking out of the agent
-logic. The division is:
+The two directions, in concrete Jido 2.x terms:
+
+**Outbound.** Actions never perform side effects. An effectful action returns a
+custom directive describing the HA command:
+
+```elixir
+%Dobby.Directive.HACall{
+  domain: "climate",
+  service: "set_temperature",
+  entity_id: "climate.main_floor",
+  data: %{temperature: 70}
+}
+```
+
+A `Jido.AgentServer.DirectiveExec` implementation hands it to the shared
+client. This is the documented extension point for external-effect directives —
+the agent stays pure and testable, the runtime owns the effect.
+
+**Inbound.** The client turns each relevant `state_changed` event into an
+`ha.state_changed` signal and dispatches it to the bound device agent by
+registry ID (`Jido.Signal.Dispatch`; the routing table comes from the manifest
+bindings). The device agent's `signal_routes` map that signal to a state-sync
+action. When the change is meaningful, the same action emits
+`dobby.device.state_changed` with a dispatch list of two targets: the Phoenix
+PubSub topic that feeds the thread and cards, and DobbyAgent's world model
+(§6.3). One event stream, two consumers.
+
+Jido's Sensor concept was considered for the client and set aside: a sensor
+emits to one configured agent, and the client fans out per entity. It stays a
+plain supervised process that speaks Jido signals.
+
+The division of knowledge is unchanged:
 
 ```text
-ThermostatAgent knows:     set_temperature → climate.set_temperature
+ThermostatAgent knows:      set_temperature → climate.set_temperature
 HomeAssistant.Client knows: encode/send/reconnect/authenticate the HA message
 Home Assistant knows:       how to reach and operate the physical thermostat
 ```
-
-In Jido terms, a device agent validates an Action and emits a Home Assistant
-Directive. The shared client executes that Directive. Inbound HA state changes
-become Signals sent to the device agent. Those are the only two directions.
 
 ### 7.1 ThermostatAgent
 
@@ -414,9 +537,10 @@ V1 actions:
 - `get_status`
 - `set_temperature`
 
-`set_temperature` validates a configured household range and emits an HA call
-for `climate.set_temperature`. Mode changes, schedules, holds, and recovery
-behavior wait until the basic agent works with the installed thermostat.
+`set_temperature` validates the configured household range and returns the
+`HACall` directive for `climate.set_temperature`. Mode changes, schedules,
+holds, and recovery behavior wait until the basic agent works with the
+installed thermostat.
 
 ### 7.2 WifiEndpointAgent
 
@@ -441,20 +565,33 @@ inference, and alerts are later behaviors.
 
 ## 8. Requests end to end
 
-For “set the main thermostat to 70”:
+For “set the main thermostat to 70,” spoken by Greg in the web UI:
 
-1. Phoenix sends the text to `DobbyAgent`.
-2. The model returns `thermostat:main / set_temperature / 70°F`.
-3. DobbyAgent sends the typed action to `ThermostatAgent`.
-4. ThermostatAgent validates the target temperature and emits an HA Directive.
-5. The shared HA client sends `climate.set_temperature` to HAOS.
-6. HA's thermostat integration talks to the actual thermostat.
-7. HA publishes the changed `climate.*` state over the WebSocket.
-8. The HA client routes that state to ThermostatAgent.
-9. ThermostatAgent updates its state and Dobby completes the request.
+1. Phoenix sends `%Utterance{speaker: "greg", channel: :web, text: ...}` to
+   DobbyAgent; the request pipeline injects roster, device snapshot, and
+   speaker tag.
+2. The model calls the tool `thermostat_set_temperature(device:
+   "thermostat:main", temperature_f: 70)`.
+3. The tool's action validates its arguments and dispatches to ThermostatAgent.
+4. ThermostatAgent validates the target temperature and returns the `HACall`
+   directive; its `DirectiveExec` hands it to the shared HA client.
+5. The client sends `climate.set_temperature` to HAOS; HA's integration talks
+   to the physical thermostat.
+6. The tool result — accepted, target 70 — returns to the model, which
+   composes the streamed reply.
+7. HA publishes the changed `climate.*` state; the client dispatches it to
+   ThermostatAgent, which updates its state and emits
+   `dobby.device.state_changed` to the thread, the cards, and DobbyAgent's
+   world model.
 
-For “which endpoints are offline,” DobbyAgent emits `get_status` to every
-configured WifiEndpointAgent at once and gathers their deterministic replies.
+For “which endpoints are offline,” the model calls `wifi_get_status` per
+configured endpoint; each answer comes straight from device-agent state, and
+the model composes one summary. No HA round trip occurs.
+
+At 20:00 on a weekday, the “weeknight heat” schedule fires (§9): cron signal →
+SchedulerAgent dispatches the stored `set_temperature` action to
+ThermostatAgent → `HACall` → HA. No model call occurs anywhere in that trace;
+the thread shows a system line.
 
 Direct controls in Phoenix bypass the LLM but follow the same lower path:
 
@@ -462,31 +599,119 @@ Direct controls in Phoenix bypass the LLM but follow the same lower path:
 Phoenix control → ThermostatAgent → HA client → HAOS → thermostat
 ```
 
-## 9. Phoenix surface and persistence
+This no-LLM path is load-bearing: it is the test surface for the deterministic
+layer and the fallback during model outages.
 
-The first LiveView contains:
+## 9. Schedules
 
-- one conversation box;
-- a card for the thermostat agent;
-- a card for each Wi-Fi endpoint agent;
-- a short request/result log.
+“Dobby, I always want the thermostat at 70 by 8pm on weekdays.” The defining
+feature of a house that feels run rather than merely controllable — and in
+this design, the model's job is authoring, never firing.
 
-Device-card controls send actions straight to deterministic device agents. This
-gives us a no-LLM path for testing and for model outages.
+A schedule is one Postgres row:
 
-Postgres stores conversations and the request/result log. Device state remains
-owned by HA and is rebuilt in the agents after restart.
+```elixir
+%Dobby.Schedule{
+  id: ...,
+  label: "weeknight heat",
+  cron: "0 20 * * 1-5",              # timezone from the home manifest
+  action: %{target: "thermostat:main", action: :set_temperature,
+            args: %{temperature_f: 70}},
+  enabled: true,
+  created_by: "greg",
+  created_via: :conversation          # or :admin
+}
+```
 
-## 10. What we are deliberately not designing yet
+`SchedulerAgent` loads enabled rows at boot and registers one Jido `Cron`
+directive per schedule; creating, editing, pausing, or deleting a schedule
+re-registers (`CronCancel` + `Cron`). The cron signal routes to an action that
+dispatches the stored device action down the same typed path used by tools and
+cards — full device-agent validation included. Firing is deterministic and
+model-free; the test rig asserts that the firing trace contains zero model
+calls.
+
+Two authoring surfaces edit the same rows: DobbyAgent's schedule tools (§6.2)
+and the admin dashboard's scheduler CRUD (§10). A firing posts a system line
+to the thread and full detail to the activity log.
+
+**This reverses the original design's §7.5**, which ruled that schedules
+execute in HA and the agent only authors them. Reversed 2026-08-13, Greg
+approving: the household needs to *see* schedules, which our own rows give the
+admin dashboard for free; authoring HA automations over its API is the genuinely
+hairy surface; and execution here is equally deterministic — the principle that
+mattered, "deterministic below, probabilistic above," survives intact. The
+accepted cost: schedules miss if Dobby is down. Same box, same UPS — if the
+system's down, the system's down. If Jido's `Cron` directive proves unreliable
+across restarts, Oban is the drop-in fallback: same rows, different timer.
+
+Conflict behavior in v1 is dumb and honest: schedules fire regardless of
+manual changes, and the last write wins. Mediation ("you set it manually an
+hour ago — skip tonight?") is a later behavior sitting on the awareness seam.
+
+## 10. Phoenix surface and persistence
+
+### 10.1 The thread
+
+The household surface is one shared, persistent, Discord-like thread — the
+transcript table rendered, with full scrollback. Speaker messages appear
+attributed; voice utterances will land inline with a channel marker; Dobby is
+a participant that answers and can eventually speak unprompted.
+
+Actuations post **system lines**: muted one-liners whenever anything changes
+the house through any path — a Dobby tool call, a card tap, a schedule firing,
+or an external change observed via HA (“· thermostat set to 70 — schedule
+'weeknight heat'”). Passive observations (an endpoint going offline) stay on
+the cards and in the activity log. The rule: the thread records interventions;
+the admin records everything.
+
+### 10.2 Identity
+
+A first-visit “Who's this?” prompt names the browser; a device cookie pins it.
+Identity is personalization and attribution only, never permissions. MAC-based
+identification was considered and rejected: browsers cannot see their own MAC,
+the server could only ARP-sniff it, and modern mobile OSes randomize MACs
+per-network. ARP lookup may later serve as an auto-recognition *hint* for
+known devices, never as the identity itself.
+
+### 10.3 Cards
+
+A card for the thermostat (status plus a direct `set_temperature` control) and
+one per Wi-Fi endpoint, updating live from `dobby.device.state_changed` over
+PubSub. Card controls hit device agents with no LLM involved.
+
+### 10.4 Admin dashboard
+
+Open to any household member, per flat trust:
+
+- the activity feed — every request, tool call, result, and state change;
+- scheduler CRUD over the same rows the model authors;
+- agent and HA-connection health.
+
+### 10.5 Streaming and persistence
+
+Streaming plumbing is ours to build: a task per request iterates Jido AI's
+request event stream and republishes deltas to the LiveView over PubSub. Jido
+provides the events, not the LiveView wiring.
+
+Postgres stores speakers, the transcript, schedules, and the activity log.
+Device state remains owned by HA and is rebuilt in the agents after restart;
+DobbyAgent rehydrates its recent conversation window from the transcript.
+
+## 11. What we are deliberately not designing yet
 
 - room and space agents;
 - a HouseCoordinator;
 - generic effects and plans;
 - standing policies and policy authoring;
+- proactive behavior (announcements, alerts) — noting that the awareness seam
+  in §6.3 is where it will attach;
+- schedule conflict mediation;
+- per-user private conversation threads;
+- voice, speaker identification, Telegram, cameras, Sonos, and a broad
+  dashboard;
 - presence inference;
-- schedules and cron behavior;
 - workflows, scenes, and multi-device transactions;
-- Telegram, voice, cameras, Sonos, and a broad dashboard;
 - automatic device discovery or dashboard editing of `home.exs`;
 - multiple houses;
 - local model hosting.
@@ -495,73 +720,87 @@ These remain possible. None is allowed to shape the first implementation until
 the thermostat and Wi-Fi agents work through both direct Phoenix controls and
 the DobbyAgent.
 
-## 11. Build order
+## 12. Build order
 
-### Step 1 — Server and HAOS
+Software no longer waits on hardware: everything in Phase A runs against a
+fake HA client at the one honest boundary, so the Jido mechanics are proven
+before the server exists. Phase B can proceed in parallel.
 
-Install Proxmox on the mini-server, create the HAOS VM from the official image,
-attach it to the LAN bridge, assign a stable DHCP lease, and complete HA
-onboarding.
+### Phase A — software against the test rig
 
-### Step 2 — Real HA entities and home manifest
+1. **Scaffold and rig.** Mix project with jido/jido_ai, the real agent
+   modules, manifest bootstrap, and `FakeHA` at the client boundary — it
+   records every executed `HACall` in an ordered trace and injects scripted
+   `state_changed` events. A trace collector captures all signals and
+   directives. Replay tests script the model's turns (Jido AI's scripted-ReAct
+   support) and assert on emitted patterns; a second tier runs the same
+   scenarios against a real model, judged, with cost and latency recorded.
+2. **DobbyAgent.** Tools, world model, prompt architecture. Scenarios to
+   prove, replay first, then live: “turn the thermostat to 70”; terse
+   “thermostat 72”; “make it cozy” (judgment or clarification); two
+   thermostats + ambiguous “thermostat 72” (must clarify, zero HACalls); two
+   speakers issuing conflicting setpoints (last write wins, attributed); “set
+   the thermostat to 69 and check all the endpoints”; an unavailable device
+   answered honestly; a state-change injection then “what's the thermostat
+   at?” with no HA round trip.
+3. **Scheduler.** Schedule rows, SchedulerAgent, authoring tools, admin CRUD.
+   Simulated-clock firing tests, including the zero-model-calls assertion.
+4. **Phoenix surface.** The thread with streaming and system lines, identity,
+   cards, admin dashboard — all against FakeHA.
 
-Identify and configure the installed thermostat integration. Configure two or
-three fixed endpoints through HA Ping or another proven integration. Record the
-actual entity IDs, states, attributes, and thermostat actions. This is the only
-required inventory. Write those instances into `config/home.exs`.
+### Phase B — hardware (parallel)
 
-### Step 3 — Debian and Phoenix
+5. **Server and HAOS.** Proxmox on the mini-server, HAOS VM from the official
+   image, LAN bridge, stable DHCP lease, HA onboarding.
+6. **Inventory.** Identify the installed thermostat integration; configure two
+   or three fixed endpoints via HA Ping; record actual entity IDs, states,
+   attributes, and actions; write the real instances into `config/home.exs`.
 
-Create the Debian services VM, install Postgres, and create the Phoenix/Jido
-application. Implement `Dobby.Home` validation and start the device agents from
-the manifest.
+### Phase C — integration
 
-### Step 4 — Shared HA client
+7. **Real client.** Debian services VM, Postgres, deploy; swap FakeHA for the
+   real WebSocket client; prove direct deterministic actions against the real
+   house, including invalid-temperature and unavailable-device behavior.
+8. **Live.** DobbyAgent and schedules against the real house at
+   `dobby.local`; record failures, cost, and latency. The next ingress, device
+   behavior, or abstraction is chosen from actual use.
 
-Connect one WebSocket client to HA, load the configured entities' current
-states, subscribe to state changes, and route those changes to their device
-agents. Display the live values in Phoenix.
-
-### Step 5 — Direct deterministic actions
-
-Make `get_status` work for both agent types and make `set_temperature` work from
-the thermostat card. Test invalid temperature and unavailable-device behavior.
-
-### Step 6 — DobbyAgent
-
-Add Jido AI. Give the model only the configured device roster and action
-schemas. Prove:
-
-- “What's the main thermostat set to?”
-- “Set the thermostat to 70.”
-- “Which endpoints are offline?”
-- “Set the thermostat to 69 and check all the endpoints.”
-- one ambiguous device name that must produce a clarification.
-
-### Step 7 — Use it on the LAN
-
-Serve the LiveView at `dobby.local`, use it against the real house, and record
-failures and latency. The next ingress, device behavior, or abstraction is chosen
-from actual use.
-
-## 12. Current decisions
+## 13. Current decisions
 
 1. Phoenix is the first ingress and household interface; later ingress channels
-   feed the same DobbyAgent.
-2. Jido supplies the agents, runtime, actions, signals, and directives.
-3. One LLM-backed DobbyAgent may dispatch one request to multiple device agents.
-4. Device agents are deterministic and own their HA binding, state translation,
-   allowed actions, validation, and HA operation mapping.
-5. One shared HA client owns authentication, transport, subscriptions, and
-   reconnect behavior.
-6. HAOS runs in its own Proxmox VM and owns physical device integration and
+   feed the same DobbyAgent as new `channel` values on the same envelope.
+2. Jido supplies the agents, runtime, actions, signals, and directives; Jido AI
+   supplies the ReAct strategy, tool adaptation, and model access.
+3. DobbyAgent is one long-running ReAct agent holding the shared household
+   conversation and a signal-fed world model; it acts only through the closed
+   tool set and composes replies from real tool results.
+4. Every utterance carries `speaker` and `channel` from the first build.
+   Identity personalizes; it never gates. Device identity is cookie-pinned
+   with a chosen name, never MAC-derived.
+5. The household surface is one shared persistent thread; actuations appear as
+   system lines; the admin dashboard carries the full activity feed, scheduler
+   CRUD, and health.
+6. Schedules are Dobby-owned Postgres rows, authored conversationally by the
+   model or in the admin, fired deterministically with no model call —
+   reversing original-design §7.5 (2026-08-13).
+7. Device agents are deterministic Direct-strategy Jido agents owning their HA
+   bindings, state translation, allowed actions, validation, and HA command
+   mapping via custom `HACall` directives.
+8. One shared HA client owns authentication, transport, subscriptions, and
+   reconnect behavior, and speaks to agents only in signals.
+9. The build is rig-first: a fake HA client at the one honest boundary, replay
+   tests scripting the model, and eval scenarios against a real model — before
+   any hardware exists. Hardware proceeds in parallel.
+10. HAOS runs in its own Proxmox VM and owns physical device integration and
    observed state.
-7. V1 includes only one thermostat and a few read-only Wi-Fi endpoints.
-8. Reusable agent modules live in `Dobby.DeviceAgents`; concrete homes and
-   device instances are declared in `config/home.exs`.
-9. Vendor integration is metadata and an HA concern, not the device-agent class
-   hierarchy.
-10. The first implementation optimizes for a working vertical slice, not a
+11. V1 includes one thermostat, a few read-only Wi-Fi endpoints, and the
+   scheduler.
+12. Reusable agent modules live in `Dobby.DeviceAgents`; concrete homes and
+   device instances are declared in `config/home.exs`; the future extraction
+   target for shared device behavior is a `Jido.Plugin`.
+13. Vendor integration is metadata and an HA concern, not the device-agent
+   class hierarchy.
+14. The first implementation optimizes for a working vertical slice, not a
    general smart-home ontology.
 
 ## Sources
@@ -569,7 +808,13 @@ from actual use.
 - [Jido agents](https://jido.run/docs/concepts/agents)
 - [Jido agent runtime](https://jido.run/docs/concepts/agent-runtime)
 - [Jido actions](https://jido.run/docs/concepts/actions)
+- [Jido signals](https://jido.run/docs/concepts/signals)
 - [Jido directives](https://jido.run/docs/concepts/directives)
+- [Jido plugins](https://jido.run/docs/concepts/plugins)
+- [Jido AI agent](https://jido-ai.hexdocs.pm/Jido.AI.Agent.html)
+- [Jido AI context](https://jido-ai.hexdocs.pm/Jido.AI.Context.html)
+- [Jido AI tool adapter](https://jido-ai.hexdocs.pm/Jido.AI.ToolAdapter.html)
+- [ReqLLM](https://hexdocs.pm/req_llm)
 - [Home Assistant OS virtual-machine installation](https://www.home-assistant.io/installation/alternative/)
 - [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
 - [Home Assistant Ping integration](https://www.home-assistant.io/integrations/ping/)

@@ -63,6 +63,18 @@ defmodule Dobby.DobbyAgent do
   accepted; it does not tell you the room is now that temperature, and you
   should not say that it is. If a tool reports that it refused, say so and say
   why, in plain language. Never claim something worked when it did not.
+
+  You can write down things the house should do on its own, on a repeating
+  schedule. Creating one changes nothing now — say it is set for those times,
+  never that the house is already that way. Give times as the household's own
+  local clock; the timezone is not yours to supply. Only schedule what a device
+  says it can be scheduled to do; the house list shows that per device.
+
+  "By 8pm" is not the same request as "at 8pm" — one asks for the house to
+  already be that way when eight o'clock arrives, and you can only do the
+  other. Ask which they meant rather than picking one. Before pausing or
+  deleting a schedule, be sure which one is meant; check the list if more than
+  one could fit.
   """
 
   @doc """
@@ -85,7 +97,11 @@ defmodule Dobby.DobbyAgent do
     tools: [
       Dobby.Tools.ThermostatGetStatus,
       Dobby.Tools.ThermostatSetTemperature,
-      Dobby.Tools.WifiGetStatus
+      Dobby.Tools.WifiGetStatus,
+      Dobby.Tools.CreateSchedule,
+      Dobby.Tools.ListSchedules,
+      Dobby.Tools.SetScheduleEnabled,
+      Dobby.Tools.DeleteSchedule
     ],
     system_prompt: @doctrine,
     max_iterations: 5,
@@ -119,14 +135,21 @@ defmodule Dobby.DobbyAgent do
   def say(%Utterance{} = utterance, opts \\ []) do
     case Dobby.Jido.whereis(@id) do
       pid when is_pid(pid) ->
-        ask_sync(pid, Utterance.to_message(utterance), request_opts(opts))
+        ask_sync(pid, Utterance.to_message(utterance), request_opts(utterance, opts))
 
       nil ->
         {:error, :dobby_not_running}
     end
   end
 
-  defp request_opts(opts) do
-    Keyword.merge([tools: Dobby.Home.tools()], opts)
+  # `:tool_context` reaches every tool the request executes. That is how
+  # `create_schedule` learns who asked without the model supplying it:
+  # attribution stays a property of the request rather than something the model
+  # could get wrong (§6.4).
+  defp request_opts(%Utterance{} = utterance, opts) do
+    Keyword.merge(
+      [tools: Dobby.Home.tools(), tool_context: %{speaker: utterance.speaker}],
+      opts
+    )
   end
 end

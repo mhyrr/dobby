@@ -56,6 +56,11 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
   @impl Dobby.DeviceAgent
   def subscribed_bindings, do: [:connectivity]
 
+  # Nothing to schedule: this device only reports. A schedule aimed at an
+  # endpoint is refused when it is authored, which is the honest moment.
+  @impl Dobby.DeviceAgent
+  def scheduled_actions, do: %{}
+
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do
     %{

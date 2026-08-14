@@ -53,6 +53,14 @@ defmodule Dobby.DeviceAgents.Thermostat do
   def subscribed_bindings, do: [:climate]
 
   @impl Dobby.DeviceAgent
+  def scheduled_actions do
+    %{
+      set_temperature:
+        {"thermostat.set_temperature", Dobby.DeviceAgents.Thermostat.SetTemperature}
+    }
+  end
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do
     %{
       dobby_id: device.id,

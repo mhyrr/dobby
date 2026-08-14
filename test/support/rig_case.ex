@@ -26,16 +26,28 @@ defmodule Dobby.RigCase do
   setup do
     default_manifest = Application.get_env(:dobby, Dobby.Home, [])
 
+    # `on_exit` runs last-registered-first, and the order below is the reason
+    # these three are separate callbacks rather than one. The house comes down
+    # before the database connection it borrows, because `SchedulerAgent` reads
+    # rows on any tick and a timer outliving its sandbox owner is a stray query
+    # against a checked-in connection.
     on_exit(fn ->
       # A scenario that swapped houses must not leave the next one living in it.
       Application.put_env(:dobby, Dobby.Home, default_manifest)
     end)
+
+    # Shared: the house is started by the application supervisor, so the
+    # processes that query are not descendants of the test.
+    owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Dobby.Repo, shared: true)
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
+    on_exit(&stop_home!/0)
 
     Fake.reset()
     restart_home!()
 
     Fake.subscribe()
     Dobby.DeviceEvents.subscribe()
+    Dobby.ScheduleEvents.subscribe()
     Dobby.Trace.start!()
 
     :ok
@@ -181,13 +193,19 @@ defmodule Dobby.RigCase do
   # collides on registered names, which surfaces as `:already_registered` and
   # then a request that never completes. Wait for the processes, not the call.
   defp restart_home! do
+    stop_home!()
+    {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Dobby.Home)
+    :ok
+  end
+
+  @doc false
+  def stop_home! do
     pids = Enum.map(Dobby.Jido.list_agents(), fn {_id, pid} -> pid end)
     refs = Enum.map(pids, &Process.monitor/1)
 
     :ok = Supervisor.terminate_child(Dobby.Supervisor, Dobby.Home)
     Enum.each(refs, &await_down/1)
 
-    {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Dobby.Home)
     :ok
   end
 

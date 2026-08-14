@@ -46,11 +46,23 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   end
 
   defp describe(device, nil) do
-    "- #{device.id} — #{naming(device)}; state not yet known"
+    "- #{device.id} — #{naming(device)}; state not yet known#{schedulable(device)}"
   end
 
   defp describe(device, snapshot) do
-    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}"
+    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{schedulable(device)}"
+  end
+
+  # What a schedule may aim at this device, straight from the device type's own
+  # declaration (§4.2). Rendered here rather than baked into the
+  # `create_schedule` tool's schema, because the answer is a property of the
+  # house and tool schemas are fixed at compile time — the same reason the
+  # roster lives in this block at all.
+  defp schedulable(device) do
+    case Map.keys(device.agent_module.scheduled_actions()) do
+      [] -> ""
+      actions -> "; can be scheduled to: #{Enum.map_join(actions, ", ", &Atom.to_string/1)}"
+    end
   end
 
   defp naming(%{name: name, aliases: []}), do: ~s("#{name}")

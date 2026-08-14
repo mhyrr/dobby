@@ -19,6 +19,17 @@ defmodule Dobby.Home do
 
   @term_key {__MODULE__, :manifest}
 
+  # Tools that belong to the house rather than to any device. A schedule is
+  # about the household's intentions, so these are offered whatever is plugged
+  # in — a house with nothing schedulable refuses at authoring time, naming
+  # what it does have, which is a better answer than a missing tool.
+  @house_tools [
+    Dobby.Tools.CreateSchedule,
+    Dobby.Tools.ListSchedules,
+    Dobby.Tools.SetScheduleEnabled,
+    Dobby.Tools.DeleteSchedule
+  ]
+
   # -- lifecycle -------------------------------------------------------------
 
   def start_link(opts \\ []) do
@@ -37,11 +48,19 @@ defmodule Dobby.Home do
 
     with :ok <- start_device_agents(manifest),
          :ok <- start_dobby_agent() do
-      # Routing last, so that the initial state HA sends on subscribe lands on
-      # agents that exist — and reaches DobbyAgent's world model, which means
-      # Dobby knows what the house looks like before anyone says anything.
+      # Routing before the scheduler, so that the initial state HA sends on
+      # subscribe lands on agents that exist — and reaches DobbyAgent's world
+      # model, which means Dobby knows what the house looks like before anyone
+      # says anything.
       Dobby.HomeAssistant.configure_routing(Manifest.routing_table(manifest))
-      {:ok, %{manifest: manifest}}
+
+      # Timers last. A schedule resolves a device and dispatches to its agent,
+      # so everything it can reach has to be running first — and a firing in
+      # the first milliseconds of boot should find a house that has heard from
+      # Home Assistant, not one that has not.
+      with :ok <- start_scheduler_agent() do
+        {:ok, %{manifest: manifest}}
+      end
     end
   end
 
@@ -52,6 +71,13 @@ defmodule Dobby.Home do
     # them running would make a restart fail on registry IDs already taken —
     # and a restarted Home should give you the house as configured, not the
     # house as it was.
+    # Timers down first, and deliberately: a cron job is owned by the scheduler
+    # and would die with it anyway, but it dies exiting `{:owner_down,
+    # :shutdown}`, which OTP reports as a crash. Cancelling first keeps that
+    # report meaning something.
+    Dobby.SchedulerAgent.clear()
+    Dobby.Jido.stop_agent(Dobby.SchedulerAgent.id())
+
     Enum.each(manifest.devices, &Dobby.Jido.stop_agent(&1.id))
     Dobby.Jido.stop_agent(Dobby.DobbyAgent.id())
     :persistent_term.erase(@term_key)
@@ -94,9 +120,12 @@ defmodule Dobby.Home do
   """
   @spec tools() :: [module()]
   def tools do
-    devices()
-    |> Enum.flat_map(& &1.agent_module.tools())
-    |> Enum.uniq()
+    device_tools =
+      devices()
+      |> Enum.flat_map(& &1.agent_module.tools())
+      |> Enum.uniq()
+
+    device_tools ++ @house_tools
   end
 
   @doc """
@@ -106,7 +135,15 @@ defmodule Dobby.Home do
   @spec roster() :: [map()]
   def roster do
     Enum.map(devices(), fn device ->
-      %{id: device.id, name: device.name, aliases: device.aliases}
+      %{
+        id: device.id,
+        name: device.name,
+        aliases: device.aliases,
+        # Not shown to the model as such — it is what the renderer asks for the
+        # device's schedulable actions, which is the one thing about a device
+        # the model needs that the manifest does not state directly.
+        agent_module: device.agent_module
+      }
     end)
   end
 
@@ -181,6 +218,25 @@ defmodule Dobby.Home do
 
       {:error, reason} ->
         {:stop, "could not start DobbyAgent: #{inspect(reason)}"}
+    end
+  end
+
+  # Schedules are rows, and the timers for them are a projection rebuilt at
+  # every boot (design §9). Nothing about a schedule survives in a process, so
+  # a restart cannot leave a stale timer behind or lose a live one.
+  defp start_scheduler_agent do
+    agent = Dobby.SchedulerAgent.new(id: Dobby.SchedulerAgent.id())
+
+    case Dobby.Jido.start_agent(agent,
+           id: Dobby.SchedulerAgent.id(),
+           agent_module: Dobby.SchedulerAgent
+         ) do
+      {:ok, pid} ->
+        await_ready(pid)
+        Dobby.SchedulerAgent.sync()
+
+      {:error, reason} ->
+        {:stop, "could not start SchedulerAgent: #{inspect(reason)}"}
     end
   end
 

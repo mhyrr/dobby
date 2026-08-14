@@ -92,10 +92,17 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
       # got right, it is the only branch that exists.
       tool_names = Enum.map(Dobby.Home.tools(), & &1.name())
 
+      # Device tools come from the manifest; the schedule tools belong to the
+      # house and are offered whatever is plugged in. Both halves are pinned,
+      # because "what can Dobby do at all" is exactly the list this asserts.
       assert tool_names == [
                "thermostat_get_status",
                "thermostat_set_temperature",
-               "wifi_get_status"
+               "wifi_get_status",
+               "create_schedule",
+               "list_schedules",
+               "set_schedule_enabled",
+               "delete_schedule"
              ]
 
       refute Enum.any?(tool_names, &(&1 =~ ~r/play|media|music|speaker|sonos/i))

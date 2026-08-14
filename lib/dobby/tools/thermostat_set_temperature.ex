@@ -67,26 +67,35 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
          signal =
            Jido.Signal.new!("thermostat.set_temperature", %{temperature_f: temperature, ref: ref}),
          {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
-      interpret(agent.state.last_command, ref, device, temperature)
+      agent.state
+      |> Dobby.DeviceAgent.command_outcome(ref)
+      |> interpret(device, temperature)
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
-  # The ref guards against reading someone else's outcome. Turns are
-  # serialized today, so a mismatch means an assumption broke rather than a
-  # race we tolerate — say so instead of reporting a result that isn't ours.
-  defp interpret(%{ref: ref, result: :accepted}, ref, device, temperature) do
-    {:ok,
-     %{device: device.id, name: device.name, accepted: true, target_temperature_f: temperature}}
-  end
+  # `command_outcome/2` is the shared read of the device-agent write protocol —
+  # a schedule firing reads its result the same way, so "the thermostat
+  # refused" means one thing whoever asked. This function is only the
+  # translation of that outcome into something a model can act on.
+  defp interpret(outcome, device, temperature) do
+    case outcome do
+      :accepted ->
+        {:ok,
+         %{
+           device: device.id,
+           name: device.name,
+           accepted: true,
+           target_temperature_f: temperature
+         }}
 
-  defp interpret(%{ref: ref, result: {:rejected, reason}}, ref, device, _temperature) do
-    {:ok, %{device: device.id, name: device.name, accepted: false, reason: reason}}
-  end
+      {:rejected, reason} ->
+        {:ok, %{device: device.id, name: device.name, accepted: false, reason: reason}}
 
-  defp interpret(_other, _ref, device, _temperature) do
-    {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
+      :unknown ->
+        {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
+    end
   end
 end

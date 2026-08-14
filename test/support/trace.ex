@@ -39,7 +39,8 @@ defmodule Dobby.Trace do
     [:jido, :ai, :llm, :start],
     [:jido, :ai, :llm, :complete],
     [:jido, :ai, :tool, :start],
-    [:dobby, :ha, :call]
+    [:dobby, :ha, :call],
+    [:dobby, :schedule, :fired]
   ]
 
   @dobby_signal_prefixes ["dobby.", "ha.", "thermostat."]
@@ -95,6 +96,17 @@ defmodule Dobby.Trace do
   """
   @spec ha_calls() :: [Dobby.Directive.HACall.t()]
   def ha_calls, do: of_kind(:ha_call) |> Enum.map(& &1.call)
+
+  @doc """
+  Schedule firings, as `{label, outcome}`, in order.
+
+  The assertion that goes with this one is `llm_calls() == []`: a schedule
+  fires because a timer went off, and if a model turn appears in the same
+  trace, the deterministic-below-probabilistic-above line (§9) has been
+  crossed somewhere.
+  """
+  @spec firings() :: [{String.t(), term()}]
+  def firings, do: of_kind(:firing) |> Enum.map(&{&1.schedule.label, &1.outcome})
 
   @doc """
   Signals delivered to agents, as `{agent_id, signal_type}`.
@@ -178,6 +190,10 @@ defmodule Dobby.Trace do
 
   defp entry([:dobby, :ha, :call], _measurements, metadata) do
     %{kind: :ha_call, call: metadata.call, result: metadata.result}
+  end
+
+  defp entry([:dobby, :schedule, :fired], _measurements, metadata) do
+    %{kind: :firing, schedule: metadata.schedule, outcome: metadata.outcome}
   end
 
   # -- server ----------------------------------------------------------------

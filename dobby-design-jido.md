@@ -723,13 +723,18 @@ clarifying question and the answer to it are ordinary turns, and "the
 downstairs one" resolves against the question asked a moment earlier with no
 outstanding-question state anywhere in the system.
 
-Measured, rather than estimated (gpt-4.1 and gpt-5.6-luna, one household
-request, FakeHA underneath):
+Measured, rather than estimated (gpt-5.6-luna at reasoning `:low`, one
+household request, FakeHA underneath):
 
 ```text
-actuating       2 model turns   ~1,900 in / ~50 out tokens    1.7–2.7 s
-clarification   1 model turn      ~600 in / ~40 out tokens    0.9–1.8 s
+actuating       2 model turns   ~1,900 in /  ~50 out tokens   1.7–2.7 s
+clarification   1 model turn      ~600 in /  ~40 out tokens   0.9–1.8 s
+authoring       2 model turns   ~4,000 in / ~100 out tokens   2.3–3.3 s
 ```
+
+Authoring a schedule costs about twice an actuation, because the `<house>`
+block and the schedule tool schemas are both in the request. It buys every
+subsequent firing for nothing — those cost no model call at all (§9).
 
 Two turns per actuating request, at the low end of this section's original
 two-to-three estimate. Input tokens dominate and are dominated in turn by the

@@ -48,9 +48,16 @@ else
   # The eval tier resolves `:capable` to a real model. It points at OpenAI
   # rather than the Anthropic default in config/exs because that is the key
   # this machine actually has — which is exactly the swap design §2.1 says an
-  # alias exists to make. Override with DOBBY_EVAL_MODEL.
+  # alias exists to make.
+  #
+  # gpt-5.6-luna is the model Dobby is being built against (Greg, 2026-08-14).
+  # Note the dots: the dashed form resolves as an unverified model. Rotating
+  # models is still a test — a single-model eval hides model-specific defects,
+  # and both of the two the suite has caught were found by swapping — so
+  # DOBBY_EVAL_MODEL is how a rotation is run deliberately, rather than a
+  # second model being carried permanently.
   config :jido_ai, :model_aliases, %{
-    capable: System.get_env("DOBBY_EVAL_MODEL", "openai:gpt-4.1")
+    capable: System.get_env("DOBBY_EVAL_MODEL", "openai:gpt-5.6-luna")
   }
 end
 

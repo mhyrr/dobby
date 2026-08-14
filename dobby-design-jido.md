@@ -610,8 +610,18 @@ wifi_get_status(device)
 
 create_schedule(label, cron, device, action, args)
 list_schedules()
-pause_schedule(id) / resume_schedule(id) / delete_schedule(id)
+set_schedule_enabled(id, enabled)
+delete_schedule(id)
 ```
+
+Pause and resume are one tool with a flag rather than two verbs, which is the
+one place the built surface differs from what this section first named. Two
+modules differing by a boolean is duplication looking for somewhere to drift,
+and the trade — a verb per intent is one less thing for a model to get wrong —
+is measurable rather than arguable: both models tested turn "pause the morning
+warmup schedule" into `set_schedule_enabled(enabled: false)`, and the one that
+had never seen the id looks it up with `list_schedules` first. If that stops
+holding, splitting them back is a small change.
 
 Each tool is a thin `Jido.Action` whose arguments are validated against its
 schema before it runs — malformed or unknown-device calls are rejected and the
@@ -934,20 +944,27 @@ layer and the fallback during model outages.
 feature of a house that feels run rather than merely controllable — and in
 this design, the model's job is authoring, never firing.
 
-A schedule is one Postgres row:
+A schedule is one Postgres row — the repo's first table:
 
 ```elixir
-%Dobby.Schedule{
-  id: ...,
-  label: "weeknight heat",
-  cron: "0 20 * * 1-5",              # timezone from the home manifest
-  action: %{target: "thermostat:main", action: :set_temperature,
-            args: %{temperature_f: 70}},
+%Dobby.Schedules.Schedule{
+  id: 3,                             # integer: a model reads it back reliably
+  label: "weeknight heat",           # unique, case-insensitively
+  cron: "0 20 * * 1-5",
+  timezone: "America/New_York",      # from the home manifest, per row
+  target: "thermostat:main",
+  action: "set_temperature",
+  args: %{"temperature_f" => 70.0},
   enabled: true,
   created_by: "greg",
   created_via: :conversation          # or :admin
 }
 ```
+
+The typed action is three columns rather than one nested map: the admin
+dashboard filters by device, and `target` is how a stale schedule is found when
+a device leaves the manifest. Only `args` stays a map, because its shape
+belongs to the device action.
 
 `SchedulerAgent` loads enabled rows at boot and registers one Jido `Cron`
 directive per schedule; creating, editing, pausing, or deleting a schedule
@@ -961,6 +978,37 @@ Two authoring surfaces edit the same rows: DobbyAgent's schedule tools (§6.2)
 and the admin dashboard's scheduler CRUD (§10). A firing posts a system line
 to the thread and full detail to the activity log.
 
+**What a device can be scheduled to do is the device type's own declaration.**
+`Dobby.DeviceAgent.scheduled_actions/0` names them, keyed by what a row stores;
+`%{}` is a complete answer and means a schedule aimed at that device is refused
+when it is asked for. This is deliberately narrower than `signal_routes` — an
+agent routes `ha.state_changed` too, and nothing should be able to schedule
+that. It also keeps §4.2's extension contract intact: `Dobby.Schedules` holds
+no list of device types, so a new one brings its own schedulable surface, and
+the `<house>` block advertises it to the model per device rather than baking it
+into a tool schema that is fixed at compile time.
+
+**Validation splits three ways, and the split is the design.** *Shape* — is
+this a cron expression — is the changeset. *The house* — does this device
+exist, does it accept this action, are these its arguments — happens at
+authoring time against the running manifest. *Policy* — is 85° inside this
+household's range, is the thermostat even available — stays in the device agent
+and is applied **at fire time**. That last one is not laziness: the accepted
+range is discovered from the hardware (§4.3), so checking it at authoring time
+would reject a schedule written before the thermostat first reported. The
+honest consequence is that a schedule can be accepted in conversation and
+refused at eight o'clock; the refusal is announced on `dobby.schedule.fired`
+rather than swallowed.
+
+**Timers are compared against the rows, never against remembered intent.**
+`SchedulerAgent` keeps no record of what it registered. `unregistered/0` asks
+the rows and the live job table, which is the only question worth answering,
+and `sync/0` blocks until the two agree — Jido executes directives from a drain
+loop it kicks off with `send(self(), :drain)`, so they are still queued when the
+call that produced them replies, and a failed `Cron` registration is swallowed
+by design (`on_failure: :keep`) and merely logged. Without that barrier a
+schedule that never fires looks exactly like one that does.
+
 **This reverses the original design's §7.5**, which ruled that schedules
 execute in HA and the agent only authors them. Reversed 2026-08-13, Greg
 approving: the household needs to *see* schedules, which our own rows give the
@@ -968,8 +1016,16 @@ admin dashboard for free; authoring HA automations over its API is the genuinely
 hairy surface; and execution here is equally deterministic — the principle that
 mattered, "deterministic below, probabilistic above," survives intact. The
 accepted cost: schedules miss if Dobby is down. Same box, same UPS — if the
-system's down, the system's down. If Jido's `Cron` directive proves unreliable
-across restarts, Oban is the drop-in fallback: same rows, different timer.
+system's down, the system's down.
+
+Oban was named here as the drop-in fallback if Jido's `Cron` directive proved
+unreliable across restarts. It is not needed: `Cron` registers from an ordinary
+`use Jido.Agent` action, its tick casts our own `%Jido.Signal{}` back through
+normal routing verbatim, and restarts are not a question it has to answer —
+nothing about a schedule lives in a process. Every timer is rebuilt from the
+rows at boot, so a restart cannot leave a stale timer or lose a live one, and
+Jido's own cron persistence is simply unused. `crontab` and `time_zone_info`
+come in with Jido, so there is no new dependency either way.
 
 Conflict behavior in v1 is dumb and honest: schedules fire regardless of
 manual changes, and the last write wins. Mediation ("you set it manually an
@@ -1090,10 +1146,31 @@ before the server exists. Phase B can proceed in parallel.
    wins, attributed); an unavailable device answered honestly end to end
    through the model; and a state-change injection then “what's the thermostat
    at?”.
-3. **Scheduler.** Schedule rows, SchedulerAgent, authoring tools, admin CRUD.
-   Simulated-clock firing tests, including the zero-model-calls assertion.
-   This step brings the repo's first migration; nothing is persisted yet, and
-   both the scheduler and the thread depend on that foundation.
+3. **Scheduler.** — *built, less the admin CRUD, which arrives with the
+   dashboard in step 4.* Schedule rows (the repo's first migration),
+   `SchedulerAgent` on the `Direct` strategy, four authoring tools, and firing
+   tests including the zero-model-calls assertion.
+
+   "Simulated clock" turned out to mean two things, and separating them is what
+   made the tests fast and honest. Jido's cron jobs read the system clock and
+   arm `Process.send_after`; there is nothing to inject. So *schedule
+   semantics* — what `0 20 * * 1-5` means asked on a Saturday, what it does on
+   a spring-forward morning — are answered by a pure `next_fire/3` that takes
+   `from` as an argument, and *firing* is driven by casting the signal the
+   timer casts, built by the same function that registers it. One test then
+   lets the real timer do the work end to end, using a six-field
+   seconds-resolution expression so that costs a second rather than a minute —
+   which is the only reason six-field expressions are accepted at all.
+
+   Three contract findings, each of which had already broken something.
+   Jido merges an action's state update into agent state with a **deep** merge,
+   so a map field cannot be cleared or pruned by assigning it — which is why
+   the scheduler keeps no record of what it registered. `:map` in a tool schema
+   is the sibling of the union type in §6.2: it renders as `"object"`, which is
+   right, and NimbleOptions reads it as `{:map, :atom, :any}`, so the object a
+   model sends is rejected for having string keys before `run/2` is reached.
+   And per-request tool context — how `create_schedule` learns who asked without
+   the model supplying it — is the `:tool_context` option, not `:context`.
 4. **Phoenix surface.** The thread with streaming and system lines, identity,
    cards, admin dashboard — all against FakeHA.
 

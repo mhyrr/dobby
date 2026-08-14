@@ -1,10 +1,17 @@
 # Dobby — Simple Jido Design
 
-**Draft v0.10 — August 2026**
+**Draft v0.11 — August 2026**
 
-**Status:** first build; supersedes v0.7/v0.8 after research against the Jido
-2.x docs (jido 2.3.3, jido_ai 2.3.0) and the design session of 2026-08-13. The
-original household vision remains in `dobby-design-original.md`.
+**Status:** under construction. Phase A step 1 is built and green (§12), and
+this revision is the first one written from working code rather than from
+research. The original household vision remains in `dobby-design-original.md`.
+
+Changes from v0.10 are corrections the rig forced, not new ideas. Three places
+where the design was simply wrong about the libraries: `tools:` cannot be
+derived at compile time (§6.1); per-turn context cannot ride on the user
+message (§6.3); and `get_status` is a tool, not a device action (§7.1). One
+addition: Dobby's voice is now a file on the box rather than a string in the
+release (§6.6). Measured numbers replace estimates in §6.5 and §8.
 
 Changes from v0.8: the household surface is one shared Discord-like thread
 with system lines for actuations; device identity is cookie-pinned, not
@@ -152,7 +159,8 @@ a single application without restructuring anything.
 dobby/
 ├── config/
 │   ├── config.exs dev.exs test.exs prod.exs
-│   ├── runtime.exs                  secrets and the home manifest (§4)
+│   ├── runtime.exs                  secrets, home manifest, soul path
+│   ├── soul.md                      who Dobby is (§6.6)
 │   └── homes/
 │       ├── foo.exs                  the real house
 │       └── rig.exs                  FakeHA bindings for dev and test
@@ -161,23 +169,36 @@ dobby/
 │   │   ├── application.ex
 │   │   ├── jido.ex                  use Jido, otp_app: :dobby
 │   │   ├── home.ex                  bootstrap (§4.1)
-│   │   ├── home/{manifest,device,validator,tools}.ex
+│   │   ├── home/{manifest,device}.ex
+│   │   ├── device_agent.ex          the extension contract (§4.2)
 │   │   ├── device_agents/           §4.2
-│   │   ├── profiles/                §4.3
+│   │   ├── profiles/                §4.3, deferred to Phase C
+│   │   ├── home_assistant.ex        behaviour — the one honest boundary
 │   │   ├── home_assistant/
-│   │   │   ├── client.ex            behaviour
 │   │   │   ├── websocket.ex         real client
 │   │   │   └── fake.ex              the rig (§12)
 │   │   ├── directives/ha_call.ex
-│   │   ├── agent.ex                 DobbyAgent
+│   │   ├── agent.ex                 DobbyAgent + doctrine
+│   │   ├── agent/{request_transformer,observe_device}.ex
+│   │   ├── soul.ex                  reads config/soul.md at boot
+│   │   ├── device_events.ex         the state_changed seam (§7)
+│   │   ├── tools/                   one thin Jido.Action per capability
 │   │   ├── scheduler/{agent,schedule}.ex
 │   │   ├── conversation/{utterance,transcript}.ex
 │   │   └── activity/log.ex
 │   └── dobby_web/                   thread, cards, admin, endpoint, router
 ├── priv/repo/migrations/
 ├── rel/                             release overlays
-└── test/support/{trace,scripted_model}.ex
+└── test/support/
+    ├── rig_case.ex                  boots real houses against FakeHA
+    ├── trace.ex                     telemetry → per-source assertions
+    └── script.ex                    multi-tool turns the DSL can't express
 ```
+
+Tools live in their own directory rather than under `device_agents/` because a
+tool is the model's surface and a device agent is the house's; keeping them
+apart is what lets a read be served without inventing a device action for it
+(§7.1).
 
 `FakeHA` lives in `lib/`, not `test/support/`, because the rig is a runtime
 surface and not only a test fixture: `mix phx.server` in dev boots the entire
@@ -197,21 +218,24 @@ state lives on the box:
 ├── current -> releases/2026-09-14-3f1e0cd
 ├── config/
 │   ├── home.exs                the deployed manifest (§4)
+│   ├── soul.md                 who Dobby is (§6.6)
 │   └── dobby.env               chmod 600: DATABASE_URL, SECRET_KEY_BASE,
 │                               HA token, model API key
 └── data/backups/               pg_dump output
 ```
 
 Deploy is: pull; `MIX_ENV=prod mix do deps.get, compile, assets.deploy, release
---path releases/$STAMP`; copy the manifest into `/opt/dobby/config/`; repoint
-`current`; `bin/dobby eval "Dobby.Release.migrate()"`; `systemctl restart
-dobby`. Postgres is an ordinary package install on the same VM, and `dobby.env`
-is the systemd unit's `EnvironmentFile`.
+--path releases/$STAMP`; copy the manifest and the soul into
+`/opt/dobby/config/`; repoint `current`; `bin/dobby eval
+"Dobby.Release.migrate()"`; `systemctl restart dobby`. Postgres is an ordinary
+package install on the same VM, and `dobby.env` is the systemd unit's
+`EnvironmentFile`.
 
-**Changing the house does not require a release.** Both files under
-`/opt/dobby/config/` are read at boot by `runtime.exs` (§4), so correcting an
-entity ID, adding an endpoint, or rotating a token is edit-and-restart. Only
-changes to code or to compile-time configuration need a rebuild.
+**Changing the house does not require a release.** All three files under
+`/opt/dobby/config/` are read at boot by `runtime.exs` (§4, §6.6), so
+correcting an entity ID, adding an endpoint, rotating a token, or rewriting
+how Dobby talks is edit-and-restart. Only changes to code or to compile-time
+configuration need a rebuild.
 
 Containers were considered and set aside. `/opt/dobby/current/bin/dobby remote`
 — a live IEx shell into the running node, for inspecting device-agent state or
@@ -362,14 +386,23 @@ physical thing is which; it never says merely `camera_count: 2`.
 3. start one Jido agent instance for each device entry, registered in
    `Jido.Registry` under its Dobby ID;
 4. start SchedulerAgent, which loads enabled schedules from Postgres (§9);
-5. start DobbyAgent with a roster containing names, aliases, IDs, and the tool
-   set derived from the configured agent modules;
+5. start DobbyAgent and install its soul (§6.6). The roster and the house's
+   tool set are *not* passed at startup — both are read from the manifest per
+   request, for the reason in §6.1;
 6. configure the shared HA client with the entity-to-agent routing table derived
    from the bindings.
 
+The order is load-bearing, and so is waiting. `Jido.start_agent/2` returns
+before `AgentServer` has built its signal routes in a `handle_continue`, so the
+bootstrap synchronises on each agent before moving on. Without that barrier the
+initial state Home Assistant sends on subscribe races DobbyAgent's routing
+table, and whether Dobby knows the house at boot depends on scheduling.
+
 Configuration errors fail application startup with the exact device and field
 that are wrong. Silently skipping a thermostat because of a typo would make the
-house unusually philosophical about heating.
+house unusually philosophical about heating. The soul is required on the same
+grounds: a Dobby with no soul runs the house correctly and sounds like nobody
+in particular, which is easy to ship and hard to notice.
 
 ### 4.2 Device-agent library
 
@@ -528,14 +561,37 @@ device state, and reaches the world only through typed tools.
 ```elixir
 defmodule Dobby.DobbyAgent do
   use Jido.AI.Agent,
-    name: "dobby",
+    name: "dobby",                        # literal: see below
     model: :capable,                      # alias in config, swappable per §2.1
-    tools: Dobby.Home.tools(),            # derived from configured agent modules
-    system_prompt: ...,                   # house identity, rules, tone
+    tools: [                              # the library, not the house
+      Dobby.Tools.ThermostatGetStatus,
+      Dobby.Tools.ThermostatSetTemperature,
+      Dobby.Tools.WifiGetStatus
+    ],
+    system_prompt: @doctrine,             # voice arrives at boot (§6.6)
     max_iterations: 5,
-    streaming: true
+    streaming: true,
+    request_transformer: Dobby.DobbyAgent.RequestTransformer,
+    signal_routes: [
+      {"dobby.device.state_changed", Dobby.DobbyAgent.ObserveDevice}
+    ]
 end
 ```
+
+**Every option here must be a literal.** `Jido.AI.Agent` reads them at
+macro-expansion time: `:tools` raises `CompileError` on a function call, and
+`:name` is stringified straight from the AST, so even a module attribute
+fails. Earlier drafts wrote `tools: Dobby.Home.tools()`, which does not
+compile.
+
+So the compile-time list is the *library* — every tool module that exists in
+this codebase — and the manifest narrows it to this house per request, through
+the `:tools` option on `ask/3`. `Dobby.Home.tools/0` supplies that list.
+
+The closed-by-construction guarantee is unchanged and arguably sharper: the
+model still sees only tools for devices this house actually has, and adding a
+device type is still one module plus a manifest line. The one unavoidable
+central edit is appending the new tool module to the literal above.
 
 Phoenix delivers each utterance with `ask_stream/3`; the reply streams back to
 the LiveView. The default request policy serializes turns, which is correct for
@@ -554,8 +610,18 @@ wifi_get_status(device)
 
 create_schedule(label, cron, device, action, args)
 list_schedules()
-pause_schedule(id) / resume_schedule(id) / delete_schedule(id)
+set_schedule_enabled(id, enabled)
+delete_schedule(id)
 ```
+
+Pause and resume are one tool with a flag rather than two verbs, which is the
+one place the built surface differs from what this section first named. Two
+modules differing by a boolean is duplication looking for somewhere to drift,
+and the trade — a verb per intent is one less thing for a model to get wrong —
+is measurable rather than arguable: both models tested turn "pause the morning
+warmup schedule" into `set_schedule_enabled(enabled: false)`, and the one that
+had never seen the id looks it up with `list_schedules` first. If that stops
+holding, splitting them back is a small change.
 
 Each tool is a thin `Jido.Action` whose arguments are validated against its
 schema before it runs — malformed or unknown-device calls are rejected and the
@@ -564,6 +630,22 @@ dispatches to the target device agent through the registry and returns the
 device agent's actual result to the model. Domain validation (the household
 temperature range, device availability) still lives in the device agent; the
 tool layer adds nothing but transport.
+
+A tool schema is a contract with the model, and it is possible to write one
+that contradicts itself. `jido_action` renders a NimbleOptions union type such
+as `{:or, [:integer, :float]}` into the JSON schema as `"type": "string"`, so a
+model is told to send `"70"`, correctly sends `"70"`, and is then rejected by
+our own validation. Numeric arguments use `:float` — which renders as
+`"number"` — plus an `on_before_validate_params/1` coercion, because JSON has
+one number type and Elixir has two. This class of bug is invisible to scripted
+tests, whose fixtures are written by hand; it is exactly what the eval tier is
+for (§12).
+
+Ambiguity is a refusal to act, and specifically not a licence to act broadly.
+"The thermostat" in a house with two thermostats is an ambiguous request, not
+permission to change both — a real model, given only the instruction not to
+guess, set both. The system prompt now separates a request naming one device
+from a request naming several ("all the endpoints").
 
 Reads are answered from device-agent state immediately — no HA round trip,
 because agent state is kept current by the HA subscription (§7). Writes return
@@ -589,15 +671,37 @@ DobbyAgent's statefulness is explicit, not incidental:
   changing the shape.
 - **World model.** Device agents emit a `dobby.device.state_changed` signal on
   every meaningful change (§7). DobbyAgent routes that signal into a snapshot
-  of last-known device state. Each turn, the request pipeline (Jido AI's
-  per-turn request shaping hook, with `Jido.AI.PromptBuilder` as fallback)
-  injects the roster and current snapshot as tagged context on the user
-  message — deliberately not the system prompt, to preserve prompt caching.
+  of last-known device state via a custom `signal_routes` entry, which composes
+  with the `Jido.AI.Agent` macro and executes under the ReAct strategy — the
+  ETS read-model fallback earlier drafts hedged with is unnecessary. Each turn,
+  `Jido.AI.Reasoning.ReAct.RequestTransformer` (callback `transform_request/4`;
+  no `PromptBuilder` fallback needed) injects the roster and current snapshot
+  as a tagged `<house>` block.
+
+That block is a **separate message placed immediately before the utterance**,
+not appended to the utterance itself as earlier drafts specified. Two reasons,
+and the second is the binding one. It stays out of the system prompt to
+preserve prompt caching. And `Jido.AI.Test.ReActScript` matches a scripted turn
+to a request by exact string equality against the *last user message*, so
+decorating the utterance would force every replay scenario to spell out the
+whole rendered block and would break all of them on any prompt change. Placing
+it before leaves the raw utterance last, which keeps both properties.
+
+The speaker prefix (§6.4) stays on the utterance, because it has to survive
+into conversation history. `Dobby.Utterance.to_message/1` is its single
+definition, used by production and by test scripts alike, so the format cannot
+silently desynchronize the two.
 
 So the model always knows what devices exist, what state they were last in,
 and who is speaking, before it decides whether to answer, clarify, or act.
 The world model is also the seam future proactive behavior hangs off — the
 signals already arrive; v1 simply does nothing with them beyond awareness.
+
+One property to design around rather than forget: the fan-out to the world
+model is asynchronous (`Task.Supervisor.async_stream`), so the thread having
+an event is not evidence that DobbyAgent has it. The world model is eventually
+consistent with device state, and a turn beginning immediately after a device
+change may read the previous value.
 
 ### 6.4 Multi-user
 
@@ -614,13 +718,64 @@ device agents; that stays deferred.
 The model composes every reply from real tool results inside the ReAct loop.
 Rendering "Thermostat set to 70°. Endpoint B did not respond." is exactly what
 the loop's final turn is for, and clarification questions fall out of the same
-mechanism instead of needing a schema branch. The price is two to three model
-calls per actuating request instead of one; `max_iterations` caps the loop,
-and Jido AI's quota and model-routing plugins are available knobs if cost ever
-argues for them.
+mechanism instead of needing a schema branch — including multi-turn ones: a
+clarifying question and the answer to it are ordinary turns, and "the
+downstairs one" resolves against the question asked a moment earlier with no
+outstanding-question state anywhere in the system.
+
+Measured, rather than estimated (gpt-5.6-luna at reasoning `:low`, one
+household request, FakeHA underneath):
+
+```text
+actuating       2 model turns   ~1,900 in /  ~50 out tokens   1.7–2.7 s
+clarification   1 model turn      ~600 in /  ~40 out tokens   0.9–1.8 s
+authoring       2 model turns   ~4,000 in / ~100 out tokens   2.3–3.3 s
+```
+
+Authoring a schedule costs about twice an actuation, because the `<house>`
+block and the schedule tool schemas are both in the request. It buys every
+subsequent firing for nothing — those cost no model call at all (§9).
+
+Two turns per actuating request, at the low end of this section's original
+two-to-three estimate. Input tokens dominate and are dominated in turn by the
+second turn resending context, which makes prompt caching the lever if cost
+ever argues. `max_iterations` caps the loop, and Jido AI's quota and
+model-routing plugins remain available knobs.
 
 There is no separate parser, planner, coordinator, generic effect language, or
 approval component in v1.
+
+### 6.6 Soul and doctrine
+
+The system prompt is two halves with deliberately different lifecycles.
+
+**The soul** is who Dobby is — tone, brevity, how he talks about himself. It
+lives in `config/soul.md`, is read at boot, and is installed onto the running
+agent with the `ai.react.set_system_prompt` signal. It sits beside the home
+manifest in `/opt/dobby/config/` and gets the same property for the same
+reason (§2.4): editing the personality of the thing you live with costs a
+restart, never a release. A bad edit produces an annoying housemate.
+
+**The doctrine** is the set of rules that keep Dobby honest — never invent a
+device, never act on a guess, report what you commanded rather than what you
+observed. It lives in code, in `Dobby.DobbyAgent.doctrine/0`, and changes
+under review. A bad edit produces a house that lies about whether the heat is
+on.
+
+They are composed soul first, doctrine last, so on any conflict between
+personality and honesty the doctrine is what the model read most recently. The
+compile-time `system_prompt:` is doctrine alone, which is the floor: if the
+soul never installs, Dobby is charmless but still honest.
+
+The split exists because rewriting a personality should not be able to quietly
+delete a safety rule. It also makes voice testable — the eval tier can ask
+whether a new soul survived contact with a real model, and whether it survives
+*changing* models, which is the stricter question. It does: the same voice
+comes back from two different providers.
+
+The failure mode is quiet enough to warrant a structural test rather than an
+eyeball — a soul that never loads leaves a house that works perfectly and
+sounds like nobody in particular.
 
 ## 7. Device agents and the Home Assistant boundary
 
@@ -696,17 +851,26 @@ State:
 }
 ```
 
-V1 actions:
+V1 capabilities, as the model sees them:
 
-- `get_status`
-- `set_temperature`
+- `thermostat_get_status`
+- `thermostat_set_temperature`
+
+Only the second is a device *action*. A read carries no domain validation and
+nothing to decide, so the read tool answers directly from device-agent state;
+adding a `get_status` action for it would be a no-op existing only to make two
+lists match. Device agents get signal routes for their effectful actions and
+for HA state sync, and nothing else. `Dobby.DeviceAgent.tools/0` is what a
+device type advertises; it is not required to mirror its action list.
 
 `set_temperature` validates against the intersection of the entity's discovered
 envelope and the configured household range (§4.3), then returns the `HACall`
 directive for `climate.set_temperature` — or whatever mapping the device's
-profile supplies instead. Mode changes, schedules,
-holds, and recovery behavior wait until the basic agent works with the
-installed thermostat.
+profile supplies instead. A setpoint outside that range is an `:ok` return, not
+an error: the agent successfully decided "no", and the refusal travels back to
+the model as an observation it must account for in its reply. Mode changes,
+schedules, holds, and recovery behavior wait until the basic agent works with
+the installed thermostat.
 
 ### 7.2 WifiEndpointAgent
 
@@ -754,6 +918,17 @@ For “which endpoints are offline,” the model calls `wifi_get_status` per
 configured endpoint; each answer comes straight from device-agent state, and
 the model composes one summary. No HA round trip occurs.
 
+Several tool calls in a single model turn execute **sequentially, in one
+process**. The work still lands on separate device agents — three tools mean
+three agent processes doing their own validation — but the runner calls each
+and waits before starting the next, so latency is the sum and not the maximum.
+This is free while reads are in-memory (measured: three calls 76 µs apart). If
+a device type ever needs a slow read, the answer is one batch tool that fans
+out internally, not a change to the loop. Note also that `HACall` directives
+drain *after* the agent's command completes, so the HA side is not serialized
+behind the tool loop at all — a write tool returns "accepted" without waiting
+on Home Assistant.
+
 At 20:00 on a weekday, the “weeknight heat” schedule fires (§9): cron signal →
 SchedulerAgent dispatches the stored `set_temperature` action to
 ThermostatAgent → `HACall` → HA. No model call occurs anywhere in that trace;
@@ -774,20 +949,27 @@ layer and the fallback during model outages.
 feature of a house that feels run rather than merely controllable — and in
 this design, the model's job is authoring, never firing.
 
-A schedule is one Postgres row:
+A schedule is one Postgres row — the repo's first table:
 
 ```elixir
-%Dobby.Schedule{
-  id: ...,
-  label: "weeknight heat",
-  cron: "0 20 * * 1-5",              # timezone from the home manifest
-  action: %{target: "thermostat:main", action: :set_temperature,
-            args: %{temperature_f: 70}},
+%Dobby.Schedules.Schedule{
+  id: 3,                             # integer: a model reads it back reliably
+  label: "weeknight heat",           # unique, case-insensitively
+  cron: "0 20 * * 1-5",
+  timezone: "America/New_York",      # from the home manifest, per row
+  target: "thermostat:main",
+  action: "set_temperature",
+  args: %{"temperature_f" => 70.0},
   enabled: true,
   created_by: "greg",
   created_via: :conversation          # or :admin
 }
 ```
+
+The typed action is three columns rather than one nested map: the admin
+dashboard filters by device, and `target` is how a stale schedule is found when
+a device leaves the manifest. Only `args` stays a map, because its shape
+belongs to the device action.
 
 `SchedulerAgent` loads enabled rows at boot and registers one Jido `Cron`
 directive per schedule; creating, editing, pausing, or deleting a schedule
@@ -801,6 +983,37 @@ Two authoring surfaces edit the same rows: DobbyAgent's schedule tools (§6.2)
 and the admin dashboard's scheduler CRUD (§10). A firing posts a system line
 to the thread and full detail to the activity log.
 
+**What a device can be scheduled to do is the device type's own declaration.**
+`Dobby.DeviceAgent.scheduled_actions/0` names them, keyed by what a row stores;
+`%{}` is a complete answer and means a schedule aimed at that device is refused
+when it is asked for. This is deliberately narrower than `signal_routes` — an
+agent routes `ha.state_changed` too, and nothing should be able to schedule
+that. It also keeps §4.2's extension contract intact: `Dobby.Schedules` holds
+no list of device types, so a new one brings its own schedulable surface, and
+the `<house>` block advertises it to the model per device rather than baking it
+into a tool schema that is fixed at compile time.
+
+**Validation splits three ways, and the split is the design.** *Shape* — is
+this a cron expression — is the changeset. *The house* — does this device
+exist, does it accept this action, are these its arguments — happens at
+authoring time against the running manifest. *Policy* — is 85° inside this
+household's range, is the thermostat even available — stays in the device agent
+and is applied **at fire time**. That last one is not laziness: the accepted
+range is discovered from the hardware (§4.3), so checking it at authoring time
+would reject a schedule written before the thermostat first reported. The
+honest consequence is that a schedule can be accepted in conversation and
+refused at eight o'clock; the refusal is announced on `dobby.schedule.fired`
+rather than swallowed.
+
+**Timers are compared against the rows, never against remembered intent.**
+`SchedulerAgent` keeps no record of what it registered. `unregistered/0` asks
+the rows and the live job table, which is the only question worth answering,
+and `sync/0` blocks until the two agree — Jido executes directives from a drain
+loop it kicks off with `send(self(), :drain)`, so they are still queued when the
+call that produced them replies, and a failed `Cron` registration is swallowed
+by design (`on_failure: :keep`) and merely logged. Without that barrier a
+schedule that never fires looks exactly like one that does.
+
 **This reverses the original design's §7.5**, which ruled that schedules
 execute in HA and the agent only authors them. Reversed 2026-08-13, Greg
 approving: the household needs to *see* schedules, which our own rows give the
@@ -808,8 +1021,16 @@ admin dashboard for free; authoring HA automations over its API is the genuinely
 hairy surface; and execution here is equally deterministic — the principle that
 mattered, "deterministic below, probabilistic above," survives intact. The
 accepted cost: schedules miss if Dobby is down. Same box, same UPS — if the
-system's down, the system's down. If Jido's `Cron` directive proves unreliable
-across restarts, Oban is the drop-in fallback: same rows, different timer.
+system's down, the system's down.
+
+Oban was named here as the drop-in fallback if Jido's `Cron` directive proved
+unreliable across restarts. It is not needed: `Cron` registers from an ordinary
+`use Jido.Agent` action, its tick casts our own `%Jido.Signal{}` back through
+normal routing verbatim, and restarts are not a question it has to answer —
+nothing about a schedule lives in a process. Every timer is rebuilt from the
+rows at boot, so a restart cannot leave a stale timer or lose a live one, and
+Jido's own cron persistence is simply unused. `crontab` and `time_zone_info`
+come in with Jido, so there is no new dependency either way.
 
 Conflict behavior in v1 is dumb and honest: schedules fire regardless of
 manual changes, and the last write wins. Mediation ("you set it manually an
@@ -894,23 +1115,67 @@ before the server exists. Phase B can proceed in parallel.
 
 ### Phase A — software against the test rig
 
-1. **Scaffold and rig.** Mix project with jido/jido_ai, the real agent
-   modules, manifest bootstrap, and `FakeHA` at the client boundary — it
-   records every executed `HACall` in an ordered trace and injects scripted
-   `state_changed` events. A trace collector captures all signals and
-   directives. Replay tests script the model's turns (Jido AI's scripted-ReAct
-   support) and assert on emitted patterns; a second tier runs the same
-   scenarios against a real model, judged, with cost and latency recorded.
-2. **DobbyAgent.** Tools, world model, prompt architecture. Scenarios to
-   prove, replay first, then live: “turn the thermostat to 70”; terse
-   “thermostat 72”; “make it cozy” (judgment or clarification); two
-   thermostats + ambiguous “thermostat 72” (must clarify, zero HACalls); two
-   speakers issuing conflicting setpoints (last write wins, attributed); “set
-   the thermostat to 69 and check all the endpoints”; an unavailable device
-   answered honestly; a state-change injection then “what's the thermostat
-   at?” with no HA round trip.
-3. **Scheduler.** Schedule rows, SchedulerAgent, authoring tools, admin CRUD.
-   Simulated-clock firing tests, including the zero-model-calls assertion.
+1. **Scaffold and rig.** — *built.* Mix project with jido/jido_ai, the real
+   agent modules, manifest bootstrap, and `FakeHA` at the client boundary. It
+   records every executed `HACall` and injects `state_changed` events —
+   including in response to commands, which is what makes the physical confirm
+   loop real in tests rather than assumed. Replay tests script the model's
+   turns; a second tier runs the same scenarios against a real model with cost
+   and latency recorded.
+
+   Two corrections to how this was imagined. The trace collector cannot order
+   events across sources: Jido's signal events and Dobby's `HACall` event carry
+   an emitter timestamp, `jido.ai.llm.start` and `jido.ai.tool.start` carry
+   none, and a merged ordering built from that mix is plausible and wrong
+   (measured: an `HACall` sorting ahead of the model turn that caused it). So
+   `Dobby.Trace` promises per-source sequences and counts, and cross-source
+   ordering is asserted with `assert_receive`, which is a real happens-before.
+   And because the agents are started by the application supervisor rather than
+   by the test, scripts must be threaded explicitly through the ask —
+   `expect_react`'s registry lookup keys on the process group leader.
+
+   The replay tier must be unable to reach a real model. Jido AI treats "no
+   script matched" as permission to call the provider, so a forgotten script is
+   an ordinary mistake with a billable outcome; every provider is pointed at a
+   closed port in the test environment, and the eval tier lifts that
+   deliberately.
+2. **DobbyAgent.** — *built.* Tools, world model, prompt architecture, soul.
+   Scenarios proven replay-first then live: “turn the thermostat to 70”; terse
+   “thermostat 72”; “make it cozy” (judgment or clarification); two thermostats
+   + ambiguous “thermostat 72” (must clarify, zero HACalls); “set the
+   thermostat to 69 and check all the endpoints”; a clarification answered a
+   turn later (“the downstairs one”); and two scenarios the house cannot serve
+   at all — a room it does not model, a capability it does not have.
+
+   Still open here: two speakers issuing conflicting setpoints (last write
+   wins, attributed); an unavailable device answered honestly end to end
+   through the model; and a state-change injection then “what's the thermostat
+   at?”.
+3. **Scheduler.** — *built, less the admin CRUD, which arrives with the
+   dashboard in step 4.* Schedule rows (the repo's first migration),
+   `SchedulerAgent` on the `Direct` strategy, four authoring tools, and firing
+   tests including the zero-model-calls assertion.
+
+   "Simulated clock" turned out to mean two things, and separating them is what
+   made the tests fast and honest. Jido's cron jobs read the system clock and
+   arm `Process.send_after`; there is nothing to inject. So *schedule
+   semantics* — what `0 20 * * 1-5` means asked on a Saturday, what it does on
+   a spring-forward morning — are answered by a pure `next_fire/3` that takes
+   `from` as an argument, and *firing* is driven by casting the signal the
+   timer casts, built by the same function that registers it. One test then
+   lets the real timer do the work end to end, using a six-field
+   seconds-resolution expression so that costs a second rather than a minute —
+   which is the only reason six-field expressions are accepted at all.
+
+   Three contract findings, each of which had already broken something.
+   Jido merges an action's state update into agent state with a **deep** merge,
+   so a map field cannot be cleared or pruned by assigning it — which is why
+   the scheduler keeps no record of what it registered. `:map` in a tool schema
+   is the sibling of the union type in §6.2: it renders as `"object"`, which is
+   right, and NimbleOptions reads it as `{:map, :atom, :any}`, so the object a
+   model sends is rejected for having string keys before `run/2` is reached.
+   And per-request tool context — how `create_schedule` learns who asked without
+   the model supplying it — is the `:tool_context` option, not `:context`.
 4. **Phoenix surface.** The thread with streaming and system lines, identity,
    cards, admin dashboard — all against FakeHA.
 
@@ -972,9 +1237,24 @@ before the server exists. Phase B can proceed in parallel.
    general smart-home ontology.
 15. Dobby is one Phoenix application, not an umbrella, deployed as an OTP
    release under `/opt/dobby` and supervised by systemd.
-16. Configuration on the box — the home manifest and the secrets file — is read
-   at boot from outside the release, so changing the house is a restart rather
-   than a rebuild.
+16. Configuration on the box — the home manifest, the soul, and the secrets
+   file — is read at boot from outside the release, so changing the house or
+   who answers in it is a restart rather than a rebuild.
+17. Dobby's voice lives in `config/soul.md` and is editable without a release;
+   the rules that keep him honest live in code and are composed last, so
+   doctrine wins any conflict with personality (§6.6).
+18. The model's tool list is declared as a compile-time literal library and
+   narrowed to the configured house per request. This is forced by
+   `Jido.AI.Agent`, whose macro options cannot be computed (§6.1).
+19. Per-turn context is injected as its own message ahead of the utterance,
+   never appended to it, so the raw utterance stays last (§6.3).
+20. The rig has two tiers and they answer different questions. Replay pins the
+   emitted pattern and must be incapable of reaching a provider. Eval asks
+   whether a real model exercises judgment, and it is the only tier that can
+   catch a tool contract that lies to the model, a prompt that permits
+   fan-out on an ambiguous request, or a model echoing input framing into
+   user-visible output — all three of which it did catch. Rotating models is
+   itself a test; a single-model eval hides model-specific defects.
 
 ## Sources
 

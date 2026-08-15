@@ -52,6 +52,7 @@ defmodule DobbyWeb.ThreadLive do
      |> assign(:page_title, "Dobby")
      |> assign(:speaker, nil)
      |> assign(:pending, %{})
+     |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
      |> stream(:messages, Conversation.recent(@history))}
   end
@@ -59,7 +60,7 @@ defmodule DobbyWeb.ThreadLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.board snapshots={@snapshots} speaker={@speaker} />
+    <.board snapshots={@snapshots} speaker={@speaker} listening={@listening} />
 
     <main class="thread" id="thread" phx-hook=".StickToBottom" phx-update="stream">
       <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
@@ -156,14 +157,16 @@ defmodule DobbyWeb.ThreadLive do
     {:noreply,
      socket
      |> stream_insert(:messages, message)
-     |> close_pending(message.request_id)}
+     |> close_pending(message.request_id)
+     |> assign(:listening, listening?())}
   end
 
   def handle_info({:replied, message}, socket) do
     {:noreply,
      socket
      |> stream_insert(:messages, message)
-     |> close_pending(message.request_id)}
+     |> close_pending(message.request_id)
+     |> assign(:listening, listening?())}
   end
 
   def handle_info({:turn_started, request_id}, socket) do
@@ -239,6 +242,12 @@ defmodule DobbyWeb.ThreadLive do
   end
 
   # -- the house -------------------------------------------------------------
+
+  # Whether there is anything there to hear it. The board says LISTENING beside
+  # Dobby's own face, so the one thing it must not do is say it when DobbyAgent
+  # is not running — a house that claims to be attending while nothing is
+  # answering is the exact failure this surface exists to refuse.
+  defp listening?, do: is_pid(Dobby.Jido.whereis(Dobby.DobbyAgent.id()))
 
   defp snapshots do
     Home.snapshots() |> Map.values()

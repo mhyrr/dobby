@@ -52,6 +52,25 @@ defmodule DobbyWeb.ThreadLiveTest do
       assert has_element?(view, ".row .flap[data-st=acting]", "Awake")
     end
 
+    test "says it is listening only while there is something to hear it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      assert has_element?(view, ".plate .mark.attending")
+      assert has_element?(view, ".plate .flap[data-st=acting]", "Listening")
+
+      Dobby.Jido.stop_agent(Dobby.DobbyAgent.id())
+
+      # Any thread event re-reads it. A board that claims to be attending while
+      # nothing is running is the exact failure this surface exists to refuse —
+      # and the mark stops leaning in, because the drawing carries the same
+      # fact the word does.
+      {:ok, message} = Conversation.append_system_line("the house restarted", %{})
+      ThreadEvents.system_line(message)
+
+      assert eventually(fn -> has_element?(view, ".plate .flap[data-st=silent]", "Quiet") end)
+      refute has_element?(view, ".plate .mark.attending")
+    end
+
     test "follows the house as it changes", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 

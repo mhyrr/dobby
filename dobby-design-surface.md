@@ -579,52 +579,54 @@ rest on.
 
 ## 16. Dobby's mark
 
-**Decided (Greg, 2026-08-14): both, in different jobs.**
+**Settled 2026-08-15, when Greg supplied the drawing.** It is a whole elf —
+round head, two swept ears, closed smiling eyes — and having it changed both
+halves of what §16 said before.
 
-- **The ear is the mark.** It sits beside every reply at ~26px. Big — a real
-  elf ear, not a svelte one. Greg supplied a reference: vertical axis with the
-  point straight up, a rolled helix rim running parallel to the outer edge, a
-  concha bowl, a lobe at the bottom, and broad through the upper blade
-  (roughly 3:4 width to height).
-- **The eyes are ambient presence.** Dobby's own eyes — round and protruding,
-  sclera showing all round, hard limbal ring, catchlight — set large behind the
-  thread header, cropped by the top edge, blinking every 20–40s. A subtle tick
-  underneath everything, never a foreground element.
+**The mark is Dobby's face, in the plate, at 44px.** Painted in ink: stroke in
+the cream the board letters with, fill in the ground behind it. The supplied
+white fill and black stroke read as a sticker laid on the enamel rather than
+something drawn onto it.
 
-Rejected on the way: the flap-card eyes (read as a robot), the ember (works,
-but generic — any assistant could ship a flame), and upswept almond "high-elf"
-eyes (Greg's reference settles it as round house-elf eyes).
+**Attending, he leans in — fifteen degrees** (Greg's idea, and it is the right
+one). Quiet, he sits upright and drops to the faint ink. That is the only
+state this drawing shows by itself; everything else on the board is a word,
+which is the whole argument of the surface. The tilt is bound to whether
+`DobbyAgent` is actually running, so LISTENING and the lean are the same fact
+said twice and neither can be said while nothing is there to hear it.
 
-### 16.1 What the eyes taught us, worth keeping
+The colour stays on the ink ramp rather than going green with the LISTENING
+flap beside it. A face painted in a reserved state colour is that colour used
+decoratively, and palette law is the one rule this design has that costs
+something to keep.
 
-**Subtle comes from color, not opacity.** The first attempt set bright eyes at
-16% opacity and they collapsed into grey donuts — low opacity compresses
-*every* hue toward the background, so sclera, green iris and catchlight all
-converged to the same mid tone. Rebuilt at full opacity in colors chosen close
-to the ground (`#2C2519` sclera, `#26331F` iris, `#14100A` pupil), the
-structure survives and reads. This applies to every ambient or de-emphasized
-element on the surface.
+### 16.1 Two things the drawing settled by being drawn
 
-**The iris is the green already reserved in the palette**, so Dobby's canonical
-eye color costs no sixth color and palette law holds.
+**It is not a 26px byline, and the ears alone are worse.** Rendered at 26px
+beside every reply — which is what §16 specified — the eyes, nose and mouth
+merge into a smear and the ears turn to fuzz. It needs about 40px to stay a
+face. The fallback was the ears without the head, and at any size they read as
+leaves; those ears only read as ears because the head is there.
 
-### 16.2 The ear is not drawn yet — open work
+**Which turned out to be the better job anyway.** A mark beside a finished
+reply is a byline: it says who said this, and it should not move. A mark in
+the header is Dobby *now* — and now is the only thing a tilt can describe. The
+ask that pushed it there was Greg's tilt, and the tilt is what proved the
+placement.
 
-Four passes produced a shape that is vertical and has a bowl and a rim, and
-still reads as a blob rather than an ear. The failure is method, not taste:
-hand-editing bezier control points and screenshotting to see what happened is
-guess-and-check on an organic silhouette, and it oscillated (too narrow, then
-too wide, never pointed).
+### 16.2 The ambient eyes are cut
 
-The apex specifically fails because its incoming and outgoing control vectors
-are nearly parallel, which produces a smooth curve where a corner is needed.
-That is understood and still did not converge by hand.
+They were a stand-in for a mark we did not have. With the face in the plate,
+the header carried two sets of Dobby's eyes sixty pixels apart — the ambient
+pair staring open behind the plate, the drawn pair closed and smiling beside
+LISTENING — and they fought. One Dobby, one place.
 
-**Next step, Greg's call:**
+What survives is the finding, which applies to anything de-emphasised on this
+surface: **subtle comes from colour, not opacity.** The first attempt set
+bright eyes at 16% opacity and they collapsed into grey donuts, because low
+opacity compresses every hue toward the background at once. Rebuilt opaque in
+colours chosen close to the ground, the structure survived and read.
 
-1. **Adapt an existing vector.** Fastest and most certain — if there is an SVG
-   he likes, the work is fitting it to the palette and the three states.
-2. **Trace the reference systematically.** Sample coordinates off the supplied
-   image rather than inventing them. One focused pass rather than a loop.
-
-Not recommended: another round of hand-tuning. It has had four.
+Rejected earlier on the way here: flap-card eyes (read as a robot), the ember
+(works, but generic — any assistant could ship a flame), and upswept almond
+"high-elf" eyes.

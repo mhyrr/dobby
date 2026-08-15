@@ -194,43 +194,22 @@ body {
   color: var(--ink);
 }
 
-/* ── the eyes ──────────────────────────────────────────────────────────────
-   Ambient, never a status indicator: the words are what tell you the state.
-   Subtlety comes from COLOUR, not opacity — set bright and faded these
-   collapse into grey donuts, because low opacity compresses every hue toward
-   the background at once. */
-.eyes {
-  position: absolute;
-  top: -44px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 264px;
-  height: 111px;
-  z-index: 0;
-  pointer-events: none;
+/* ── the mark ──────────────────────────────────────────────────────────────
+   Dobby's own face, in the plate. Identity is carried by the drawing and
+   state by the tilt; the reserved colours stay on the words, because a face
+   painted in a state colour would be that colour used decoratively, which
+   palette law forbids. */
+.plate .mark {
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+  transition: transform .25s ease, color .25s ease;
 }
-/* The board clips them: the eyes peer in from above and the top edge cuts
-   them off, which is the whole of the effect. */
-.plate, .rows { position: relative; z-index: 1; }
-/* Chosen a few steps above the raised board and no further. Set bright and
-   faded with opacity these collapse into grey donuts, because low opacity
-   compresses every hue toward the background at once; kept opaque and close
-   to the ground, the structure survives and stays quiet. */
-.eyes .sclera { fill: #16241E; }
-.eyes .iris   { fill: #1A2A1D; }
-.eyes .pupil  { fill: #0B120E; }
-.eyes .limbal { fill: none; stroke: #0D1712; stroke-width: 2; }
-.eyes .spark  { fill: #253A2C; }
-.eyes .lid    { fill: #101E19; }
-.eyes .lids   { transform: translateY(-42px); }
-
-@keyframes blink {
-  0%, 41.4%, 100% { transform: translateY(-42px); }
-  41.6%, 42.4%    { transform: translateY(0); }
+.plate .mark.attending {
+  color: var(--ink);
+  transform: rotate(-15deg);
 }
-.eyes .lids { animation: blink 27s infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .eyes .lids { animation: none; }
+  .plate .mark { transition: none; }
 }
 
 /* ── the thread ───────────────────────────────────────────────────────────

@@ -208,8 +208,17 @@ defmodule Dobby.Home do
     end)
   end
 
+  # The conversation window is handed over at construction rather than pushed
+  # in afterwards, because `Jido.AI.Reasoning.ReAct.Strategy` reads
+  # `agent.state[:context]` when it initializes and there is no signal for
+  # replacing it later. Design §10.5; the seam is documented in
+  # `Dobby.Conversation.Rehydrate`.
   defp start_dobby_agent do
-    agent = Dobby.DobbyAgent.new(id: Dobby.DobbyAgent.id())
+    agent =
+      Dobby.DobbyAgent.new(
+        id: Dobby.DobbyAgent.id(),
+        state: %{context: Dobby.Conversation.Rehydrate.context()}
+      )
 
     case Dobby.Jido.start_agent(agent, id: Dobby.DobbyAgent.id(), agent_module: Dobby.DobbyAgent) do
       {:ok, pid} ->

@@ -537,6 +537,141 @@ body {
 .held .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
 .held .why { color: var(--st-refused); text-transform: none; letter-spacing: 0; }
 
+.to-admin {
+  margin-top: .6rem;
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .74rem;
+  color: var(--brass-dim);
+  text-decoration: none;
+  justify-self: start;
+}
+.to-admin:hover { color: var(--brass); }
+
+/* ── admin ────────────────────────────────────────────────────────────────
+   Laptop-shaped, and the one place with enough on it to need columns. Same
+   board, same words; what changes is that a maintainer is reading it. */
+.admin {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: .9rem .9rem 1.4rem;
+  display: grid;
+  gap: 1.4rem;
+  align-content: start;
+}
+.panel { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+.panel h2 {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--brass);
+  padding-bottom: .35rem;
+  border-bottom: var(--rule);
+}
+.panel .note {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.panel .note .wrong { color: var(--st-refused); }
+/* The health rows are record-keeping, not readings: the middle column says
+   which process a row is about, so it takes the small voice rather than the
+   1.05rem a number on the board gets. */
+.panel .rows { max-width: none; }
+.panel .rows .row .val {
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: var(--ink-faint);
+}
+
+.sched { display: grid; gap: .3rem; padding: .5rem 0; border-top: var(--rule); }
+.sched:first-of-type { border-top: 0; }
+.sched .detail, .sched .acts {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+.sched .why {
+  font-size: .74rem;
+  color: var(--st-refused);
+}
+/* A paused schedule has no state word — none of the eight means "somebody
+   switched this off", and bending one to fit would put a word on the board
+   that means two things. The row going quiet says it instead. */
+.sched.paused .name, .sched.paused .val, .sched.paused .detail { color: var(--ink-faint); }
+.sched .acts { display: flex; gap: .9rem; }
+.sched .acts button, .new-sched button, .admin .undo button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass);
+}
+.sched .acts button:hover { color: var(--st-set); }
+
+.new-sched {
+  display: grid;
+  gap: .6rem;
+  padding-top: .7rem;
+  margin-top: .3rem;
+  border-top: 2px solid var(--brass-dim);
+  justify-items: start;
+}
+.new-sched label { display: grid; gap: .2rem; width: 100%; }
+.new-sched label span {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.new-sched input, .new-sched select {
+  width: 100%;
+  background: var(--flap);
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  color: var(--ink);
+  font-family: var(--said-type);
+  font-size: 1rem;
+  padding: .4rem .5rem;
+  caret-color: var(--st-set);
+}
+.new-sched input::placeholder { color: var(--ink-faint); }
+.new-sched .why { font-size: .86rem; color: var(--st-refused); }
+
+.feed { min-width: 0; }
+.feed .entry {
+  display: grid;
+  grid-template-columns: 5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem;
+  gap: .5rem;
+  align-items: baseline;
+  padding: .18rem 0;
+  border-top: var(--rule);
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+.feed .entry .t, .feed .entry .took { color: var(--ink-faint); }
+.feed .entry .what { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.feed .entry .kind, .feed .entry .who, .feed .entry .what { white-space: nowrap; }
+.feed .entry .who { overflow: hidden; text-overflow: ellipsis; }
+.feed .entry .took { text-align: right; }
+
 /* ── the set line ─────────────────────────────────────────────────────── */
 .set-line {
   flex: 0 0 auto;
@@ -584,6 +719,7 @@ body {
   .thread { padding: 1.2rem 1.4rem .5rem; }
   .thread-pending { padding: 0 1.4rem .9rem; }
   .cards { padding: 1.2rem 1.4rem 1.8rem; }
+  .admin { padding: 1.2rem 1.4rem 1.8rem; }
 
   .msg {
     display: grid;
@@ -594,4 +730,16 @@ body {
   .msg .attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; }
   .msg .steps, .msg .collapsed { grid-column: 2; }
   .sys { padding-left: 8.6rem; }
+}
+
+/* Admin is the one page with enough on it to want columns, and the one that
+   is read on a laptop rather than glanced at from across a kitchen. Health
+   and schedules on the left because they are short and they are where the
+   changing happens; the feed on the right because it is the long one. */
+@media (min-width: 980px) {
+  .admin {
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    align-items: start;
+  }
+  .admin .feed { grid-column: 2; grid-row: 1 / span 2; }
 }

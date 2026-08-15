@@ -30,7 +30,19 @@ defmodule Dobby.Activity do
     %Entry{}
     |> Entry.changeset(attrs)
     |> Repo.insert()
+    |> announce()
   end
+
+  # Announced from the write rather than from each caller, so the feed cannot
+  # end up showing a different set of events from the table it claims to be a
+  # view of. There are three callers already and they have nothing else in
+  # common.
+  defp announce({:ok, entry} = result) do
+    Dobby.ActivityEvents.recorded(entry)
+    result
+  end
+
+  defp announce(result), do: result
 
   @doc """
   Coerces a term into something the `:map` columns can hold.

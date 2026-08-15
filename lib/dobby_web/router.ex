@@ -31,6 +31,7 @@ defmodule DobbyWeb.Router do
     live_session :household, on_mount: {DobbyWeb.Plugs.Speaker, :speaker} do
       live "/", ThreadLive
       live "/house", HouseLive
+      live "/admin", AdminLive
     end
   end
 

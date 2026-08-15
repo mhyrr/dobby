@@ -68,6 +68,11 @@ defmodule DobbyWeb.HouseLive do
         held={@held[snapshot.id]}
       />
       <p :if={@snapshots == []} class="empty">No devices are configured.</p>
+
+      <%!-- The way in to /admin, and the only one. It is laptop-shaped and
+            rarely visited, so it does not earn permanent header space on the
+            surface a phone opens first. --%>
+      <.link navigate={~p"/admin"} class="to-admin">Admin</.link>
     </main>
     """
   end

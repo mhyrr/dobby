@@ -8,6 +8,9 @@ defmodule DobbyWeb.Router do
     plug :put_root_layout, html: {DobbyWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    # Identity personalizes and attributes; it never permits (design §7). This
+    # is not authentication and there is nothing below it to authenticate to.
+    plug DobbyWeb.Plugs.Speaker
   end
 
   pipeline :api do
@@ -20,7 +23,14 @@ defmodule DobbyWeb.Router do
   scope "/", DobbyWeb do
     pipe_through :browser
 
-    live "/", ThreadLive
+    # Naming yourself is the one round trip on this surface: a LiveView cannot
+    # set a cookie, and the cookie is the whole of identity (§7).
+    post "/speaker", SpeakerController, :create
+    post "/speaker/switch", SpeakerController, :switch
+
+    live_session :household, on_mount: {DobbyWeb.Plugs.Speaker, :speaker} do
+      live "/", ThreadLive
+    end
   end
 
   # Other scopes may use custom stacks.

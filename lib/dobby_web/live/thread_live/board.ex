@@ -14,7 +14,7 @@ defmodule DobbyWeb.ThreadLive.Board do
   changed is the thing somebody is watching.
   """
 
-  use Phoenix.Component
+  use DobbyWeb, :html
 
   import DobbyWeb.Flap
   import DobbyWeb.Mark
@@ -26,6 +26,7 @@ defmodule DobbyWeb.ThreadLive.Board do
   attr :speaker, :map, default: nil
   attr :listening, :boolean, default: true
   attr :limit, :integer, default: 3
+  attr :return_to, :string, default: "/"
 
   def board(assigns) do
     rows =
@@ -40,7 +41,7 @@ defmodule DobbyWeb.ThreadLive.Board do
       <div class="plate">
         <h1>The House</h1>
         <div class="who">
-          <span :if={@speaker}>{@speaker.name}</span>
+          <.speaking_as :if={@speaker} speaker={@speaker} return_to={@return_to} />
           <.mark attending?={@listening} />
           <.flap state={if @listening, do: :acting, else: :silent}>
             {if @listening, do: "Listening", else: "Quiet"}
@@ -56,6 +57,28 @@ defmodule DobbyWeb.ThreadLive.Board do
         </div>
       </div>
     </header>
+    """
+  end
+
+  @doc """
+  Who this browser thinks it is, and how to stop being them.
+
+  A real form and not a link: switching identity is a write, and the cookie it
+  clears can only be cleared by a controller. It is also why "switch" is a
+  small, quiet word rather than the name itself being tappable — a household
+  tablet that changed who was speaking because somebody brushed the header
+  would be worse than typing a name again.
+  """
+  attr :speaker, :map, required: true
+  attr :return_to, :string, default: "/"
+
+  def speaking_as(assigns) do
+    ~H"""
+    <.form for={%{}} action={~p"/speaker/switch"} method="post" class="speaking-as">
+      <input type="hidden" name="return_to" value={@return_to} />
+      <span class="name">{@speaker.name}</span>
+      <button type="submit">switch</button>
+    </.form>
     """
   end
 end

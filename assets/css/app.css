@@ -195,6 +195,30 @@ body {
   color: var(--ink-quiet);
 }
 .plate .who .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+
+/* who is speaking, and how to stop being them. A real form: the cookie it
+   clears can only be cleared by a controller. */
+.plate .speaking-as { display: flex; align-items: stretch; }
+.plate .speaking-as .name { color: var(--ink-quiet); padding-right: .45rem; }
+/* A hairline between the name and the control, which is the same separator
+   the set line puts before its send arrow. Without it "GREG SWITCH" reads at
+   a glance as two words of one name. */
+.plate .speaking-as button {
+  background: transparent;
+  border: 0;
+  border-left: var(--rule);
+  padding: 0 0 0 .45rem;
+  font: inherit;
+  letter-spacing: inherit;
+  /* Lower case, stated rather than inherited by accident. Everything on this
+     board set in capitals is a label — a state, a name, a time. "switch" is a
+     verb, and the system already sets its one other verb-shaped string, a
+     refusal's reason, in lower case condensed. */
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass-dim);
+}
+.plate .speaking-as button:hover { color: var(--brass); }
 .rows { position: relative; display: grid; gap: .3rem; max-width: 34rem; }
 .row {
   display: grid;

@@ -19,11 +19,12 @@ defmodule DobbyWeb.ThreadLive do
   `receive`, so a LiveView iterating one would stop handling messages for the
   length of the request.
 
-  ## The speaker, for now
+  ## The speaker
 
-  A name typed here lasts as long as this connection. Making it stick to the
-  browser is the identity commit; the rest of the surface does not change when
-  it lands, because the only thing that gets better is where the id is kept.
+  Assigned by `DobbyWeb.Plugs.Speaker` before this mounts, read from a signed
+  cookie the browser has been carrying since somebody typed a name into the set
+  line. When nobody has, the set line asks — and that one form leaves the
+  socket for a controller, because a LiveView cannot set a cookie.
   """
 
   use DobbyWeb, :live_view
@@ -50,7 +51,6 @@ defmodule DobbyWeb.ThreadLive do
     {:ok,
      socket
      |> assign(:page_title, "Dobby")
-     |> assign(:speaker, nil)
      |> assign(:pending, %{})
      |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
@@ -60,7 +60,7 @@ defmodule DobbyWeb.ThreadLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.board snapshots={@snapshots} speaker={@speaker} listening={@listening} />
+    <.board snapshots={@snapshots} speaker={@speaker} listening={@listening} return_to={~p"/"} />
 
     <main class="thread" id="thread" phx-hook=".StickToBottom" phx-update="stream">
       <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
@@ -72,29 +72,38 @@ defmodule DobbyWeb.ThreadLive do
       <.pending :for={pending <- ordered(@pending)} pending={pending} />
     </div>
 
-    <form class="set-line" phx-submit={if @speaker, do: "say", else: "name"}>
+    <%!-- Two set lines, and only ever one of them on the page. Saying
+          something is an event; naming yourself is a POST, because the cookie
+          it writes can only be written by a controller. --%>
+    <form :if={@speaker} class="set-line" phx-submit="say">
       <input
         type="text"
         id="composer"
-        name={if @speaker, do: "text", else: "name"}
+        name="text"
         value=""
         autocomplete="off"
-        placeholder={if @speaker, do: "say something", else: "who's this?"}
-        aria-label={if @speaker, do: "Say something to Dobby", else: "Your name"}
+        placeholder="say something"
+        aria-label="Say something to Dobby"
         phx-hook=".Composer"
         phx-mounted={JS.focus()}
       />
-      <button type="submit" aria-label="Send">
-        <svg viewBox="0 0 17 17" fill="none" aria-hidden="true">
-          <path
-            d="M2 8.5h12M9.5 4l4.5 4.5L9.5 13"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="square"
-          />
-        </svg>
-      </button>
+      <.send_arrow />
     </form>
+
+    <.form :if={!@speaker} for={%{}} action={~p"/speaker"} method="post" class="set-line">
+      <input type="hidden" name="return_to" value={~p"/"} />
+      <input
+        type="text"
+        id="composer"
+        name="name"
+        value=""
+        autocomplete="off"
+        placeholder="who's this?"
+        aria-label="Your name"
+        phx-mounted={JS.focus()}
+      />
+      <.send_arrow />
+    </.form>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".StickToBottom">
       export default {
@@ -117,22 +126,24 @@ defmodule DobbyWeb.ThreadLive do
     """
   end
 
+  defp send_arrow(assigns) do
+    ~H"""
+    <button type="submit" aria-label="Send">
+      <svg viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path
+          d="M2 8.5h12M9.5 4l4.5 4.5L9.5 13"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="square"
+        />
+      </svg>
+    </button>
+    """
+  end
+
   # -- what a person does ----------------------------------------------------
 
   @impl true
-  def handle_event("name", %{"name" => name}, socket) do
-    case String.trim(name) do
-      "" ->
-        {:noreply, socket}
-
-      name ->
-        case Conversation.name_speaker(name) do
-          {:ok, speaker} -> {:noreply, socket |> assign(:speaker, speaker) |> clear_composer()}
-          {:error, _changeset} -> {:noreply, socket}
-        end
-    end
-  end
-
   def handle_event("say", %{"text" => text}, socket) do
     with %{} = speaker <- socket.assigns.speaker,
          trimmed when trimmed != "" <- String.trim(text) do

@@ -38,6 +38,13 @@ defmodule DobbyWeb.ThreadLiveTest do
     %{conn: build_conn()}
   end
 
+  # A browser that has already been named, the way a real one gets that way:
+  # through the controller, so the signed cookie is the real thing rather than
+  # a session seeded by hand.
+  defp named(conn, name) do
+    post(conn, "/speaker", %{"name" => name, "return_to" => "/"})
+  end
+
   describe "the board" do
     test "shows the house before anyone asks", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
@@ -88,32 +95,33 @@ defmodule DobbyWeb.ThreadLiveTest do
     test "asks who is there before it takes anything down", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
+      # A POST and not an event: the cookie this writes can only be written by
+      # a controller, which is the one round trip on this surface.
+      assert has_element?(view, "form.set-line[action='/speaker'][method=post]")
       assert has_element?(view, "input#composer[name=name][aria-label='Your name']")
-
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
-
-      assert has_element?(view, "input#composer[name=text]")
-      assert has_element?(view, ".plate .who", "greg")
-      assert Conversation.get_speaker_by_name("greg")
+      refute has_element?(view, ".plate .speaking-as")
     end
 
-    test "a name that already exists is the same person", %{conn: conn} do
-      {:ok, existing} = Conversation.name_speaker("Greg")
-      {:ok, view, _html} = live(conn, "/")
+    test "takes what somebody says once the browser knows who they are", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+      assert has_element?(view, "input#composer[name=text]")
+      assert has_element?(view, ".plate .speaking-as .name", "greg")
+      refute has_element?(view, "input#composer[name=name]")
+    end
 
-      assert has_element?(view, ".plate .who", "Greg")
-      assert length(Conversation.list_speakers()) == 1
-      assert Conversation.get_speaker_by_name("greg").id == existing.id
+    test "offers a way to stop being that person", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      assert has_element?(view, ".plate .speaking-as[action='/speaker/switch']")
+      assert has_element?(view, ".plate .speaking-as button", "switch")
     end
   end
 
   describe "a turn" do
     test "puts what somebody said in the thread, then says it could not answer",
          %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
       view |> element("form.set-line") |> render_submit(%{"text" => "is the printer on?"})
 

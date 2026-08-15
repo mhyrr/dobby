@@ -24,7 +24,11 @@ defmodule Dobby.DeviceAgents.Thermostat do
       dobby_id: [type: :string, required: true],
       name: [type: :string, required: true],
       entity_id: [type: :string, required: true],
-      available: [type: :boolean, default: false],
+      # `nil` and not `false`: "nobody has told us yet" and "the device is
+      # not answering" are different facts, and the board has a different word
+      # for each. Defaulting to `false` made a thermostat that had simply not
+      # reported yet look like one that had gone quiet.
+      available: [type: {:or, [:boolean, nil]}, default: nil],
       current_temperature_f: [type: {:or, [:integer, :float, nil]}, default: nil],
       target_temperature_f: [type: {:or, [:integer, :float, nil]}, default: nil],
       hvac_mode: [type: {:or, [:atom, nil]}, default: nil],
@@ -62,6 +66,13 @@ defmodule Dobby.DeviceAgents.Thermostat do
 
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Thermostat.SyncState
+
+  # The setpoint is the only thing about a thermostat somebody can *do*. The
+  # room's temperature changing is the house being a house, and a thread that
+  # announced every degree would bury the sentences people came to read.
+  @impl Dobby.DeviceAgent
+  def intervention?(:target_temperature_f), do: true
+  def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do

@@ -18,6 +18,7 @@ defmodule Dobby.DeviceAgents.WifiEndpoint.SyncState do
       attributes: [type: :map, default: %{}]
     ]
 
+  alias Dobby.DeviceAgent
   alias Dobby.DeviceEvents
 
   @impl true
@@ -31,10 +32,18 @@ defmodule Dobby.DeviceAgents.WifiEndpoint.SyncState do
       last_changed_at: changed_at(previous, online)
     }
 
-    if meaningful_change?(previous, next) do
-      {:ok, next, [DeviceEvents.emit(previous.dobby_id, snapshot(previous, next))]}
-    else
-      {:ok, next}
+    case DeviceAgent.changes(previous, next, [:available, :online]) do
+      %{changed: []} ->
+        {:ok, next}
+
+      %{changed: changed, moved: moved} ->
+        {:ok, next,
+         [
+           DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
+             changed: changed,
+             moved: moved
+           )
+         ]}
     end
   end
 
@@ -67,15 +76,14 @@ defmodule Dobby.DeviceAgents.WifiEndpoint.SyncState do
   defp parse_online("off"), do: false
   defp parse_online(_other), do: nil
 
-  # Stamped only when reachability actually flips, so "offline since" means
-  # what it says rather than "when HA last mentioned it".
-  defp changed_at(previous, online) do
-    if previous.online == online, do: previous.last_changed_at, else: DateTime.utc_now()
-  end
-
-  defp meaningful_change?(previous, next) do
-    Enum.any?([:available, :online], fn key ->
-      Map.get(previous, key) != Map.get(next, key)
-    end)
-  end
+  # Stamped only when we actually watched reachability flip, so "quiet since
+  # 3am" means what it says.
+  #
+  # `nil` counts as never having watched. A first report is the house learning
+  # what it has, and stamping it would put the boot time on a printer that has
+  # been off since Tuesday — a card claiming to know how long something has
+  # been quiet when all it knows is when Dobby started.
+  defp changed_at(%{online: nil}, _online), do: nil
+  defp changed_at(%{online: online} = previous, online), do: previous.last_changed_at
+  defp changed_at(_previous, _online), do: DateTime.utc_now()
 end

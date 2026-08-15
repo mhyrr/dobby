@@ -85,6 +85,12 @@ defmodule DobbyWeb.Flap do
   @spec read(map()) :: %{word: String.t(), state: atom(), value: String.t() | nil}
   def read(%{type: :thermostat} = snapshot) do
     cond do
+      # `nil` before `false`, and they are different rows on purpose: a device
+      # that has not reported is NOT KNOWN, and one that has stopped answering
+      # is QUIET. Rounding the first into the second is the surface
+      # contradicting `wifi_get_status`, which insists to the model that they
+      # are not the same.
+      is_nil(snapshot.available) -> unknown(temperature(snapshot))
       not snapshot.available -> %{word: "Quiet", state: :silent, value: temperature(snapshot)}
       is_nil(snapshot.target_temperature_f) -> unknown(temperature(snapshot))
       warming?(snapshot) -> %{word: "Warming", state: :acting, value: temperature(snapshot)}

@@ -29,7 +29,7 @@ defmodule DobbyWeb.ThreadLive do
 
   use DobbyWeb, :live_view
 
-  import DobbyWeb.ThreadLive.Board
+  import DobbyWeb.Board
   import DobbyWeb.ThreadLive.Message
 
   alias Dobby.Conversation
@@ -60,7 +60,10 @@ defmodule DobbyWeb.ThreadLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.board snapshots={@snapshots} speaker={@speaker} listening={@listening} return_to={~p"/"} />
+    <header class="board">
+      <.plate speaker={@speaker} listening={@listening} return_to={~p"/"} />
+      <.band snapshots={@snapshots} />
+    </header>
 
     <main class="thread" id="thread" phx-hook=".StickToBottom" phx-update="stream">
       <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
@@ -164,12 +167,19 @@ defmodule DobbyWeb.ThreadLive do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
+  # A system line closes the pending row only when it *is* the end of the turn.
+  # Every other line — the thermostat going to 70, a schedule at eight o'clock —
+  # can land in the middle of a request, and closing the pending row on those
+  # would take Dobby's half-written reply off the board while he was still
+  # writing it.
   def handle_info({:system_line, message}, socket) do
-    {:noreply,
-     socket
-     |> stream_insert(:messages, message)
-     |> close_pending(message.request_id)
-     |> assign(:listening, listening?())}
+    socket = socket |> stream_insert(:messages, message) |> assign(:listening, listening?())
+
+    if message.meta["kind"] == "request_failed" do
+      {:noreply, close_pending(socket, message.request_id)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:replied, message}, socket) do

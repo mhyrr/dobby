@@ -18,6 +18,8 @@ defmodule DobbyWeb.ThreadLive.Message do
 
   use Phoenix.Component
 
+  import DobbyWeb.Flap
+
   alias Dobby.Conversation.Message
   alias DobbyWeb.Markdown
 
@@ -27,11 +29,22 @@ defmodule DobbyWeb.ThreadLive.Message do
   attr :message, Message, required: true
   attr :id, :string, default: nil
 
+  # Two shapes of system line, told apart by whether the meta carries a state
+  # word. An intervention reads as a board row — device, word, value, and who
+  # did it. A failure is a sentence, because "Dobby couldn't answer that" is
+  # not a reading of anything.
   def message(%{message: %Message{role: :system}} = assigns) do
+    assigns = assign(assigns, :intervention, intervention(assigns.message))
+
     ~H"""
     <div class="sys" id={@id}>
       <span class="dev">{@message.text}</span>
+      <.flap :if={@intervention} state={@intervention.state}>{@intervention.word}</.flap>
+      <span :if={@intervention && @intervention.value} class="val">{@intervention.value}</span>
       <span :if={detail(@message)} class="via">— {detail(@message)}</span>
+      <span :if={@intervention && @intervention.reason} class="why">
+        {@intervention.reason}
+      </span>
     </div>
     """
   end
@@ -146,6 +159,23 @@ defmodule DobbyWeb.ThreadLive.Message do
   # `meta` for the admin, and the sentence is the message.
   defp detail(%Message{meta: %{"via" => via}}) when is_binary(via), do: via
   defp detail(%Message{}), do: nil
+
+  # `Dobby.Interventions` writes the word; this only reads it back. The state
+  # arrives as a string because it has been through Postgres, and a renderer
+  # that handled only the atom would work all session and break on reload.
+  defp intervention(%Message{meta: %{"word" => word} = meta}) when is_binary(word) do
+    %{
+      word: word,
+      state: flap_state(meta["state"]),
+      value: meta["value"],
+      reason: meta["reason"]
+    }
+  end
+
+  defp intervention(%Message{}), do: nil
+
+  defp flap_state("refused"), do: :refused
+  defp flap_state(_set), do: :set
 
   @doc """
   Who said it.

@@ -43,6 +43,7 @@ defmodule Dobby.Conversation.Turn do
   alias Dobby.Conversation
   alias Dobby.Conversation.Speaker
   alias Dobby.DobbyAgent
+  alias Dobby.Interventions
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
   alias Jido.AI.Runtime.Event
@@ -172,6 +173,7 @@ defmodule Dobby.Conversation.Turn do
 
     ThreadEvents.step(turn.request_id, step)
     record_tool_call(turn, data, Map.get(turn.arguments, id, %{}), state)
+    record_intervention(turn, data)
 
     %{turn | steps: Map.put(turn.steps, id, step)}
   end
@@ -302,6 +304,33 @@ defmodule Dobby.Conversation.Turn do
 
   # -- the record ------------------------------------------------------------
 
+  # A tool call that moved the house gets a line in the thread, attributed to
+  # whoever asked (surface design §5.2). The reply already says what Dobby did
+  # in his own words; the line is the record, and it is the same line a card
+  # tap or a schedule writes — so scrolling back to yesterday shows one kind of
+  # entry for "the thermostat went to 70", however it got there.
+  #
+  # Keyed on the write-acknowledgment protocol's own `accepted: true` rather
+  # than on a list of tool names, so a reading tool cannot accidentally
+  # announce an intervention and a future actuating one does not have to be
+  # added here.
+  defp record_intervention(turn, data) do
+    case normalize(data[:result]) do
+      {:ok, %{accepted: true, device: device, name: name} = value} ->
+        Interventions.record(%{
+          device: device,
+          name: name,
+          value: Interventions.reading(value),
+          action: data[:tool_name],
+          via: turn.speaker,
+          request_id: turn.request_id
+        })
+
+      _not_an_actuation ->
+        :ok
+    end
+  end
+
   defp record_tool_call(turn, data, arguments, state) do
     Activity.record(%{
       kind: "tool_call",
@@ -327,22 +356,7 @@ defmodule Dobby.Conversation.Turn do
     })
   end
 
-  # `args` and `result` are `:map` columns, so everything in them has to
-  # survive a JSON round trip. Tool results are ordinary Elixir — tuples,
-  # structs, whatever an action chose to return — and a log write that raises
-  # would take down the turn it was only supposed to describe.
-  defp jsonable(value) when is_map(value) and not is_struct(value) do
-    Map.new(value, fn {key, value} -> {to_string(key), jsonable(value)} end)
-  end
-
-  defp jsonable(%DateTime{} = value), do: DateTime.to_iso8601(value)
-  defp jsonable(value) when is_struct(value), do: value |> Map.from_struct() |> jsonable()
-  defp jsonable(value) when is_list(value), do: Enum.map(value, &jsonable/1)
-  defp jsonable(value) when is_tuple(value), do: value |> Tuple.to_list() |> jsonable()
-  defp jsonable(value) when is_binary(value) or is_number(value), do: value
-  defp jsonable(value) when is_boolean(value) or is_nil(value), do: value
-  defp jsonable(value) when is_atom(value), do: to_string(value)
-  defp jsonable(value), do: inspect(value)
+  defp jsonable(value), do: Activity.jsonable(value)
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(%{reason: reason}) when is_binary(reason), do: reason

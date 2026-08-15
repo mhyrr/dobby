@@ -17,6 +17,7 @@ colors:
   st-refused: "#D2604A"
   st-silent: "#7C8B85"
   st-expected: "#E8E2D2"
+  seam-light: "rgba(255, 255, 255, .045)"
 typography:
   display:
     fontFamily: "Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif"
@@ -332,8 +333,11 @@ rules where the structure actually changes — under the header and over the set
 line. Weight marks importance; colour never does.
 
 The signature form is **the fold**: a hairline split across the middle of each
-flap card, built as a background gradient with a highlight above the seam and
-`flap-edge` below it.
+flap card, built as a background gradient with `seam-light` above the seam and
+`flap-edge` below it. That pair is the system's one way of cutting an edge into
+the enamel, and the fader's groove is built from the same two lines — a dark
+edge on top, a lit one under it. It is not a colour in the palette's sense; it
+is the light side of an edge, and nothing readable is ever painted in it.
 
 ### Named Rules
 

@@ -71,6 +71,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     do: ~s("#{name}", also called #{Enum.join(aliases, ", ")})
 
   defp state_phrase(%{available: false}), do: "currently unavailable"
+  defp state_phrase(%{available: nil}), do: "has not reported yet"
 
   defp state_phrase(%{type: :thermostat} = snapshot) do
     "thermostat, currently #{temp(snapshot.current_temperature_f)}, set to #{temp(snapshot.target_temperature_f)}, mode #{snapshot.hvac_mode || "unknown"}"

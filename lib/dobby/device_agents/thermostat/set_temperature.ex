@@ -48,7 +48,7 @@ defmodule Dobby.DeviceAgents.Thermostat.SetTemperature do
     {min, max} = Thermostat.accepted_range(state)
 
     cond do
-      not state.available ->
+      state.available != true ->
         {:error, "#{state.name} is unavailable"}
 
       min != nil and temperature < min ->

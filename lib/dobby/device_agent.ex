@@ -72,6 +72,46 @@ defmodule Dobby.DeviceAgent do
   """
   @callback snapshot(state :: map()) :: map()
 
+  @doc """
+  Whether a change to this attribute is something somebody *did* (design §10.1).
+
+  The thread records interventions and the cards record everything, but Home
+  Assistant does not report intent — it reports that an attribute changed. The
+  discriminator is *which* attribute: a setpoint is commanded, connectivity is
+  observed. Somebody turning the dial in the hallway belongs in the thread; an
+  endpoint flapping at 3am belongs on a card and in the log.
+
+  That is per-device knowledge, which is why it lives here rather than in a
+  central list the way a switch statement would want. `Thermostat` answers true
+  for `:target_temperature_f` and false for the room's temperature;
+  `WifiEndpoint` answers false for everything it has.
+  """
+  @callback intervention?(attribute :: atom()) :: boolean()
+
+  @doc """
+  What differs between two states, and which of it actually *moved*.
+
+  Two answers because the house asks two questions of the same event.
+
+  `changed` is everything that differs, and it is what the log records.
+
+  `moved` is the subset that went from one known value to another. A value
+  arriving where there was none is the house learning what it has, not
+  something that happened in it: a thermostat reporting for the first time
+  after a restart did not get set to 68 by anybody, and a thread that said so
+  would announce the boot sequence to the kitchen every time the box came up.
+
+  This is why `available` defaults to `nil` rather than `false` on both device
+  types. `false` would have made every first report look like a device coming
+  back from the dead.
+  """
+  @spec changes(map(), map(), [atom()]) :: %{changed: [atom()], moved: [atom()]}
+  def changes(previous, next, keys) do
+    changed = Enum.filter(keys, &(Map.get(previous, &1) != Map.get(next, &1)))
+
+    %{changed: changed, moved: Enum.reject(changed, &is_nil(Map.get(previous, &1)))}
+  end
+
   @typedoc "What a device agent decided about a command it was sent."
   @type outcome :: :accepted | {:rejected, String.t()} | :unknown
 
@@ -95,6 +135,30 @@ defmodule Dobby.DeviceAgent do
       %{ref: ^ref, result: :accepted} -> :accepted
       %{ref: ^ref, result: {:rejected, reason}} -> {:rejected, reason}
       _other -> :unknown
+    end
+  end
+
+  @doc """
+  Sends a command to a device agent and reads back what it decided.
+
+  The other half of the write protocol `command_outcome/2` documents, and the
+  reason it is a function rather than three copies: the model's tool, a card
+  someone tapped, and a schedule at eight o'clock all reach a device this way,
+  and "the thermostat refused" has to mean the same thing whichever asked.
+
+  The `ref` is minted here because it is a property of the call and not of the
+  caller — nobody should be able to read back a decision that belongs to
+  somebody else's command.
+  """
+  @spec command(pid(), String.t(), map()) :: outcome() | {:error, String.t()}
+  def command(pid, signal_type, args) when is_pid(pid) and is_binary(signal_type) do
+    ref = Jido.Util.generate_id()
+    signal = Jido.Signal.new!(signal_type, Map.put(args, :ref, ref))
+
+    case Jido.AgentServer.call(pid, signal) do
+      {:ok, agent} -> command_outcome(agent.state, ref)
+      {:error, reason} when is_binary(reason) -> {:error, reason}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 end

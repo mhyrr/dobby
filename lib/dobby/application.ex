@@ -16,6 +16,12 @@ defmodule Dobby.Application do
       # makes the calling process the event sink, so the process that iterates
       # a request cannot be the LiveView — see `Dobby.Conversation.Turn`.
       {Task.Supervisor, name: Dobby.TaskSupervisor},
+      # The one writer for the two things that happen with nobody standing in
+      # front of them — a schedule at eight o'clock, and a hand on the dial.
+      # A process and not a LiveView: three browsers would write three lines.
+      # Above the house, so it is already subscribed when the first device
+      # reports on boot.
+      Dobby.Interventions.Watcher,
       # Order is the design's boot order (§5) and it is load-bearing: the Jido
       # instance supplies the registry device agents register in, the HA client
       # must exist before Dobby.Home hands it a routing table, and Dobby.Home

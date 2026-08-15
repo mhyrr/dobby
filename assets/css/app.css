@@ -26,13 +26,39 @@
    because it is a world with its own vocabulary — a flap, a rule, a state
    colour — and naming those once beats spelling them out at every call site.
 
-   TYPE. Designed for Barlow and Barlow Condensed (SIL OFL). They are not
-   vendored: this box has no internet and a webfont from a CDN would be a
-   dependency that fails exactly when the house is offline. The stack degrades
-   to the best condensed face each platform actually has, and drops the woff2
-   files in at priv/static/fonts the day somebody wants the real thing — no
-   CSS change, because Barlow is already first in every stack below.
+   TYPE. Barlow and Barlow Condensed (SIL OFL), served from this box. Never
+   from a CDN: the house has no internet, so a webfont hosted anywhere else is
+   a dependency that fails exactly when it is needed. Three faces are vendored
+   because three are used; the rest of both families were deleted rather than
+   carried. TTF rather than WOFF2 because no converter was to hand and the
+   files travel a few metres of LAN to three devices, where the difference is
+   not worth a build dependency.
+
+   The fallbacks stay in the stack below for the moment before the font
+   arrives, and for anything that fails to load it.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: "Barlow";
+  src: url("/fonts/Barlow/Barlow-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/Barlow_Condensed/BarlowCondensed-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/Barlow_Condensed/BarlowCondensed-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --board:        #0B1713;   /* enamel ground */

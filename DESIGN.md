@@ -213,11 +213,17 @@ rather than a sign, the saturation is wrong.
 platform sans)
 **Body Font:** Barlow (with the platform sans)
 
-Neither is vendored. The box has no internet, and a webfont from a CDN is a
-dependency that fails exactly when the house is offline; the stack degrades to
-the best condensed face each platform actually has, and Barlow is first in
-every stack so dropping the woff2 files into `priv/static/fonts` upgrades
-everything with no CSS change.
+Both are served from the box itself, from `priv/static/fonts`, never from a
+CDN: the house has no internet, so a webfont hosted anywhere else is a
+dependency that fails exactly when it is needed. Three faces are vendored
+because three are used — Barlow Regular, Barlow Condensed Regular, Barlow
+Condensed SemiBold — and the rest of both families were deleted rather than
+carried. TTF rather than WOFF2, because the files travel a few metres of LAN
+to three devices and the difference there is not worth a build dependency.
+
+The platform fallbacks stay in the stack for the moment before the font
+arrives and for anything that fails to load it. A fourth weight is a design
+decision: the ramp is 400 and 600, and nothing on this board is italic.
 
 **Character:** A condensed grotesque doing the board's job — uppercase,
 letter-spaced, fixed-pitch — against an unhurried humanist sans for anything a

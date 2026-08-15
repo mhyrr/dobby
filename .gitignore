@@ -39,3 +39,6 @@ npm-debug.log
 # being looked at. They are evidence for a conversation, not for the repo.
 /.playwright-mcp/
 
+
+# macOS writes these into any directory Finder has looked at.
+.DS_Store

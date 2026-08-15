@@ -49,20 +49,45 @@ defmodule Dobby.Conversation.Turn do
   alias Jido.AI.Runtime.Event
 
   @doc """
-  Says something to Dobby, in the background.
+  Says something to Dobby.
 
-  Returns as soon as the task is started; everything the caller needs arrives
-  on `dobby:thread`, including the caller's own utterance. That is deliberate —
-  one path writes the thread, so a surface cannot end up rendering an
-  optimistic copy of a message that never persisted.
+  Hands the utterance to `Dobby.Conversation.Turn.Queue`, which writes it into
+  the thread straight away and asks when Dobby is free. Returns immediately;
+  everything the caller needs arrives on `dobby:thread`, including the caller's
+  own utterance. That is deliberate — one path writes the thread, so a surface
+  cannot end up rendering an optimistic copy of a message that never persisted.
   """
-  @spec say(Utterance.t(), Speaker.t(), keyword()) :: DynamicSupervisor.on_start_child()
+  @spec say(Utterance.t(), Speaker.t(), keyword()) :: :ok
   def say(%Utterance{} = utterance, %Speaker{} = speaker, opts \\ []) do
-    Task.Supervisor.start_child(Dobby.TaskSupervisor, fn -> run(utterance, speaker, opts) end)
+    __MODULE__.Queue.say(utterance, speaker, opts)
   end
 
   @doc """
-  Runs a turn in the calling process.
+  Writes an utterance into the thread and returns its request id.
+
+  Separate from asking, because the two happen at different times once there is
+  a queue: what somebody said belongs in the thread the moment they said it,
+  and the answer comes when Dobby gets to it. A person whose words sat
+  invisible until the agent freed up would reasonably conclude the house had
+  stopped listening.
+  """
+  @spec record(Utterance.t(), Speaker.t()) :: {:ok, String.t()} | :error
+  def record(%Utterance{} = utterance, %Speaker{} = speaker) do
+    request_id = Jido.Util.generate_id()
+
+    case Conversation.append_utterance(utterance, speaker, request_id: request_id) do
+      {:ok, message} ->
+        ThreadEvents.said(%{message | speaker: speaker})
+        {:ok, request_id}
+
+      {:error, changeset} ->
+        Logger.error("could not record an utterance: #{inspect(changeset.errors)}")
+        :error
+    end
+  end
+
+  @doc """
+  Runs a turn in the calling process, queue and all skipped.
 
   `say/3` is the production entry point. This is exposed because the calling
   process is the event sink: a test that wants a turn to have finished before
@@ -70,26 +95,27 @@ defmodule Dobby.Conversation.Turn do
   """
   @spec run(Utterance.t(), Speaker.t(), keyword()) :: :ok
   def run(%Utterance{} = utterance, %Speaker{} = speaker, opts \\ []) do
-    request_id = Jido.Util.generate_id()
-
-    try do
-      case Conversation.append_utterance(utterance, speaker, request_id: request_id) do
-        {:ok, message} ->
-          ThreadEvents.said(%{message | speaker: speaker})
-          ask(utterance, speaker, request_id, opts)
-
-        {:error, changeset} ->
-          Logger.error("could not record an utterance: #{inspect(changeset.errors)}")
-          :ok
-      end
-    rescue
-      # The task is nobody's supervisor and nobody's caller. Without this, a
-      # crash anywhere below is a person watching their own message sit there
-      # forever with no reply and no explanation.
-      error ->
-        Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
-        fail(request_id, "something went wrong answering that")
+    case record(utterance, speaker) do
+      {:ok, request_id} -> answer(utterance, speaker, request_id, opts)
+      :error -> :ok
     end
+  end
+
+  @doc """
+  Asks Dobby, for an utterance already in the thread.
+
+  This is what the queue runs, one at a time. It is also where the rescue is:
+  the process running it is nobody's supervisor and nobody's caller, so without
+  it a crash anywhere below is a person watching their own message sit there
+  forever with no reply and no explanation.
+  """
+  @spec answer(Utterance.t(), Speaker.t(), String.t(), keyword()) :: :ok
+  def answer(%Utterance{} = utterance, %Speaker{} = speaker, request_id, opts \\ []) do
+    ask(utterance, speaker, request_id, opts)
+  rescue
+    error ->
+      Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
+      fail(request_id, "something went wrong answering that")
   end
 
   defp ask(utterance, speaker, request_id, opts) do
@@ -269,14 +295,11 @@ defmodule Dobby.Conversation.Turn do
     }
   end
 
-  # One ReAct agent, one request at a time: an utterance arriving while a turn
-  # is in flight is rejected outright, which was found by talking to the real
-  # thing twice in a row. Two people saying something within a few seconds of
-  # each other is the ordinary case in a house at six in the evening, so this
-  # wants a real answer — hold the utterance and re-issue it, or inject it into
-  # the running turn (jido has `:input_injected` for exactly that). Both change
-  # what a turn means, so both are Greg's call. Meanwhile the thread says what
-  # actually happened rather than implying the request was wrong.
+  # One ReAct agent still takes one request at a time; `Turn.Queue` is what
+  # stops a second utterance ever reaching it while the first is in flight.
+  # This sentence should therefore be unreachable through `say/3` — it survives
+  # for `run/3`, which deliberately skips the queue, and because a rejection
+  # nobody can explain is worse than one with a sentence attached.
   defp sentence({:rejected, :busy, _status}), do: "Dobby is still working on the last one"
   defp sentence(_error), do: "Dobby couldn't answer that"
 

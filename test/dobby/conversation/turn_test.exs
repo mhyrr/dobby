@@ -97,6 +97,28 @@ defmodule Dobby.Conversation.TurnTest do
     assert meta["value"] == "71°"
   end
 
+  # `Turn.run/3` everywhere else in this file skips the queue deliberately, so
+  # that a test can assert against a finished turn. This one goes through the
+  # front door — `say/3` casts to `Turn.Queue`, which records the utterance and
+  # runs the real `Turn.answer/4`. It is what makes the queue's own tests
+  # honest: they inject a runner to observe ordering, and this proves the
+  # production runner reaches the model through the same door.
+  test "say/3 goes through the queue and still answers", %{speaker: speaker} do
+    utterance = Utterance.new("greg", "how warm is it?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("thermostat_get_status", %{"device" => @thermostat})
+        answer("68° in here.")
+      end
+
+    assert :ok = Turn.say(utterance, speaker, react_opts(script))
+
+    assert_receive {:said, %Message{role: :user, text: "how warm is it?"}}, 2_000
+    assert_receive {:replied, %Message{role: :assistant, text: "68° in here."}}, 5_000
+  end
+
   test "a tool call that only read something announces nothing", %{speaker: speaker} do
     utterance = Utterance.new("greg", "how warm is it?")
 

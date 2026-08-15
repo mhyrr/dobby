@@ -2,9 +2,10 @@
 
 **Working design for Phase A step 4. Draft 1, August 2026.**
 
-**Status:** awaiting Greg's sign-off, section by section. On approval this folds
-into `dobby-design-jido.md` §10 as v0.13 and this file goes away. Nothing here
-overrides the design of record; where they disagree, say so and the doc wins.
+**Status:** signed. Folds into `dobby-design-jido.md` §10 as v0.13 when step 4
+lands, and this file goes away. The visual system has already left for
+`DESIGN.md`, which outlives both. Nothing here overrides the design of record;
+where they disagree, say so and the doc wins.
 
 TK-001 is the owning ticket. Its already-decided constraints — one shared
 thread, system lines for actuations, cookie-pinned identity, card controls with
@@ -14,86 +15,14 @@ no LLM — are inputs here, not questions.
 
 ## 1. The world
 
-Decided 2026-08-14 through a direction round (seed `1a4f6e4e`): **the departure
-board**, rendered as a magical household instrument. Greg pinned the register
-afterwards — fun, hearted, magical — and then chose *a living instrument* over
-wizarding diction. The magic is that the object is alive and honest, not that it
-talks like a wizard.
+**Moved to `DESIGN.md`** (2026-08-15), which is now the single home for the
+visual system: the departure board, the state vocabulary, the palette law, the
+type ramp, the components, and the named rules — derived from what shipped
+rather than from what was intended.
 
-The direction contract, which goes in the root layout as an HTML comment before
-any UI is written:
-
-**THESIS.** A split-flap board can only display what it was set to. It cannot
-show a state nobody commanded. That is §6.2's write-acknowledgment rule as a
-mechanism rather than a prompt instruction, and it refuses the category default
-— the dark card grid with a circular dial, which shows you a number and tells
-you nothing about who set it or whether it took.
-
-**OWN-WORLD.** Enamel ground, brass rule, flap cards with painted lettering.
-Five reserved state colors and no sixth. Fixed-pitch columns. The signature
-material is the fold across each flap card — drawn behind the lettering, never
-across it, because a seam over the glyphs reads as a strikethrough and a struck
-word means cancelled.
-
-**STORY.** Someone glances at the board and knows what the house is doing and
-who asked for it. Then they say the next thing.
-
-**FIRST VIEWPORT (phone).** A board header carrying the house in three flap
-rows; the thread ruled beneath it; the composer as the board's set line at the
-foot. Dobby's reply flaps in character by character as it streams.
-
-**FORM.** The departure board; candidate 3 of 7 on the grounded list; seed key
-`1a4f6e4e`.
-
-### 1.1 The state vocabulary
-
-States are words on flaps, never icons and never bare numbers. This is the
-Weasley-clock grammar — a hand points at a real place — and it is also the
-doctrine:
-
-| Flap | Means |
-|---|---|
-| `SET` | Dobby commanded it. Not "the room is warm." |
-| `WARMING` / `COOLING` | HA confirmed the device is acting. |
-| `READY` | A schedule waiting for its time. |
-| `AWAKE` | An endpoint that is up. |
-| `LISTENING` | Dobby is attending. |
-| `QUIET` | An endpoint that has stopped reporting. |
-| `HELD` | The device declined, with the reason alongside it. |
-| `NOT KNOWN` | Nobody has told us yet. |
-
-**Revised 2026-08-14 (Greg).** The first draft made `WOULDN'T` the showcase
-word. Wrong emphasis: Dobby is an elf that makes things you want to happen
-happen, and a design that leads with refusal is selling the wrong product. The
-affirmative states are the loud ones now.
-
-Refusal still has to be honest — doctrine is not negotiable — but it is
-`HELD`, quietly, with the reason beside it, rather than a punchline in the
-reserved red. Likewise `NOT ANSWERING` became `QUIET`: same fact, less scolding.
-
-`NOT KNOWN` was **added while building the board** (step 4b) and is the eighth
-word. It has a consumer, which is the test the others were held to:
-`wifi_get_status` insists to the model that unknown "is not the same as
-offline", and the board was about to say `QUIET` for both — the surface quietly
-contradicting the tool. A house that has just booted knows nothing about its
-devices for a second or two, and saying so is more honest than guessing.
-
-There is still no word for the unclosed confirm loop (a command sent with
-nothing coming back). TK-004 will need one and should pick it when it has a
-consumer; inventing it here with nothing watching for it was premature.
-
-**Four raises**, carried in from directions that lost the round:
-
-- **Palette law.** Five reserved state colors, each meaning exactly one thing,
-  used decoratively nowhere.
-- **Legibility floor.** Type is sized by reading distance and never shrinks to
-  fit. Content reflows or truncates; type does not scale down. This matters most
-  on a tablet left open across a room, but it is a rule everywhere.
-- **Language is the material.** What a person said gets board-scale type, not
-  chat-bubble type in 14px grey.
-- **Color at the edges.** State color lives on rules, ticks and flap edges,
-  never as a tint behind readable text — which is also what keeps a screen left
-  on in a kitchen from lighting the room at 11pm.
+This file keeps the *surface* decisions: routes, streaming, persistence,
+identity, and the reasoning behind them. Where the two touch, `DESIGN.md` wins
+on how a thing looks and this file wins on what it does.
 
 ---
 
@@ -579,54 +508,11 @@ rest on.
 
 ## 16. Dobby's mark
 
-**Settled 2026-08-15, when Greg supplied the drawing.** It is a whole elf —
-round head, two swept ears, closed smiling eyes — and having it changed both
-halves of what §16 said before.
+**Moved to `DESIGN.md` → Components → The Mark** (2026-08-15). Greg supplied
+the drawing, and having it settled both open questions: the mark is Dobby's
+face in the plate at 44px, leaning fifteen degrees when he is attending, and
+the ambient eyes are cut because the header cannot carry two sets of his eyes.
 
-**The mark is Dobby's face, in the plate, at 44px.** Painted in ink: stroke in
-the cream the board letters with, fill in the ground behind it. The supplied
-white fill and black stroke read as a sticker laid on the enamel rather than
-something drawn onto it.
-
-**Attending, he leans in — fifteen degrees** (Greg's idea, and it is the right
-one). Quiet, he sits upright and drops to the faint ink. That is the only
-state this drawing shows by itself; everything else on the board is a word,
-which is the whole argument of the surface. The tilt is bound to whether
-`DobbyAgent` is actually running, so LISTENING and the lean are the same fact
-said twice and neither can be said while nothing is there to hear it.
-
-The colour stays on the ink ramp rather than going green with the LISTENING
-flap beside it. A face painted in a reserved state colour is that colour used
-decoratively, and palette law is the one rule this design has that costs
-something to keep.
-
-### 16.1 Two things the drawing settled by being drawn
-
-**It is not a 26px byline, and the ears alone are worse.** Rendered at 26px
-beside every reply — which is what §16 specified — the eyes, nose and mouth
-merge into a smear and the ears turn to fuzz. It needs about 40px to stay a
-face. The fallback was the ears without the head, and at any size they read as
-leaves; those ears only read as ears because the head is there.
-
-**Which turned out to be the better job anyway.** A mark beside a finished
-reply is a byline: it says who said this, and it should not move. A mark in
-the header is Dobby *now* — and now is the only thing a tilt can describe. The
-ask that pushed it there was Greg's tilt, and the tilt is what proved the
-placement.
-
-### 16.2 The ambient eyes are cut
-
-They were a stand-in for a mark we did not have. With the face in the plate,
-the header carried two sets of Dobby's eyes sixty pixels apart — the ambient
-pair staring open behind the plate, the drawn pair closed and smiling beside
-LISTENING — and they fought. One Dobby, one place.
-
-What survives is the finding, which applies to anything de-emphasised on this
-surface: **subtle comes from colour, not opacity.** The first attempt set
-bright eyes at 16% opacity and they collapsed into grey donuts, because low
-opacity compresses every hue toward the background at once. Rebuilt opaque in
-colours chosen close to the ground, the structure survived and read.
-
-Rejected earlier on the way here: flap-card eyes (read as a robot), the ember
-(works, but generic — any assistant could ship a flame), and upswept almond
-"high-elf" eyes.
+The reasoning — why it is not a 26px byline, why the ears alone read as
+leaves, and why subtle comes from colour rather than opacity — is recorded
+there.

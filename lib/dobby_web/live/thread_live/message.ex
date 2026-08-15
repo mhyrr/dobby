@@ -94,6 +94,9 @@ defmodule DobbyWeb.ThreadLive.Message do
     ~H"""
     <details class="collapsed">
       <summary>
+        <svg viewBox="0 0 8 8" fill="none" aria-hidden="true">
+          <path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="square" />
+        </svg>
         {length(@steps)} {if length(@steps) == 1, do: "step", else: "steps"}
         <span :if={@duration}>· {@duration}</span>
       </summary>

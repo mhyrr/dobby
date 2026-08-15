@@ -154,7 +154,7 @@ body {
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .16em;
-  font-size: .82rem;
+  font-size: .86rem;
   font-weight: 600;
   color: var(--brass);
 }
@@ -165,10 +165,10 @@ body {
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .08em;
-  font-size: .72rem;
+  font-size: .74rem;
   color: var(--ink-quiet);
 }
-.plate .who .flap { font-size: .78rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+.plate .who .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
 .rows { position: relative; display: grid; gap: .3rem; max-width: 34rem; }
 .row {
   display: grid;
@@ -245,7 +245,7 @@ body {
 }
 .msg .attr .t {
   font-family: var(--board-type);
-  font-size: .72rem;
+  font-size: .74rem;
   color: var(--ink-faint);
   letter-spacing: .05em;
 }
@@ -256,12 +256,13 @@ body {
 .steps { margin-top: .4rem; display: grid; gap: .28rem; }
 .step {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: baseline;
   gap: .5rem;
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .06em;
-  font-size: .78rem;
+  font-size: .74rem;
   color: var(--ink-quiet);
 }
 .step .tick {
@@ -277,7 +278,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .step-running .tick { animation: none; }
 }
-.step { flex-wrap: wrap; align-items: baseline; }
 /* The reason is a sentence, and a sentence set beside a label in board type
    squeezes both. It gets its own line, under the step it belongs to. */
 .step .why {
@@ -301,16 +301,14 @@ body {
   color: var(--ink-faint);
 }
 .collapsed summary::marker { content: ""; }
-.collapsed summary::before {
-  content: "";
-  width: 0;
-  height: 0;
-  border-left: 4px solid var(--brass-dim);
-  border-top: 3px solid transparent;
-  border-bottom: 3px solid transparent;
+.collapsed summary svg {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  color: var(--brass-dim);
   transition: transform .12s ease;
 }
-.collapsed[open] summary::before { transform: rotate(90deg); }
+.collapsed[open] summary svg { transform: rotate(90deg); }
 
 /* system line — the intervention record */
 .sys {
@@ -324,10 +322,10 @@ body {
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .07em;
-  font-size: .76rem;
+  font-size: .74rem;
   color: var(--ink-quiet);
 }
-.sys .dev { color: #B4C4BA; }
+.sys .dev { color: var(--ink); }
 .sys .via { color: var(--ink-faint); }
 
 /* ── the set line ─────────────────────────────────────────────────────── */
@@ -350,7 +348,7 @@ body {
   caret-color: var(--st-set);
 }
 .set-line input::placeholder {
-  color: #6B7D74;
+  color: var(--ink-faint);
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .08em;

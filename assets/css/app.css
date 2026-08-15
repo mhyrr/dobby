@@ -61,12 +61,44 @@
 }
 
 :root {
-  --board:        #0B1713;   /* enamel ground */
-  --board-raised: #101E19;
-  --flap:         #16241E;   /* the flap card */
+  /* THE PLATE — warm bronze-black. Every neutral here sits at hue 95, rotated
+     from the cool green-black this started as at identical lightness and
+     chroma, so every contrast ratio in the system moved by less than 0.04. */
+  --board:        #17140A;   /* bronze enamel ground */
+  --board-raised: #1E1B0F;
+  --rail:         rgba(30, 27, 15, .88);  /* --board-raised, letting the plate
+                                             surface read through the two fixed
+                                             bands. They are the same plate. */
+  --lit:          #241F12;   /* the light on it, from above */
+
+  /* THE CARDS — the cool green-black the ground used to be, kept as a
+     different material: enamel cards set into a bronze plate. This is why
+     every state word's contrast is unchanged — a word has always been read
+     against this colour and still is. */
+  --flap:         #16241E;
   --flap-edge:    #08110E;   /* the split — the signature material */
+
+  /* THE PATINA. Bronze that ages goes green, and it gathers where the light
+     does not reach. So the plate is lit warm from above and turns to this at
+     the foot: one material with a history, rather than a second colour
+     introduced beside the first. It is deliberately NOT a state colour and
+     never lands on anything readable. */
+  --patina:       rgba(11, 23, 19, .92);
+
+  /* A groove is cut INTO the plate, so it is plate material — which is the one
+     place the flap's construction and the fader's stopped being the same thing
+     when the cards went cool. */
+  --groove:       #242014;
+  --groove-edge:  #110F07;
+
   --brass:        #B08A46;
   --brass-dim:    #6E5A31;
+  /* The two faces of a machined brass part: the edge that catches the light
+     falling on this plate, and the underside that does not. Also the knurl —
+     a grip is grooves cut in the metal, so the grooves are the metal's own
+     shade rather than a shadow laid on top of it. */
+  --brass-lit:    #C9A568;
+  --brass-shade:  #8B6827;
   --ink:          #E8E2D2;   /* painted lettering */
   --ink-quiet:    #9AABA1;
   --ink-faint:    #8A9C92;   /* floor for small type: 4.5:1 on the board */
@@ -79,11 +111,24 @@
   --st-silent:   #7C8B85;   /* not answering, or not yet known */
   --st-expected: #E8E2D2;   /* set for later, not yet fired */
 
-  --rule: 1px solid #1C2E27;
+  --rule: 1px solid #2E2A1A;
+
+  /* The grain. Enamel is not a flat fill, and at this strength it is felt
+     rather than seen — which is the whole brief. Any stronger and it stops
+     reading as a surface and starts reading as a screen effect. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
   /* The lit side of a seam. The fold's highlight and the fader's groove are
      the same material and had drifted to two values; one token, one edge. */
   --seam-light: rgba(255, 255, 255, .045);
   --flap-h: 1.55rem;
+
+  /* The slug, in three layers: a witness line down the middle so you can see
+     exactly where it is pointing, the knurl a finger would grip, and the brass
+     itself falling from lit at the top edge to shade at the bottom. */
+  --thumb:
+    linear-gradient(to right, transparent 0 6px, var(--brass-shade) 6px 7px, transparent 7px),
+    repeating-linear-gradient(to bottom, var(--brass-shade) 0 1px, transparent 1px 3px),
+    linear-gradient(to bottom, var(--brass-lit) 0%, var(--brass) 42%, var(--brass-shade) 100%);
 
   --board-type: "Barlow Condensed", "Avenir Next Condensed", ui-sans-serif,
                 system-ui, sans-serif;
@@ -93,8 +138,16 @@
 html { -webkit-text-size-adjust: 100%; }
 
 body {
-  background: var(--board);
-  background-image: radial-gradient(ellipse 120% 80% at 50% -10%, #12211B 0%, transparent 60%);
+  background-color: var(--board);
+  /* Three layers, in the order a surface has them: the grain of the enamel,
+     the patina gathering at the foot, and the light falling from above. The
+     body is exactly one viewport tall — the thread is what scrolls — so the
+     foot of this gradient is always the foot of the board. */
+  background-image:
+    var(--grain),
+    linear-gradient(to bottom, transparent 42%, var(--patina) 100%),
+    radial-gradient(ellipse 120% 80% at 50% -10%, var(--lit) 0%, transparent 60%);
+  background-repeat: repeat, no-repeat, no-repeat;
   color: var(--ink);
   font-family: var(--said-type);
   font-size: 16px;
@@ -170,7 +223,7 @@ body {
 .board {
   position: relative;
   overflow: hidden;
-  background: var(--board-raised);
+  background: var(--rail);
   border-bottom: 2px solid var(--brass-dim);
   padding: .55rem .9rem .7rem;
   flex: 0 0 auto;
@@ -461,14 +514,22 @@ body {
    tonal step from the ground and disappears. */
 .fader input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
-  background: var(--flap);
-  border-top: 1px solid var(--flap-edge);
+  /* The travelled part of the groove is brass, so where the slug has been
+     reads at a glance. Brass and not a state colour: this is how far a control
+     has been pushed, which is structure, and the seam is under the slug where
+     nobody can see it land a pixel off. */
+  background:
+    linear-gradient(to right, var(--brass-dim) 0 var(--at, 0%), transparent var(--at, 0%)),
+    var(--groove);
+  border-top: 1px solid var(--groove-edge);
   border-bottom: 1px solid var(--seam-light);
 }
 .fader input[type="range"]::-moz-range-track {
   height: 4px;
-  background: var(--flap);
-  border-top: 1px solid var(--flap-edge);
+  background:
+    linear-gradient(to right, var(--brass-dim) 0 var(--at, 0%), transparent var(--at, 0%)),
+    var(--groove);
+  border-top: 1px solid var(--groove-edge);
   border-bottom: 1px solid var(--seam-light);
 }
 /* What you are about to ask for, riding the thumb. Commanded amber, because
@@ -488,22 +549,26 @@ body {
   pointer-events: none;
 }
 .fader .asking.live { opacity: 1; }
+/* A machined slug with a grip and a witness line, lit from above like
+   everything else on this plate — not a brass rectangle. This is the one place
+   in the house where a hand touches anything, and it should look like the part
+   that was made to be held. */
 .fader input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 10px;
-  height: 1.35rem;
-  /* Centred on the groove: 6px of track (4px plus its two edges) against a
-     1.35rem thumb. Webkit measures the thumb's margin from the track's top. */
-  margin-top: calc((6px - 1.35rem) / 2);
-  background: var(--brass);
+  width: 13px;
+  height: 1.5rem;
+  /* Centred on the groove: 6px of track (4px plus its two edges) against the
+     thumb. Webkit measures the thumb's margin from the track's top. */
+  margin-top: calc((6px - 1.5rem) / 2);
+  background: var(--thumb);
   border: 0;
   border-radius: 0;
 }
 .fader input[type="range"]::-moz-range-thumb {
-  width: 10px;
-  height: 1.35rem;
-  background: var(--brass);
+  width: 13px;
+  height: 1.5rem;
+  background: var(--thumb);
   border: 0;
   border-radius: 0;
 }
@@ -688,7 +753,7 @@ body {
   display: flex;
   align-items: stretch;
   border-top: 2px solid var(--brass-dim);
-  background: var(--board-raised);
+  background: var(--rail);
 }
 .set-line input {
   flex: 1;

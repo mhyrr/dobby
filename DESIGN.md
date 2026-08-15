@@ -2,16 +2,23 @@
 name: Dobby
 description: A household instrument — the house says what it is doing, and who asked for it.
 colors:
-  board: "#0B1713"
-  board-raised: "#101E19"
+  board: "#17140A"
+  board-raised: "#1E1B0F"
+  rail: "rgba(30, 27, 15, .88)"
+  lit: "#241F12"
+  patina: "rgba(11, 23, 19, .92)"
   flap: "#16241E"
   flap-edge: "#08110E"
+  groove: "#242014"
+  groove-edge: "#110F07"
   brass: "#B08A46"
   brass-dim: "#6E5A31"
+  brass-lit: "#C9A568"
+  brass-shade: "#8B6827"
   ink: "#E8E2D2"
   ink-quiet: "#9AABA1"
   ink-faint: "#8A9C92"
-  rule: "#1C2E27"
+  rule: "#2E2A1A"
   st-set: "#E0A33C"
   st-acting: "#7BB86A"
   st-refused: "#D2604A"
@@ -191,10 +198,21 @@ parchment, wax-seal and filigree pastiche; any trademarked franchise mark.
 
 ## Colors
 
-Two families and nothing else: a cool green-black enamel ground (every neutral
-sits between hue 166° and 172°) and a warm brass-and-cream ink (hue 76°–90°)
-that everything readable is painted in. The state colours are the only
-saturation on the board.
+One object, made of three materials, and no colour in the system that is not
+one of them.
+
+**The plate** is warm bronze-black — every neutral in it at hue 95°, lit from
+above and turning to patina at the foot. **The cards** are cool green-black
+enamel at hue 166°–172°, set into it: a genuinely different material, which is
+why they read as objects sitting in the plate rather than as areas of it.
+**The ink** is warm brass and cream at hue 76°–90°, and everything readable is
+painted in it. The state colours are the only saturation anywhere.
+
+The plate used to be the cool green-black and the ground was one flat fill. It
+was rotated to bronze at identical lightness and chroma — so every contrast
+ratio in the system moved by less than 0.04, and because the cards kept the old
+colour, every state word is read against exactly the value it always was. The
+green did not leave; it went to the two places it is doing work.
 
 ### Primary
 
@@ -202,8 +220,12 @@ saturation on the board.
   speaker's name in the thread. The metal the board is bound in — it marks
   structure and attribution, never state.
 - **Brass, Dim** (`brass-dim`): the two structural rules that hold the board
-  together, under the header and over the set line. Also scrollbar thumbs and
-  the disclosure caret.
+  together, under the header and over the set line. Also scrollbar thumbs, the
+  disclosure caret, and the travelled part of the fader's groove.
+- **Brass, Lit / Brass, Shade** (`brass-lit`, `brass-shade`): the two faces of
+  a machined brass part — the edge catching the light that falls on this plate,
+  and the underside that does not. They exist for the fader's slug and nothing
+  else, and they are the same light source as the radial fall behind the page.
 
 ### Secondary — the five reserved state colours
 
@@ -225,12 +247,22 @@ allowed.
 
 ### Neutral
 
-- **Enamel** (`board`): the ground. The page, and the thread behind it.
-- **Enamel, Raised** (`board-raised`): the header and the set line — the two
-  fixed rails the scrolling thread runs between.
-- **Flap Face** (`flap`): the card a word is painted on. One step lighter than
-  the ground, which is all the separation a word needs.
+- **Bronze Enamel** (`board`): the plate. The page, and the thread behind it.
+- **Bronze, Raised** (`board-raised`): the tonal step for the two fixed rails.
+- **Rail** (`rail`): what those rails are actually painted in — `board-raised`
+  at 88%, so the plate's own surface reads through them. They are the same
+  plate, not panels floating on it.
+- **The Light** (`lit`): the warm centre of the radial fall from above.
+- **Patina** (`patina`): the cool green-black gathering at the foot. Bronze that
+  ages goes green, and it gathers where the light does not reach — one material
+  with a history rather than a second colour introduced beside the first. It
+  never lands on anything readable.
+- **Flap Face** (`flap`): the card a word is painted on. Cool enamel, a
+  different material from the plate it sits in.
 - **Split** (`flap-edge`): the fold across each flap card.
+- **Groove** (`groove`, `groove-edge`): a channel cut *into* the plate, so it
+  takes plate material — the fader's track. It is built the same way the fold
+  is and out of a different thing, which is the one place those two parted.
 - **Ink** (`ink`): painted lettering. What a person said, and every reading.
 - **Ink, Quiet** (`ink-quiet`): device names, steps, system lines — the
   record-keeping voice.
@@ -404,14 +436,31 @@ the one shadow in the system. It exists because a flap card is a physical
 object sitting proud of the board, and removing it makes the words look
 printed on rather than set into place.
 
-A single radial gradient sits behind the whole page
-(`ellipse 120% 80% at 50% -10%`, `#12211B` to transparent), which reads as
-uneven enamel under a light. It is material, not decoration.
+Three layers sit behind the whole page, in the order a real surface has them:
+the **grain** of the enamel, the **patina** gathering at the foot, and the
+**light** falling from above (`ellipse 120% 80% at 50% -10%`, `lit` to
+transparent). The body is exactly one viewport tall — the thread is what
+scrolls — so the foot of the patina is always the foot of the board.
+
+All three are material rather than decoration, and that is the test any fourth
+would have to pass. The grain sits at 4% and is meant to be felt rather than
+seen; any stronger and it stops reading as a surface and starts reading as a
+screen effect. The patina never touches anything readable.
 
 ### Named Rules
 
 **The One Shadow Rule.** The flap has the only `box-shadow` in the system.
 Anything else that wants depth gets a tonal step or a brass rule instead.
+
+**The Material Rule.** Every colour in the system belongs to one of three
+materials — the bronze plate, the enamel cards, the brass-and-cream ink — or
+to a state. A colour that belongs to none of them has no business here, and
+that is the question to ask of any addition: *what is it made of?* It is also
+the reason the cool green survived the plate going warm. It was not kept
+because it was liked; it was given a job — the cards, and the oxidation — and
+a colour with a job is material, while the same colour used for emphasis would
+have been a second green two shades from Acting Green, on a board whose whole
+argument is that a colour means exactly one thing.
 
 ## Shapes
 
@@ -447,6 +496,9 @@ The system's atom. A word on a card: `flap` face, uppercase condensed
 lettering, the fold behind it, one shadow under it.
 
 - **Shape:** square (0), 1.55rem minimum height, padding `0.16rem 0.5rem 0.18rem`
+- **Material:** cool green-black enamel, which the plate around it is not. A
+  card is an object set into the board, and the temperature difference is what
+  says so — it was a tonal step of the same colour when the plate was cool too
 - **Colour:** the word takes the state colour; the card face never does
 - **States:** `set` amber, `acting` green, `refused` rust, `silent` sage,
   `expected` cream
@@ -513,11 +565,22 @@ actuates something. A fader rather than a dial — the dial is the category
 default this surface is a refusal of — and rather than a stepper, which turns
 "make it warmer" into six taps.
 
-- **Groove:** 4px of `flap`, a `flap-edge` line on top and a `seam-light` line
-  under it. The same construction as the flap's fold, for the same reason:
-  without the pair, a track one tonal step from the ground disappears
-- **Thumb:** 10px × 1.35rem of solid brass, square, radius explicitly zeroed
-  against the browser's default. Brass is where a hand goes
+- **Groove:** 4px of `groove`, a `groove-edge` line on top and a `seam-light`
+  line under it. The same construction as the flap's fold, for the same reason:
+  without the pair, a track one tonal step from the plate disappears. Built of
+  plate material and not card material — a groove is cut *into* the board,
+  where a card is set *onto* it
+- **Thumb:** a machined slug, 13px × 1.5rem, square, radius explicitly zeroed
+  against the browser's default. Three layers: a witness line down the middle
+  so it is clear what it points at, the knurl a finger would grip, and the
+  brass itself falling from `brass-lit` at the top edge to `brass-shade` at the
+  bottom. It was a plain brass rectangle first and read as a range input with
+  the chrome scraped off — this is the one place in the house where a hand
+  touches anything, and it should look like the part that was made to be held
+- **Travelled groove:** the part the slug has passed is `brass-dim`, so how far
+  the control has been pushed reads at a glance. Brass and not a state colour:
+  this is a property of the control, not of the house. The seam sits under the
+  slug, which is why a fill can align where a printed scale could not
 - **Ends:** the device's own minimum and maximum in faint ink. The control is
   drawn only once the device has said what it will accept — a fader that
   reaches 85° in a house capped at 76 is a control that exists to be refused

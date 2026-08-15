@@ -90,6 +90,7 @@ defmodule DobbyWeb.HouseLive.Card do
         max={round(@snapshot.max_temperature_f)}
         step="1"
         value={round(@snapshot.target_temperature_f)}
+        style={"--at: #{travelled(@snapshot)}%"}
         data-device={@snapshot.id}
         aria-label={"Set the #{@snapshot.name}"}
         phx-hook=".Fader"
@@ -122,6 +123,10 @@ defmodule DobbyWeb.HouseLive.Card do
             asking.textContent = this.el.value + "°"
             asking.style.left = (at * 100) + "%"
             asking.classList.add("live")
+
+            // The brass in the groove follows the slug, so how far it has been
+            // pushed reads even while a finger is on it.
+            this.el.style.setProperty("--at", (at * 100) + "%")
           })
 
           this.el.addEventListener("change", () => {
@@ -161,6 +166,16 @@ defmodule DobbyWeb.HouseLive.Card do
       <span class="why">{@held}</span>
     </div>
     """
+  end
+
+  # How far along the groove the slug sits, as a percentage. Rendered by the
+  # server so the brass is right in the first paint rather than snapping into
+  # place when the hook mounts; the hook takes over during a drag.
+  defp travelled(snapshot) do
+    span = snapshot.max_temperature_f - snapshot.min_temperature_f
+
+    ((snapshot.target_temperature_f - snapshot.min_temperature_f) / span * 100)
+    |> Float.round(1)
   end
 
   @doc """

@@ -136,6 +136,11 @@ body {
   white-space: nowrap;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .45);
   isolation: isolate;
+  /* The card turns about its fold, because that is the hinge a real one turns
+     about. The turn itself is in app.js — it has to know a word *changed*,
+     which CSS cannot see. */
+  transform-origin: center center;
+  backface-visibility: hidden;
 }
 .flap::before {
   content: "";

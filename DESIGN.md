@@ -105,6 +105,50 @@ components:
     typography: "{typography.body}"
     rounded: "{rounded.none}"
     padding: "0.85rem 0.9rem"
+  card:
+    borderTopColor: "{colors.rule}"
+    padding: "0.7rem 0 0.8rem"
+    gap: "{spacing.sm}"
+    maxWidth: "34rem"
+  fader-groove:
+    backgroundColor: "{colors.flap}"
+    borderTopColor: "{colors.flap-edge}"
+    borderBottomColor: "{colors.seam-light}"
+    height: "4px"
+  fader-thumb:
+    backgroundColor: "{colors.brass}"
+    rounded: "{rounded.none}"
+    width: "10px"
+    height: "1.35rem"
+  fader-asking:
+    textColor: "{colors.st-set}"
+    fontFamily: "Barlow Condensed, Avenir Next Condensed, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.86rem"
+    fontWeight: 600
+    letterSpacing: "0.05em"
+  quiet-button:
+    backgroundColor: "transparent"
+    textColor: "{colors.brass}"
+    borderBottomColor: "{colors.brass-dim}"
+    typography: "{typography.label-small}"
+    rounded: "{rounded.none}"
+    textTransform: "none"
+  undo-line:
+    textColor: "{colors.ink-faint}"
+    typography: "{typography.label-small}"
+    gap: "{spacing.sm}"
+  schedule-input:
+    backgroundColor: "{colors.flap}"
+    textColor: "{colors.ink}"
+    borderBottomColor: "{colors.brass-dim}"
+    typography: "{typography.body}"
+    rounded: "{rounded.none}"
+    padding: "0.4rem 0.5rem"
+  feed-entry:
+    textColor: "{colors.ink-quiet}"
+    typography: "{typography.label-small}"
+    gridTemplateColumns: "5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem"
+    padding: "0.18rem 0"
 ---
 
 # Design System: Dobby
@@ -194,12 +238,29 @@ allowed.
   floor for small type at 4.5:1 on the enamel; nothing goes below it.
 - **Rule** (`rule`): hairline dividers inside the board.
 
+### Where a state colour appears off a flap
+
+Four sanctioned sites, and the list is closed:
+
+- **Commanded amber on a caret** — the set line's input and the admin form's.
+  The caret is where a command is being typed.
+- **Commanded amber on the focus ring** — a 2px outline, the one global
+  interactive state in the system.
+- **Commanded amber on the fader's asking label**, and only while a finger is
+  down.
+- **Declined rust on a reason** — a held step, a held card, a system line's
+  refusal, a blocked schedule, a rejected form, and the health note naming
+  enabled schedules that have no timer. In every one of these it is the
+  sentence saying why something did not or will not happen. Never a fill,
+  never a badge.
+
 ### Named Rules
 
 **The Palette Law.** Five reserved state colours, each meaning exactly one
 thing, used decoratively nowhere. A sixth state colour is a design change, not
 a CSS change. Audit test: search the stylesheet for a state colour outside a
-`[data-st]` selector, a tick, or a refusal reason — there should be none.
+`[data-st]` selector, a tick, a refusal reason, or one of the four sanctioned
+sites listed below — there should be none.
 
 **The Edges Rule.** State colour lives on ink, rules, ticks and flap edges —
 never as a tint behind readable text.
@@ -291,6 +352,33 @@ there is one composition, not two.
 Rhythm comes from the content, not from an abstract scale: 0.28rem between
 steps, 0.5rem across a row, 1.05rem between messages.
 
+### The Three Routes
+
+Three pages and one instrument: `/` the thread, `/house` the cards, `/admin`
+the maintainer's page. They share the plate, the flap, the row and the 34rem
+pitch, because they are the same board seen from a different side rather than
+three applications.
+
+There is no navigation bar. The nameplate is the way back — on `/` it is plain
+lettering, because you are already home, and on the other two it becomes a link
+with a brass-dim `·` and the section name after it (`The House · Devices`). The
+band of flap rows in the thread's header is the way in to `/house`, where the
+same rows have controls on them; it carries no underline and no hover lift,
+because a board that behaved like a hyperlink would stop reading as one. The
+only way in to `/admin` is a small brass-dim link at the foot of `/house` — it
+is laptop-shaped and rarely visited, so it does not earn permanent header space
+on the surface a phone opens first.
+
+`/house` and `/admin` scroll the same way the thread does: the page itself never
+scrolls, and the main region is the only scrolling thing on it.
+
+Admin is the one page with enough on it to want columns. At 980px it becomes
+`minmax(0, 22rem) minmax(0, 1fr)` — health and schedules on the left because
+they are short and they are where the changing happens, the feed on the right
+because it is the long one. That is the system's second breakpoint and its only
+two-column layout; 820px still does everything else, and both are content
+breakpoints rather than device sizes.
+
 ### Named Rules
 
 **The Shared Document Rule.** Nothing is ever aligned or positioned by author.
@@ -298,6 +386,12 @@ The thread is a household record, and positioning a message by who is holding
 the phone means two people reading the same conversation see two different
 documents. Audit test: two browsers, two names, one screenshot each — the
 messages must land in the same place.
+
+**The No Nav Rule.** Navigation is carried by things that already exist — the
+nameplate, the band of rows, one quiet link at the foot of a page. A shell of
+links around this would be a second visual language arguing with the first.
+Audit test: no route may introduce a nav element; a new page earns its way in
+from a surface that already leads somewhere.
 
 ## Elevation & Depth
 
@@ -364,8 +458,93 @@ lettering, the fold behind it, one shadow under it.
 - **Structure:** name (quiet ink, condensed, truncates with ellipsis) ·
   reading (ink, condensed, tabular) · flap
 - **Grid:** `1fr auto 9.5rem`, capped at 34rem
-- **Behaviour:** most-recently-changed leads. The row is the atom of the
-  header band and, later, of a device card
+- **Behaviour:** on the thread's band, most-recently-changed leads. On `/house`
+  it is manifest order instead: the band is a watch list and reorders itself,
+  and a page whose cards moved under a finger would be worse than one that did
+  not
+- **Reuse:** the same row is the atom of the header band, of a device card, of
+  an admin health row and of a schedule row. Admin's health rows demote the
+  middle column to 0.74rem faint ink, because it names which process a row is
+  about and a process name is record-keeping rather than a reading
+
+### The Plate
+
+The board's nameplate, worn by every route: a baseline-aligned row ruled
+underneath with a hairline. The name on the left; on the right, who is speaking,
+the mark, and a `LISTENING` / `QUIET` flap.
+
+- **Section:** absent on `/`. Elsewhere the name becomes a link, followed by a
+  brass-dim separator and the section in quiet ink, all on the headline step
+- **Speaking as:** the speaker's name in quiet ink, a hairline, then a `switch`
+  button in brass-dim that goes brass on hover. The hairline is the same
+  separator the set line puts before its send arrow — without it "GREG SWITCH"
+  reads at a glance as two words of one name
+- **Lower case, stated:** `switch` is a verb, and everything set in capitals on
+  this board is a label — a state, a name, a time. The system's one other
+  verb-shaped string, a refusal's reason, is set the same way
+- **A form, not a link:** switching identity is a write. It is also why the
+  small word is the tappable thing rather than the name — a household tablet
+  that changed who was speaking because somebody brushed the header would be
+  worse than typing a name again
+- **Reduced flap:** 0.74rem lettering on a 1.2rem card. The plate, the system
+  line and a held card share this smaller flap; the board row does not
+
+### The Card
+
+A board row that grew a control. Same three columns, same vocabulary, same
+34rem pitch — what a card adds is the room underneath the row.
+
+- **Structure:** the row · a detail line in the record voice (`Room 68°`, or
+  `Since 4:12 PM`) · the control, when the device can take one · what happened
+  after the last release
+- **Separation:** a hairline `rule` on top and 0.7/0.8rem of padding; the first
+  card has none. A card is not a panel — no border, no fill, no shadow
+- **One column on every viewport.** The column stays 34rem and never becomes a
+  grid of tiles. The confirmed anti-reference is a dark card grid of dials, and
+  the pitch is what keeps a card reading as a row
+- **The second number is a different fact.** The row carries the setpoint,
+  because the setpoint is what somebody asked for; the detail line carries what
+  the room actually reads. The same number is never said twice
+
+### The Fader
+
+The setpoint control, and the only place in this house where a fat finger
+actuates something. A fader rather than a dial — the dial is the category
+default this surface is a refusal of — and rather than a stepper, which turns
+"make it warmer" into six taps.
+
+- **Groove:** 4px of `flap`, a `flap-edge` line on top and a `seam-light` line
+  under it. The same construction as the flap's fold, for the same reason:
+  without the pair, a track one tonal step from the ground disappears
+- **Thumb:** 10px × 1.35rem of solid brass, square, radius explicitly zeroed
+  against the browser's default. Brass is where a hand goes
+- **Ends:** the device's own minimum and maximum in faint ink. The control is
+  drawn only once the device has said what it will accept — a fader that
+  reaches 85° in a house capped at 76 is a control that exists to be refused
+- **Commits on release, not on drag.** The value rides the thumb locally while
+  a finger is down; only the release reaches the house
+- **The asking label:** the value under the thumb, in commanded amber, riding
+  the thumb and visible **only** while a finger is down. It is deliberately not
+  written into the card's own reading — that number is a value somebody
+  commanded, and putting an uncommanded one in its place would be the board
+  claiming a state it was never set to
+
+### The Undo Line
+
+The system's alternative to a confirm dialog: do it, then offer a way back for
+eight seconds. Dialogs train people to dismiss dialogs, and a household that has
+learned to dismiss them is worse off than one that never had them. The card and
+the admin's schedule delete use the same line, unchanged.
+
+- **Style:** the record voice in faint ink — `undo · back to 70°`, or
+  `undo · put back "weeknight heat"`
+- **The button:** transparent, no border but a 1px `brass-dim` underline, brass
+  lettering, lower case. That is the system's quiet control, and the same
+  treatment carries `pause`, `resume`, `delete` and the form's `Add`
+- **One step, not a stack.** Undoing does not offer its own undo
+- **A refusal is not an undo.** `HELD` and its reason stay until the next
+  attempt rather than expiring with the window: an undo is an offer and goes
+  stale, a refusal is an answer to a question somebody just asked
 
 ### Utterance
 
@@ -394,6 +573,16 @@ The intervention record: what changed in the house, by whatever path.
 - **Style:** ruled above and below with hairlines, condensed uppercase. The
   device name is in full ink because it is the content of the line; the `via`
   half — who or what did it — is in faint ink
+- **Two shapes, told apart by whether the line carries a state word.** A
+  failure is a sentence, because "Dobby couldn't answer that" is not a reading
+  of anything. An intervention is a board row inside the ruled band: device
+  name, the flap, the value at 0.86rem, then the `via`
+- **The word is always `SET`.** An intervention *is* a commanded value, so
+  there is no per-device vocabulary question on this line — that question
+  belongs to what a device currently reads. `HELD` is the other half, for a
+  device that declined
+- **A refusal's reason takes its own line**, in sentence case and declined
+  rust, the same way a step's does
 - **Indents to the body column at 820px**
 
 ### The Set Line
@@ -404,6 +593,36 @@ The intervention record: what changed in the house, by whatever path.
 - **Placeholder:** condensed uppercase, deliberately a label rather than a
   sentence
 - **Focus:** the caret is commanded amber; focus-visible draws a 2px amber ring
+
+### Admin
+
+Same board, same words; what changes is that a maintainer is reading it. Three
+panels, and the order is an argument: health first because it is three lines and
+it changes what the other two mean, schedules next because they are the only
+thing on the page you can change, the feed last because you scroll to a log
+rather than being handed it.
+
+- **Panel heading:** the headline step in brass over a hairline — the plate's
+  type, used as a section rule
+- **Health rows:** board rows whose middle column is demoted to 0.74rem faint
+  ink. Empty is the healthy answer for the note beneath them, and it says so in
+  words rather than showing nothing
+- **Schedule rows:** a row (label · cron · flap), a detail line, a reason line
+  when there is one, and the actions. `READY` in expected cream for one waiting
+  for its time; `HELD` for one that can no longer reach its device — nothing
+  declined it, but the shape is the same and so is the treatment
+- **Paused:** no flap at all, and the name, value and detail drop to faint ink.
+  See The Absent Word Rule
+- **The form:** the only form inputs in the system. A filled `flap` ground, a
+  1px `brass-dim` underline and no other border, no radius, a commanded-amber
+  caret, and the field's name above it in the record voice. The input itself is
+  1rem Barlow, the same as the set line's, because what you type is language.
+  An error is declined rust under the field it came from
+- **The feed:** a fixed five-column grid,
+  `5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem` — time, kind, what, who, took —
+  hairline-ruled between entries, in the record voice. Fixed pitch so a
+  streaming log does not shift its columns under a reader; `what` and `who`
+  truncate rather than wrap, and `took` is right-aligned
 
 ### The Mark
 
@@ -433,6 +652,11 @@ never icons and never bare numbers.
 | `HELD` | the device declined, with the reason beside it | Declined Rust |
 | `NOT KNOWN` | nobody has told us yet | Silent Sage |
 
+Still eight, and two new pages did not add a ninth. `SET`, `HELD`, `READY`,
+`QUIET` and `NOT KNOWN` all appear on `/house` and `/admin` with exactly the
+meanings above; nothing was widened to cover a new case, and one case was left
+wordless instead.
+
 ### Named Rules
 
 **The Words Rule.** A state is a word. Adding an icon, a dot, a badge or a
@@ -447,6 +671,20 @@ is forbidden to tell.
 Refusal is `HELD`, quietly, with its reason beside it — never a punchline in
 the reserved red. A design that leads with refusal is selling the wrong
 product.
+
+**The Absent Word Rule.** When no word in the vocabulary is true of a row, the
+row gets no flap. A paused schedule shows none: nothing among the eight means
+"somebody switched this off" — `QUIET` is an endpoint that stopped answering and
+`HELD` is a device declining — and bending either to fit would put a word on the
+board that means two things. The row goes faint and its button says `resume`,
+which says it without a word. A ninth word is a design decision, not a CSS
+change.
+
+**The Uncommanded Value Rule.** A value somebody is still choosing is never
+written into a reading. It may sit beside the control, in commanded amber, for
+as long as the hand is on it, and it leaves the board the moment the board takes
+over. Audit test: release the fader with the house slow to answer — nothing on
+the card should show the new number until the house has confirmed it.
 
 ## Do's and Don'ts
 
@@ -464,6 +702,12 @@ product.
 - **Do** draw the fold behind the lettering.
 - **Do** distinguish "not answering" from "not yet known". They are different
   facts and the vocabulary has a word for each.
+- **Do** leave the flap off entirely when none of the eight words is true.
+  Silence is a legitimate answer; a bent word is not.
+- **Do** answer a destructive action with an undo line for a few seconds,
+  instead of a confirm dialog.
+- **Do** commit a drag on release, and show what is being asked for beside the
+  control rather than in the reading.
 
 ### Don't:
 
@@ -479,3 +723,10 @@ product.
   process narration in his voice.
 - **Don't** use wizarding diction, franchise assets, or parchment-and-
   wax-seal pastiche. The magic is that the object is alive and honest.
+- **Don't** add a navigation bar. The nameplate, the band and one quiet link
+  are the navigation.
+- **Don't** write a value a person is still choosing into a device's reading.
+- **Don't** widen an existing state word to cover a new case. Add a word, or
+  leave the flap off.
+- **Don't** turn the cards page into a grid of tiles. One 34rem column, on
+  every viewport.

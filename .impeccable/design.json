@@ -288,6 +288,10 @@
       {
         "name": "wide",
         "value": "820px"
+      },
+      {
+        "name": "admin",
+        "value": "980px"
       }
     ],
     "backdrop": [
@@ -354,6 +358,62 @@
       "description": "Dobby, drawn in ink. Attending he leans −15° in full ink; quiet he sits upright in faint ink. Never rendered below 40px.",
       "html": "<div class=\"ds-mark-row\"><svg class=\"ds-mark ds-attending\" width=\"44\" height=\"44\" viewBox=\"0 0 1000 1000\" role=\"img\" aria-label=\"Dobby\"><g fill=\"none\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><g id=\"ds-ear\"><path fill=\"var(--board-raised, #101E19)\" d=\"M 340 430 C 245 408, 120 376, 55 368 C 58 486, 150 645, 355 725\"/><path d=\"M 128 424 C 188 476, 248 572, 298 660\"/></g><use href=\"#ds-ear\" transform=\"translate(1000 0) scale(-1 1)\"/><ellipse cx=\"500\" cy=\"520\" rx=\"235\" ry=\"290\" fill=\"var(--board-raised, #101E19)\"/><path d=\"M 372 537 Q 410 509, 448 537\"/><path d=\"M 552 537 Q 590 509, 628 537\"/><path d=\"M 376 599 Q 410 633, 444 599\"/><path d=\"M 556 599 Q 590 633, 624 599\"/><path d=\"M 483 660 Q 500 676, 517 660\"/><path d=\"M 433 707 Q 500 749, 567 707\"/></g></svg><span class=\"ds-flap\" data-st=\"acting\">Listening</span></div>",
       "css": ".ds-mark-row { display: flex; align-items: center; gap: .6rem; background: var(--board-raised, #101E19); padding: .55rem .9rem; } .ds-mark { flex: 0 0 auto; display: block; color: var(--ink-faint, #8A9C92); transition: transform .25s ease, color .25s ease; } .ds-mark.ds-attending { color: var(--ink, #E8E2D2); transform: rotate(-15deg); } @media (prefers-reduced-motion: reduce) { .ds-mark { transition: none; } }"
+    },
+    {
+      "name": "The Plate",
+      "kind": "custom",
+      "refersTo": "flap",
+      "description": "The board's nameplate, worn by every route: where you are, who is speaking, and whether anything is listening. The name is the way back; there is no navigation bar.",
+      "html": "<div class=\"ds-plate\"><h1><a href=\"#\">The House</a><span class=\"ds-sep\">&middot;</span><span class=\"ds-section\">Devices</span></h1><div class=\"ds-who\"><span class=\"ds-speaking\"><span class=\"ds-name\">Greg</span><button type=\"button\">switch</button></span><span class=\"ds-flap\" data-st=\"acting\">Listening</span></div></div>",
+      "css": ".ds-plate { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: .45rem; border-bottom: 1px solid var(--rule, #1C2E27); background: var(--board-raised, #101E19); } .ds-plate h1 { display: flex; align-items: baseline; gap: .5rem; margin: 0; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .16em; font-size: .86rem; font-weight: 600; color: var(--brass, #B08A46); } .ds-plate h1 a { color: inherit; text-decoration: none; } .ds-sep { color: var(--brass-dim, #6E5A31); letter-spacing: normal; } .ds-section { color: var(--ink-quiet, #9AABA1); } .ds-who { display: flex; align-items: center; gap: .6rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-speaking { display: flex; align-items: stretch; } .ds-speaking .ds-name { padding-right: .45rem; } .ds-speaking button { background: transparent; border: 0; border-left: 1px solid var(--rule, #1C2E27); padding: 0 0 0 .45rem; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass-dim, #6E5A31); } .ds-who .ds-flap { font-size: .74rem; padding: .1rem .4rem .12rem; min-height: 1.2rem; }"
+    },
+    {
+      "name": "The Card",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A board row that grew a control. Same three columns, same vocabulary, same 34rem pitch; what a card adds is the room underneath. One column on every viewport.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-row-name\">Main thermostat</span><span class=\"ds-row-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"set\">Set</span></div><div class=\"ds-detail\">Room 68&deg;</div></article><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-row-name\">Office printer</span><span class=\"ds-row-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Quiet</span></div><div class=\"ds-detail\">Since 4:12 PM</div></article>",
+      "css": ".ds-card { display: grid; gap: .5rem; padding: .7rem 0 .8rem; max-width: 34rem; border-top: 1px solid var(--rule, #1C2E27); } .ds-card:first-of-type { border-top: 0; } .ds-detail { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); }"
+    },
+    {
+      "name": "The Fader",
+      "kind": "custom",
+      "refersTo": "fader-thumb",
+      "description": "The setpoint control. Square brass thumb, a groove built from flap-edge over seam-light the way the flap's fold is, commits on release rather than on drag, and a commanded-amber asking label that rides the thumb only while a finger is down.",
+      "html": "<div class=\"ds-fader\"><div class=\"ds-asking\" style=\"left: 55%\">72&deg;</div><input type=\"range\" min=\"60\" max=\"80\" value=\"72\" aria-label=\"Set the main thermostat\" /><div class=\"ds-ends\"><span>60&deg;</span><span>80&deg;</span></div></div>",
+      "css": ".ds-fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; max-width: 34rem; } .ds-fader input[type=\"range\"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.4rem; background: transparent; cursor: pointer; } .ds-fader input[type=\"range\"]::-webkit-slider-runnable-track { height: 4px; background: var(--flap, #16241E); border-top: 1px solid var(--flap-edge, #08110E); border-bottom: 1px solid rgba(255,255,255,.045); } .ds-fader input[type=\"range\"]::-moz-range-track { height: 4px; background: var(--flap, #16241E); border-top: 1px solid var(--flap-edge, #08110E); border-bottom: 1px solid rgba(255,255,255,.045); } .ds-fader input[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 1.35rem; margin-top: calc((6px - 1.35rem) / 2); background: var(--brass, #B08A46); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]::-moz-range-thumb { width: 10px; height: 1.35rem; background: var(--brass, #B08A46); border: 0; border-radius: 0; } .ds-asking { position: absolute; top: -1.05rem; transform: translateX(-50%); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .86rem; font-weight: 600; letter-spacing: .05em; color: var(--st-set, #E0A33C); pointer-events: none; } .ds-ends { display: flex; justify-content: space-between; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .05em; color: var(--ink-faint, #8A9C92); }"
+    },
+    {
+      "name": "The Undo Line",
+      "kind": "custom",
+      "refersTo": "undo-line",
+      "description": "The system's alternative to a confirm dialog: do it, then offer a way back for eight seconds. Used by the card and by the admin's schedule delete. The underlined brass button is the system's quiet control, shared with pause, resume, delete and Add.",
+      "html": "<div class=\"ds-undo\"><button type=\"button\">undo</button><span>back to 70&deg;</span></div><div class=\"ds-undo ds-held\"><span class=\"ds-flap\" data-st=\"refused\">Held</span><span class=\"ds-why\">the thermostat is in a hold until 6 pm</span></div>",
+      "css": ".ds-undo { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-undo button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass, #B08A46); } .ds-held .ds-flap { font-size: .74rem; padding: .1rem .4rem .12rem; min-height: 1.2rem; } .ds-why { color: var(--st-refused, #D2604A); text-transform: none; letter-spacing: 0; }"
+    },
+    {
+      "name": "Schedule Row",
+      "kind": "custom",
+      "refersTo": "flap",
+      "description": "A schedule on /admin: row, detail, reason, actions. READY while it waits for its time, HELD when it can no longer reach its device. A paused schedule gets no flap at all, because none of the eight words means 'somebody switched this off'.",
+      "html": "<div class=\"ds-sched\"><div class=\"ds-row\"><span class=\"ds-row-name\">Weeknight heat</span><span class=\"ds-row-val\">0 20 * * 1-5</span><span class=\"ds-flap\" data-st=\"expected\">Ready</span></div><div class=\"ds-sched-detail\">main thermostat &middot; set_temperature 70 &middot; next Mon 8:00 PM</div><div class=\"ds-acts\"><button type=\"button\">pause</button><button type=\"button\">delete</button></div></div><div class=\"ds-sched ds-paused\"><div class=\"ds-row\"><span class=\"ds-row-name\">Morning warmup</span><span class=\"ds-row-val\">0 6 * * *</span></div><div class=\"ds-sched-detail\">main thermostat &middot; set_temperature 68</div><div class=\"ds-acts\"><button type=\"button\">resume</button><button type=\"button\">delete</button></div></div>",
+      "css": ".ds-sched { display: grid; gap: .3rem; padding: .5rem 0; border-top: 1px solid var(--rule, #1C2E27); max-width: 34rem; } .ds-sched:first-of-type { border-top: 0; } .ds-sched-detail, .ds-acts { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-acts { display: flex; gap: .9rem; } .ds-acts button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass, #B08A46); } .ds-paused .ds-row-name, .ds-paused .ds-row-val, .ds-paused .ds-sched-detail { color: var(--ink-faint, #8A9C92); }"
+    },
+    {
+      "name": "Schedule Form",
+      "kind": "custom",
+      "refersTo": "schedule-input",
+      "description": "The only form inputs in the system: a filled flap ground, a brass-dim underline and no other border, no radius, a commanded-amber caret, and the field's name above it in the record voice.",
+      "html": "<form class=\"ds-new-sched\"><label><span>Label</span><input type=\"text\" value=\"Weeknight heat\" /></label><label><span>Cron</span><input type=\"text\" placeholder=\"0 20 * * 1-5\" /></label><div class=\"ds-form-why\">cron has an invalid field</div><button type=\"submit\">Add</button></form>",
+      "css": ".ds-new-sched { display: grid; gap: .6rem; padding-top: .7rem; border-top: 2px solid var(--brass-dim, #6E5A31); justify-items: start; max-width: 22rem; } .ds-new-sched label { display: grid; gap: .2rem; width: 100%; } .ds-new-sched label span { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-new-sched input { width: 100%; background: var(--flap, #16241E); border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); border-radius: 0; color: var(--ink, #E8E2D2); font-family: \"Barlow\", ui-sans-serif, system-ui, sans-serif; font-size: 1rem; padding: .4rem .5rem; caret-color: var(--st-set, #E0A33C); } .ds-new-sched input::placeholder { color: var(--ink-faint, #8A9C92); } .ds-form-why { font-size: .86rem; color: var(--st-refused, #D2604A); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; } .ds-new-sched button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .07em; cursor: pointer; color: var(--brass, #B08A46); }"
+    },
+    {
+      "name": "Activity Feed",
+      "kind": "custom",
+      "refersTo": "feed-entry",
+      "description": "The full record on /admin: a fixed five-column grid so a streaming log does not shift its columns under a reader. What and who truncate rather than wrap; took is right-aligned.",
+      "html": "<div class=\"ds-feed\"><div class=\"ds-entry\"><span class=\"ds-t\">8:00:04 PM</span><span class=\"ds-kind\">schedule</span><span class=\"ds-what\">main thermostat &middot; set_temperature</span><span class=\"ds-who\">weeknight heat</span><span class=\"ds-took\">0.4 s</span></div><div class=\"ds-entry\"><span class=\"ds-t\">7:58:11 PM</span><span class=\"ds-kind\">control</span><span class=\"ds-what\">main thermostat &middot; set_temperature</span><span class=\"ds-who\">greg, card</span><span class=\"ds-took\">0.2 s</span></div></div>",
+      "css": ".ds-entry { display: grid; grid-template-columns: 5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem; gap: .5rem; align-items: baseline; padding: .18rem 0; border-top: 1px solid var(--rule, #1C2E27); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .05em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); font-variant-numeric: tabular-nums; } .ds-entry .ds-t, .ds-entry .ds-took { color: var(--ink-faint, #8A9C92); } .ds-entry .ds-what { color: var(--ink, #E8E2D2); overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-kind, .ds-entry .ds-who, .ds-entry .ds-what { white-space: nowrap; } .ds-entry .ds-who { overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-took { text-align: right; }"
     }
   ],
   "narrative": {
@@ -370,7 +430,7 @@
     "rules": [
       {
         "name": "The Palette Law",
-        "body": "Five reserved state colours, each meaning exactly one thing, used decoratively nowhere. A sixth state colour is a design change, not a CSS change. Audit test: search the stylesheet for a state colour outside a [data-st] selector, a tick, or a refusal reason — there should be none.",
+        "body": "Five reserved state colours, each meaning exactly one thing, used decoratively nowhere. A sixth state colour is a design change, not a CSS change. Audit test: search the stylesheet for a state colour outside a [data-st] selector, a tick, a refusal reason, or one of the four sanctioned sites — commanded amber on a caret, on the focus ring and on the fader's asking label, and declined rust on a reason — there should be none.",
         "section": "colors"
       },
       {
@@ -432,6 +492,21 @@
         "name": "The Six Steps Rule",
         "body": "The type ramp is six sizes and that is the whole of it. It was ten when the system was first written down — four of them inside six hundredths of a rem of each other, which is accretion rather than a scale. A seventh needs a role none of the six can carry.",
         "section": "typography"
+      },
+      {
+        "name": "The No Nav Rule",
+        "body": "Navigation is carried by things that already exist — the nameplate, the band of rows, one quiet link at the foot of a page. A shell of links around this would be a second visual language arguing with the first. Audit test: no route may introduce a nav element; a new page earns its way in from a surface that already leads somewhere.",
+        "section": "layout"
+      },
+      {
+        "name": "The Absent Word Rule",
+        "body": "When no word in the vocabulary is true of a row, the row gets no flap. A paused schedule shows none: nothing among the eight means “somebody switched this off” — QUIET is an endpoint that stopped answering and HELD is a device declining — and bending either to fit would put a word on the board that means two things. The row goes faint and its button says resume, which says it without a word. A ninth word is a design decision, not a CSS change.",
+        "section": "components"
+      },
+      {
+        "name": "The Uncommanded Value Rule",
+        "body": "A value somebody is still choosing is never written into a reading. It may sit beside the control, in commanded amber, for as long as the hand is on it, and it leaves the board the moment the board takes over. Audit test: release the fader with the house slow to answer — nothing on the card should show the new number until the house has confirmed it.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -443,7 +518,10 @@
       "Do use tabular figures for every number, so a changing reading does not shift the column beside it.",
       "Do draw the fold behind the lettering.",
       "Do distinguish \"not answering\" from \"not yet known\". They are different facts and the vocabulary has a word for each.",
-      "Do tell the plate heading from a device name by tracking, not by size. They are the same 0.86rem step."
+      "Do tell the plate heading from a device name by tracking, not by size. They are the same 0.86rem step.",
+      "Do leave the flap off entirely when none of the eight words is true. Silence is a legitimate answer; a bent word is not.",
+      "Do answer a destructive action with an undo line for a few seconds, instead of a confirm dialog.",
+      "Do commit a drag on release, and show what is being asked for beside the control rather than in the reading."
     ],
     "donts": [
       "Don't put a tint behind readable text, in any colour.",
@@ -453,7 +531,11 @@
       "Don't shrink type to make content fit. Reflow or truncate instead.",
       "Don't render the mark below 40px, and don't use the ears without the head.",
       "Don't phrase a step as Dobby speaking (\"Let me just check the thermostat…\"). Steps are labels in device language, and the soul bans process narration in his voice.",
-      "Don't use wizarding diction, franchise assets, or parchment-and-wax-seal pastiche. The magic is that the object is alive and honest."
+      "Don't use wizarding diction, franchise assets, or parchment-and-wax-seal pastiche. The magic is that the object is alive and honest.",
+      "Don't add a navigation bar. The nameplate, the band and one quiet link are the navigation.",
+      "Don't write a value a person is still choosing into a device's reading.",
+      "Don't widen an existing state word to cover a new case. Add a word, or leave the flap off.",
+      "Don't turn the cards page into a grid of tiles. One 34rem column, on every viewport."
     ]
   }
 }

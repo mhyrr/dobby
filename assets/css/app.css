@@ -620,7 +620,12 @@ body {
   cursor: pointer;
   color: var(--brass);
 }
-.sched .acts button:hover { color: var(--st-set); }
+/* Ink and not commanded amber. Amber means a value somebody asked for; spending
+   it on a hover would be a reserved state colour doing decoration, which is
+   the one thing palette law forbids. */
+.sched .acts button:hover,
+.new-sched button:hover,
+.admin .undo button:hover { color: var(--ink); }
 
 .new-sched {
   display: grid;

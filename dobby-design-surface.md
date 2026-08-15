@@ -2,9 +2,10 @@
 
 **Working design for Phase A step 4. Draft 1, August 2026.**
 
-**Status:** awaiting Greg's sign-off, section by section. On approval this folds
-into `dobby-design-jido.md` §10 as v0.13 and this file goes away. Nothing here
-overrides the design of record; where they disagree, say so and the doc wins.
+**Status:** signed. Folds into `dobby-design-jido.md` §10 as v0.13 when step 4
+lands, and this file goes away. The visual system has already left for
+`DESIGN.md`, which outlives both. Nothing here overrides the design of record;
+where they disagree, say so and the doc wins.
 
 TK-001 is the owning ticket. Its already-decided constraints — one shared
 thread, system lines for actuations, cookie-pinned identity, card controls with
@@ -14,78 +15,14 @@ no LLM — are inputs here, not questions.
 
 ## 1. The world
 
-Decided 2026-08-14 through a direction round (seed `1a4f6e4e`): **the departure
-board**, rendered as a magical household instrument. Greg pinned the register
-afterwards — fun, hearted, magical — and then chose *a living instrument* over
-wizarding diction. The magic is that the object is alive and honest, not that it
-talks like a wizard.
+**Moved to `DESIGN.md`** (2026-08-15), which is now the single home for the
+visual system: the departure board, the state vocabulary, the palette law, the
+type ramp, the components, and the named rules — derived from what shipped
+rather than from what was intended.
 
-The direction contract, which goes in the root layout as an HTML comment before
-any UI is written:
-
-**THESIS.** A split-flap board can only display what it was set to. It cannot
-show a state nobody commanded. That is §6.2's write-acknowledgment rule as a
-mechanism rather than a prompt instruction, and it refuses the category default
-— the dark card grid with a circular dial, which shows you a number and tells
-you nothing about who set it or whether it took.
-
-**OWN-WORLD.** Enamel ground, brass rule, flap cards with painted lettering.
-Five reserved state colors and no sixth. Fixed-pitch columns. The signature
-material is the fold across each flap card — drawn behind the lettering, never
-across it, because a seam over the glyphs reads as a strikethrough and a struck
-word means cancelled.
-
-**STORY.** Someone glances at the board and knows what the house is doing and
-who asked for it. Then they say the next thing.
-
-**FIRST VIEWPORT (phone).** A board header carrying the house in three flap
-rows; the thread ruled beneath it; the composer as the board's set line at the
-foot. Dobby's reply flaps in character by character as it streams.
-
-**FORM.** The departure board; candidate 3 of 7 on the grounded list; seed key
-`1a4f6e4e`.
-
-### 1.1 The state vocabulary
-
-States are words on flaps, never icons and never bare numbers. This is the
-Weasley-clock grammar — a hand points at a real place — and it is also the
-doctrine:
-
-| Flap | Means |
-|---|---|
-| `SET` | Dobby commanded it. Not "the room is warm." |
-| `WARMING` / `COOLING` | HA confirmed the device is acting. |
-| `READY` | A schedule waiting for its time. |
-| `AWAKE` | An endpoint that is up. |
-| `LISTENING` | Dobby is attending. |
-| `QUIET` | An endpoint that has stopped reporting. |
-| `HELD` | The device declined, with the reason alongside it. |
-
-**Revised 2026-08-14 (Greg).** The first draft made `WOULDN'T` the showcase
-word. Wrong emphasis: Dobby is an elf that makes things you want to happen
-happen, and a design that leads with refusal is selling the wrong product. The
-affirmative states are the loud ones now.
-
-Refusal still has to be honest — doctrine is not negotiable — but it is
-`HELD`, quietly, with the reason beside it, rather than a punchline in the
-reserved red. Likewise `NOT ANSWERING` became `QUIET`: same fact, less scolding.
-
-There is no word yet for the unclosed confirm loop (a command sent with nothing
-coming back). TK-004 will need one and should pick it when it has a consumer;
-inventing it here with nothing watching for it was premature.
-
-**Four raises**, carried in from directions that lost the round:
-
-- **Palette law.** Five reserved state colors, each meaning exactly one thing,
-  used decoratively nowhere.
-- **Legibility floor.** Type is sized by reading distance and never shrinks to
-  fit. Content reflows or truncates; type does not scale down. This matters most
-  on a tablet left open across a room, but it is a rule everywhere.
-- **Language is the material.** What a person said gets board-scale type, not
-  chat-bubble type in 14px grey.
-- **Color at the edges.** State color lives on rules, ticks and flap edges,
-  never as a tint behind readable text — which is also what keeps a screen left
-  on in a kitchen from lighting the room at 11pm.
+This file keeps the *surface* decisions: routes, streaming, persistence,
+identity, and the reasoning behind them. Where the two touch, `DESIGN.md` wins
+on how a thing looks and this file wins on what it does.
 
 ---
 
@@ -298,14 +235,27 @@ Event mapping:
 | `:request_completed` | finalize; `data.result`, `data.usage` |
 | `:request_failed` / `:request_cancelled` | an honest failure row |
 
-**Open, and it needs measurement (6a).** Turn 1 emits deltas too. If a model
-narrates before calling a tool, that text streams and then must go somewhere. My
-proposal: render deltas live, and when `:tool_started` arrives in the same
-`iteration`, fold the text emitted so far into that step's label rather than
-discarding it — so nothing flashes and vanishes. This is speculative. **One
-eval-tier request with a delta collector settles it**, and the answer may be
-that luna emits no turn-1 content at all, in which case the whole question is
-moot. That test is the first thing I would write.
+**6a — measured, and the answer is that there is nothing to do.** An actuating
+request emitted **zero content deltas in iteration 1**: luna calls the tool and
+says nothing first. The fold-into-step rule was written against a case that
+does not happen, and was dropped rather than built.
+
+The same measurement found two things that were not in the design.
+
+**A tool call streams as a delta.** Iteration 1 emitted exactly one
+`:llm_delta` with `chunk_type: :tool_call` whose payload is the tool's *name*.
+A thread rendering every delta would have put `thermostat_set_temperature` in
+the middle of Dobby's reply. The `chunk_type: :content` filter above was
+already written; it is now known to be load-bearing rather than tidy.
+
+**Arrival order is not `seq` order.** Deltas reach a subscriber through the
+agent server and PubSub, and a two-event swap was observed in the rig —
+rendering "connectivity and , set" for "connectivity, and set". Rare, invisible
+to tests, and exactly the kind of thing that makes an honest board look broken.
+The thread keys deltas by `seq` and renders them sorted.
+
+`Dobby.Eval.StreamingEvalTest` keeps all three honest, including the invariant
+the surface stands on: the content deltas concatenate to the stored result.
 
 ---
 
@@ -503,17 +453,36 @@ TK-002's record is that three of four verify items came back different from the
 docs. These are the step-4 equivalents, ordered by how much they would cost if
 wrong:
 
-1. **Turn-1 deltas (§6a).** One eval request with a delta collector. Decides
-   whether the fold-into-step rule is needed at all.
+1. **Turn-1 deltas (§6a) — done.** No turn-1 narration; the fold-into-step rule
+   was dropped. Two other findings came out of the same request; see §6.
 2. **Rehydration round trip.** Build a `Jido.AI.Context` from rows, boot with
    it, and assert the model resolves a pronoun against a pre-restart turn. The
-   seam is confirmed; the behavior is not.
-3. **Delta volume against LiveView.** Deltas arrive per token. Confirm the
-   republish rate does not need batching before building the flap animation on
-   top of it.
-4. **`Jido.AI.Context` truncation.** §6.3 caps projected history at N turns.
-   Confirm where that cap is applied, so rehydration does not reinstall more
-   than the cap and quietly change cost per request.
+   seam is confirmed; the behavior is not. **Still open.**
+3. **Delta volume against LiveView — done.** Deltas are words, not characters:
+   twenty-five for a long answer, nine for a short one, over a second or two.
+   No batching.
+4. **`Jido.AI.Context` truncation — done, and the answer is different from what
+   §6.3 assumed.** There is no cap. `Jido.AI.Context` says of itself "no
+   policies, no windowing", `to_messages/2` takes an optional `:limit`, and
+   both callers in jido_ai call `to_messages/1` with no limit
+   (`react/runner.ex:339`, `react/strategy.ex:384`). The 40-message window in
+   `Dobby.Conversation.Rehydrate` is therefore the **only** cap in the system
+   and it applies at boot alone: a process that has been up for a week sends a
+   week of conversation on every request, and input tokens grow without bound
+   between restarts. Not blocking step 4, and it needs its own ticket.
+
+### 14.1 Found by building it
+
+**One ReAct agent takes one request at a time.** A second utterance arriving
+while a turn is in flight is rejected with `{:rejected, :busy, ...}` and
+dropped. Two people saying something within a few seconds of each other is the
+ordinary case in a house at six in the evening, and the whole premise of this
+surface is one shared conversation, so this needs a real answer: hold the
+utterance and re-issue it when the agent frees up, or inject it into the
+running turn (jido has `:input_injected` for exactly that, and it would mean
+Dobby answers both in one reply). Both change what a turn *is*, so both are
+Greg's call. The thread currently says "Dobby is still working on the last
+one", which is at least true.
 
 ---
 
@@ -539,52 +508,11 @@ rest on.
 
 ## 16. Dobby's mark
 
-**Decided (Greg, 2026-08-14): both, in different jobs.**
+**Moved to `DESIGN.md` → Components → The Mark** (2026-08-15). Greg supplied
+the drawing, and having it settled both open questions: the mark is Dobby's
+face in the plate at 44px, leaning fifteen degrees when he is attending, and
+the ambient eyes are cut because the header cannot carry two sets of his eyes.
 
-- **The ear is the mark.** It sits beside every reply at ~26px. Big — a real
-  elf ear, not a svelte one. Greg supplied a reference: vertical axis with the
-  point straight up, a rolled helix rim running parallel to the outer edge, a
-  concha bowl, a lobe at the bottom, and broad through the upper blade
-  (roughly 3:4 width to height).
-- **The eyes are ambient presence.** Dobby's own eyes — round and protruding,
-  sclera showing all round, hard limbal ring, catchlight — set large behind the
-  thread header, cropped by the top edge, blinking every 20–40s. A subtle tick
-  underneath everything, never a foreground element.
-
-Rejected on the way: the flap-card eyes (read as a robot), the ember (works,
-but generic — any assistant could ship a flame), and upswept almond "high-elf"
-eyes (Greg's reference settles it as round house-elf eyes).
-
-### 16.1 What the eyes taught us, worth keeping
-
-**Subtle comes from color, not opacity.** The first attempt set bright eyes at
-16% opacity and they collapsed into grey donuts — low opacity compresses
-*every* hue toward the background, so sclera, green iris and catchlight all
-converged to the same mid tone. Rebuilt at full opacity in colors chosen close
-to the ground (`#2C2519` sclera, `#26331F` iris, `#14100A` pupil), the
-structure survives and reads. This applies to every ambient or de-emphasized
-element on the surface.
-
-**The iris is the green already reserved in the palette**, so Dobby's canonical
-eye color costs no sixth color and palette law holds.
-
-### 16.2 The ear is not drawn yet — open work
-
-Four passes produced a shape that is vertical and has a bowl and a rim, and
-still reads as a blob rather than an ear. The failure is method, not taste:
-hand-editing bezier control points and screenshotting to see what happened is
-guess-and-check on an organic silhouette, and it oscillated (too narrow, then
-too wide, never pointed).
-
-The apex specifically fails because its incoming and outgoing control vectors
-are nearly parallel, which produces a smooth curve where a corner is needed.
-That is understood and still did not converge by hand.
-
-**Next step, Greg's call:**
-
-1. **Adapt an existing vector.** Fastest and most certain — if there is an SVG
-   he likes, the work is fitting it to the palette and the three states.
-2. **Trace the reference systematically.** Sample coordinates off the supplied
-   image rather than inventing them. One focused pass rather than a loop.
-
-Not recommended: another round of hand-tuning. It has had four.
+The reasoning — why it is not a 26px byline, why the ears alone read as
+leaves, and why subtle comes from colour rather than opacity — is recorded
+there.

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <g fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Ears (drawn first so the head overlaps the attachment) -->
+    <g id="ear">
+      <path fill="#fff" d="M 340 430 C 245 408, 120 376, 55 368 C 58 486, 150 645, 355 725"/>
+      <path d="M 128 424 C 188 476, 248 572, 298 660"/>
+    </g>
+    <use href="#ear" transform="translate(1000 0) scale(-1 1)"/>
+    <!-- Head -->
+    <ellipse cx="500" cy="520" rx="235" ry="290" fill="#fff"/>
+    <!-- Eyebrows -->
+    <path d="M 372 537 Q 410 509, 448 537"/>
+    <path d="M 552 537 Q 590 509, 628 537"/>
+    <!-- Eyes (closed, smiling) -->
+    <path d="M 376 599 Q 410 633, 444 599"/>
+    <path d="M 556 599 Q 590 633, 624 599"/>
+    <!-- Nose -->
+    <path d="M 483 660 Q 500 676, 517 660"/>
+    <!-- Mouth -->
+    <path d="M 433 707 Q 500 749, 567 707"/>
+  </g>
+</svg>

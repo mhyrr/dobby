@@ -19,7 +19,10 @@ config :dobby, Dobby.Repo,
 config :dobby, DobbyWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  # PORT because a laptop runs more than one of these, and the loopback bind
+  # because a house console has no business on the network before there is a
+  # house to console.
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -72,3 +75,15 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
+
+# `mix phx.server` boots the whole application against FakeHA, and the one
+# thing the fake cannot stand in for is the model. Point `:capable` at whatever
+# provider this machine has a key for and the surface streams for real:
+#
+#     DOBBY_MODEL=openai:gpt-5.6-luna mix phx.server
+#
+# Which is the swap design §2.1 says the alias exists to make — the agent names
+# the alias, never the provider.
+if model = System.get_env("DOBBY_MODEL") do
+  config :jido_ai, :model_aliases, %{capable: model}
+end

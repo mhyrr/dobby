@@ -44,10 +44,21 @@ defmodule Dobby.HomeAssistant do
   than quietly against the real house.
   """
   @spec impl() :: module()
-  def impl do
+  def impl, do: Keyword.get(options(), :client, Dobby.HomeAssistant.Fake)
+
+  @doc """
+  The manifest's `home_assistant` block, as the client's start options.
+
+  The client is told where its Home Assistant is by the same file that
+  describes the house, because they are the same fact. For the fake that block
+  also carries the starting state of the world, which is what makes
+  `mix phx.server` boot a house somebody can actually look at rather than one
+  that knows nothing about itself.
+  """
+  @spec options() :: keyword()
+  def options do
     :dobby
     |> Application.get_env(Dobby.Home, [])
     |> Keyword.get(:home_assistant, [])
-    |> Keyword.get(:client, Dobby.HomeAssistant.Fake)
   end
 end

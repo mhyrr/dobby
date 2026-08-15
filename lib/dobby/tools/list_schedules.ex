@@ -18,7 +18,12 @@ defmodule Dobby.Tools.ListSchedules do
     """,
     schema: []
 
+  @behaviour Dobby.Tools
+
   alias Dobby.Schedules
+
+  @impl Dobby.Tools
+  def label(_arguments), do: "reading the schedules"
 
   @impl true
   def run(_params, _context) do

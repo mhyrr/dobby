@@ -41,6 +41,7 @@ defmodule Dobby.RigCase do
     owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Dobby.Repo, shared: true)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
     on_exit(&stop_home!/0)
+    on_exit(&drain_turns!/0)
 
     Fake.reset()
     restart_home!()
@@ -196,6 +197,33 @@ defmodule Dobby.RigCase do
     stop_home!()
     {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Dobby.Home)
     :ok
+  end
+
+  @doc false
+  # `Dobby.Conversation.Turn` runs one task per request under the application's
+  # own Task.Supervisor, so a turn is not a descendant of the house and does not
+  # die with it. A test that returns while a task is still writing leaves a
+  # query in flight against a connection the sandbox is about to check back in —
+  # the same class of stray-query race the house teardown order exists for, and
+  # the reason this runs before either of them.
+  #
+  # Registered last, so it runs first: `on_exit` is last-registered-first.
+  def drain_turns! do
+    Dobby.TaskSupervisor
+    |> Task.Supervisor.children()
+    |> Enum.map(&Process.monitor/1)
+    |> Enum.each(&await_turn_down/1)
+  catch
+    # No supervisor means no turns to wait for, which is most of the suite.
+    :exit, _reason -> :ok
+  end
+
+  defp await_turn_down(ref) do
+    receive do
+      {:DOWN, ^ref, :process, _pid, _reason} -> :ok
+    after
+      5_000 -> raise "a turn was still running when its test ended"
+    end
   end
 
   @doc false

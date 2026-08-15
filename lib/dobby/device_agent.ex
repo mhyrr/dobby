@@ -57,6 +57,21 @@ defmodule Dobby.DeviceAgent do
   """
   @callback scheduled_actions() :: %{atom() => {signal_type :: String.t(), module()}}
 
+  @doc """
+  The device's public state, read from live agent state.
+
+  The same map `Dobby.DeviceEvents.emit/2` carries — what cards render and what
+  the model is told the house looks like. It exists as a callback because a
+  surface that has just been opened needs the current state, and
+  `dobby.device.state_changed` only fires on *change*: a page loaded at three in
+  the afternoon would otherwise show an empty house until something moved.
+
+  Reading `DobbyAgent`'s world model instead would answer the same question and
+  would be wrong — it would make the cards depend on the language layer, which
+  is the one thing the deterministic path is supposed to stand apart from.
+  """
+  @callback snapshot(state :: map()) :: map()
+
   @typedoc "What a device agent decided about a command it was sent."
   @type outcome :: :accepted | {:rejected, String.t()} | :unknown
 

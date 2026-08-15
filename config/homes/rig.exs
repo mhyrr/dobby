@@ -11,7 +11,27 @@ config :dobby, Dobby.Home,
   timezone: "America/New_York",
   home_assistant: [
     client: Dobby.HomeAssistant.Fake,
-    url: "http://fake.invalid:8123"
+    url: "http://fake.invalid:8123",
+    # The state the fake starts holding, so `mix phx.server` boots a house you
+    # can look at. A real client learns this from Home Assistant on subscribe;
+    # the fake has to be told, and being told here keeps the whole description
+    # of the rig in one file. `Fake.reset/0` clears it, which is why the test
+    # suite still starts from a house that knows nothing.
+    entities: %{
+      "climate.main_floor" => %{
+        state: "heat",
+        attributes: %{
+          current_temperature: 66,
+          temperature: 70,
+          min_temp: 50,
+          max_temp: 90,
+          target_temp_step: 1,
+          hvac_modes: ["off", "heat"]
+        }
+      },
+      "binary_sensor.kitchen_tv" => %{state: "on", attributes: %{}},
+      "binary_sensor.office_printer" => %{state: "off", attributes: %{}}
+    }
   ],
   networks: [
     %{id: :home_wifi, name: "Rig", ssid: "rig"}

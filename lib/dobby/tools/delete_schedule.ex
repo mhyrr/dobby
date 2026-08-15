@@ -18,7 +18,12 @@ defmodule Dobby.Tools.DeleteSchedule do
       id: [type: :integer, required: true, doc: "Schedule id from list_schedules"]
     ]
 
+  @behaviour Dobby.Tools
+
   alias Dobby.Schedules
+
+  @impl Dobby.Tools
+  def label(_arguments), do: "deleting a schedule"
 
   @impl true
   def on_before_validate_params(params), do: {:ok, Schedules.coerce_id_param(params)}

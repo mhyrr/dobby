@@ -37,7 +37,12 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
       ]
     ]
 
+  @behaviour Dobby.Tools
+
   alias Dobby.DeviceAgents.Thermostat
+
+  @impl Dobby.Tools
+  def label(arguments), do: "setting the #{Dobby.Tools.device_name(arguments)}"
 
   # JSON has one number type and Elixir has two: a model that correctly sends
   # `70` against a `"number"` schema arrives here as an integer, which `:float`

@@ -79,8 +79,6 @@ defmodule DobbyWeb do
     quote do
       # HTML escaping functionality
       import Phoenix.HTML
-      # Core UI components
-      import DobbyWeb.CoreComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

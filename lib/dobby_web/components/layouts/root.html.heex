@@ -1,40 +1,33 @@
 <!DOCTYPE html>
+<!--
+  THE DEPARTURE BOARD — the direction contract for this surface.
+
+  THESIS. A split-flap board can only display what it was set to. It cannot
+  show a state nobody commanded. That is the write-acknowledgment rule as a
+  mechanism rather than a prompt instruction, and it refuses the category
+  default — the dark card grid with a circular dial, which shows you a number
+  and tells you nothing about who set it or whether it took.
+
+  OWN-WORLD. Enamel ground, brass rule, flap cards with painted lettering.
+  Five reserved state colors and no sixth. Fixed-pitch columns. The signature
+  material is the fold across each flap card — drawn behind the lettering,
+  never across it, because a seam over the glyphs reads as a strikethrough and
+  a struck word means cancelled.
+
+  STORY. Someone glances at the board and knows what the house is doing and
+  who asked for it. Then they say the next thing.
+
+  FORM. The departure board; seed key 1a4f6e4e.
+-->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Dobby" suffix=" · Phoenix Framework" phx-no-format>{assigns[:page_title]}</.live_title>
+    <meta name="color-scheme" content="dark" />
+    <.live_title default="Dobby">{assigns[:page_title]}</.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
-    </script>
-    <script>
-      (() => {
-        const systemTheme = () => matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-
-        const setTheme = (theme) => {
-          if (theme === "system") {
-            localStorage.removeItem("phx:theme");
-            document.documentElement.setAttribute("data-theme", systemTheme());
-            document.documentElement.setAttribute("data-theme-source", "system");
-          } else {
-            localStorage.setItem("phx:theme", theme);
-            document.documentElement.setAttribute("data-theme", theme);
-            document.documentElement.setAttribute("data-theme-source", "user");
-          }
-        };
-        if (!document.documentElement.hasAttribute("data-theme")) {
-          setTheme(localStorage.getItem("phx:theme") || "system");
-        }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
-
-        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-          if (document.documentElement.getAttribute("data-theme-source") === "system") {
-            document.documentElement.setAttribute("data-theme", systemTheme());
-          }
-        });
-      })();
     </script>
   </head>
   <body>

@@ -31,7 +31,13 @@ defmodule Dobby.Tools.SetScheduleEnabled do
       ]
     ]
 
+  @behaviour Dobby.Tools
+
   alias Dobby.Schedules
+
+  @impl Dobby.Tools
+  def label(%{"enabled" => false}), do: "pausing a schedule"
+  def label(_arguments), do: "resuming a schedule"
 
   @impl true
   def on_before_validate_params(params), do: {:ok, Schedules.coerce_id_param(params)}

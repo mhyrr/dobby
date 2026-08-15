@@ -22,9 +22,16 @@ defmodule Dobby.Schedules.Cron do
   alias Crontab.CronExpression.Parser
   alias Crontab.Scheduler
 
-  # Jido reads its timezone database from this key, and the two must agree or a
-  # schedule could validate here and fail to resolve there.
-  defp time_zone_database do
+  @doc """
+  The timezone database this house resolves local time with.
+
+  Jido reads its own from this key, and the two must agree or a schedule could
+  validate here and fail to resolve there. Public because the surface converts
+  timestamps to the household's clock too, and a second answer to "which
+  database" is a second answer to "what time is it".
+  """
+  @spec time_zone_database() :: Calendar.time_zone_database()
+  def time_zone_database do
     Application.get_env(:jido, :time_zone_database, TimeZoneInfo.TimeZoneDatabase)
   end
 

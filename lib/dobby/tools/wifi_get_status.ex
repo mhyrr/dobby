@@ -22,7 +22,12 @@ defmodule Dobby.Tools.WifiGetStatus do
       ]
     ]
 
+  @behaviour Dobby.Tools
+
   alias Dobby.DeviceAgents.WifiEndpoint
+
+  @impl Dobby.Tools
+  def label(arguments), do: "checking the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
   def run(%{device: device_id}, _context) do

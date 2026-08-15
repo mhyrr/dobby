@@ -142,6 +142,31 @@ defmodule Dobby.DobbyAgent do
     end
   end
 
+  @doc """
+  Delivers an utterance and returns the runtime event stream for it.
+
+  **The calling process is the event sink.** `ask_stream/3` sets
+  `stream_to: {:pid, self()}` (`jido_ai/agent.ex:571`) and the returned
+  enumerable blocks in `receive` (`jido_ai/request/stream.ex:107`), so this
+  must be called from a process that can afford to sit and iterate — which is
+  why `Dobby.Conversation.Turn` runs one task per request and why a LiveView
+  cannot call this itself.
+
+  Same request options as `say/2`: the house's tools, and the speaker on the
+  tool context.
+  """
+  @spec stream(Utterance.t(), keyword()) ::
+          {:ok, %{request: term(), events: Enumerable.t()}} | {:error, term()}
+  def stream(%Utterance{} = utterance, opts \\ []) do
+    case Dobby.Jido.whereis(@id) do
+      pid when is_pid(pid) ->
+        ask_stream(pid, Utterance.to_message(utterance), request_opts(utterance, opts))
+
+      nil ->
+        {:error, :dobby_not_running}
+    end
+  end
+
   # `:tool_context` reaches every tool the request executes. That is how
   # `create_schedule` learns who asked without the model supplying it:
   # attribution stays a property of the request rather than something the model

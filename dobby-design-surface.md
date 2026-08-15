@@ -60,6 +60,7 @@ doctrine:
 | `LISTENING` | Dobby is attending. |
 | `QUIET` | An endpoint that has stopped reporting. |
 | `HELD` | The device declined, with the reason alongside it. |
+| `NOT KNOWN` | Nobody has told us yet. |
 
 **Revised 2026-08-14 (Greg).** The first draft made `WOULDN'T` the showcase
 word. Wrong emphasis: Dobby is an elf that makes things you want to happen
@@ -70,9 +71,16 @@ Refusal still has to be honest — doctrine is not negotiable — but it is
 `HELD`, quietly, with the reason beside it, rather than a punchline in the
 reserved red. Likewise `NOT ANSWERING` became `QUIET`: same fact, less scolding.
 
-There is no word yet for the unclosed confirm loop (a command sent with nothing
-coming back). TK-004 will need one and should pick it when it has a consumer;
-inventing it here with nothing watching for it was premature.
+`NOT KNOWN` was **added while building the board** (step 4b) and is the eighth
+word. It has a consumer, which is the test the others were held to:
+`wifi_get_status` insists to the model that unknown "is not the same as
+offline", and the board was about to say `QUIET` for both — the surface quietly
+contradicting the tool. A house that has just booted knows nothing about its
+devices for a second or two, and saying so is more honest than guessing.
+
+There is still no word for the unclosed confirm loop (a command sent with
+nothing coming back). TK-004 will need one and should pick it when it has a
+consumer; inventing it here with nothing watching for it was premature.
 
 **Four raises**, carried in from directions that lost the round:
 
@@ -298,14 +306,27 @@ Event mapping:
 | `:request_completed` | finalize; `data.result`, `data.usage` |
 | `:request_failed` / `:request_cancelled` | an honest failure row |
 
-**Open, and it needs measurement (6a).** Turn 1 emits deltas too. If a model
-narrates before calling a tool, that text streams and then must go somewhere. My
-proposal: render deltas live, and when `:tool_started` arrives in the same
-`iteration`, fold the text emitted so far into that step's label rather than
-discarding it — so nothing flashes and vanishes. This is speculative. **One
-eval-tier request with a delta collector settles it**, and the answer may be
-that luna emits no turn-1 content at all, in which case the whole question is
-moot. That test is the first thing I would write.
+**6a — measured, and the answer is that there is nothing to do.** An actuating
+request emitted **zero content deltas in iteration 1**: luna calls the tool and
+says nothing first. The fold-into-step rule was written against a case that
+does not happen, and was dropped rather than built.
+
+The same measurement found two things that were not in the design.
+
+**A tool call streams as a delta.** Iteration 1 emitted exactly one
+`:llm_delta` with `chunk_type: :tool_call` whose payload is the tool's *name*.
+A thread rendering every delta would have put `thermostat_set_temperature` in
+the middle of Dobby's reply. The `chunk_type: :content` filter above was
+already written; it is now known to be load-bearing rather than tidy.
+
+**Arrival order is not `seq` order.** Deltas reach a subscriber through the
+agent server and PubSub, and a two-event swap was observed in the rig —
+rendering "connectivity and , set" for "connectivity, and set". Rare, invisible
+to tests, and exactly the kind of thing that makes an honest board look broken.
+The thread keys deltas by `seq` and renders them sorted.
+
+`Dobby.Eval.StreamingEvalTest` keeps all three honest, including the invariant
+the surface stands on: the content deltas concatenate to the stored result.
 
 ---
 
@@ -503,17 +524,36 @@ TK-002's record is that three of four verify items came back different from the
 docs. These are the step-4 equivalents, ordered by how much they would cost if
 wrong:
 
-1. **Turn-1 deltas (§6a).** One eval request with a delta collector. Decides
-   whether the fold-into-step rule is needed at all.
+1. **Turn-1 deltas (§6a) — done.** No turn-1 narration; the fold-into-step rule
+   was dropped. Two other findings came out of the same request; see §6.
 2. **Rehydration round trip.** Build a `Jido.AI.Context` from rows, boot with
    it, and assert the model resolves a pronoun against a pre-restart turn. The
-   seam is confirmed; the behavior is not.
-3. **Delta volume against LiveView.** Deltas arrive per token. Confirm the
-   republish rate does not need batching before building the flap animation on
-   top of it.
-4. **`Jido.AI.Context` truncation.** §6.3 caps projected history at N turns.
-   Confirm where that cap is applied, so rehydration does not reinstall more
-   than the cap and quietly change cost per request.
+   seam is confirmed; the behavior is not. **Still open.**
+3. **Delta volume against LiveView — done.** Deltas are words, not characters:
+   twenty-five for a long answer, nine for a short one, over a second or two.
+   No batching.
+4. **`Jido.AI.Context` truncation — done, and the answer is different from what
+   §6.3 assumed.** There is no cap. `Jido.AI.Context` says of itself "no
+   policies, no windowing", `to_messages/2` takes an optional `:limit`, and
+   both callers in jido_ai call `to_messages/1` with no limit
+   (`react/runner.ex:339`, `react/strategy.ex:384`). The 40-message window in
+   `Dobby.Conversation.Rehydrate` is therefore the **only** cap in the system
+   and it applies at boot alone: a process that has been up for a week sends a
+   week of conversation on every request, and input tokens grow without bound
+   between restarts. Not blocking step 4, and it needs its own ticket.
+
+### 14.1 Found by building it
+
+**One ReAct agent takes one request at a time.** A second utterance arriving
+while a turn is in flight is rejected with `{:rejected, :busy, ...}` and
+dropped. Two people saying something within a few seconds of each other is the
+ordinary case in a house at six in the evening, and the whole premise of this
+surface is one shared conversation, so this needs a real answer: hold the
+utterance and re-issue it when the agent frees up, or inject it into the
+running turn (jido has `:input_injected` for exactly that, and it would mean
+Dobby answers both in one reply). Both change what a turn *is*, so both are
+Greg's call. The thread currently says "Dobby is still working on the last
+one", which is at least true.
 
 ---
 

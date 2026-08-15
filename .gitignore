@@ -35,3 +35,7 @@ dobby-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Playwright writes screenshots and page snapshots here while a surface is
+# being looked at. They are evidence for a conversation, not for the repo.
+/.playwright-mcp/
+

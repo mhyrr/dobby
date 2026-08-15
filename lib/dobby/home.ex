@@ -110,6 +110,59 @@ defmodule Dobby.Home do
   def devices, do: manifest().devices
 
   @doc """
+  A UTC timestamp on the household's own clock.
+
+  The thread is a shared record, so it is stamped in the house's time rather
+  than each reader's — two people in the same kitchen must not see the same
+  message at two different times, and doctrine already tells Dobby to speak in
+  the household's local clock.
+  """
+  @spec local(DateTime.t()) :: DateTime.t()
+  def local(%DateTime{} = at) do
+    case DateTime.shift_zone(at, manifest().timezone, Dobby.Schedules.Cron.time_zone_database()) do
+      {:ok, local} -> local
+      {:error, _reason} -> at
+    end
+  rescue
+    # No manifest means no house, and a page that is already rendering should
+    # show a slightly wrong clock rather than a stack trace.
+    ArgumentError -> at
+  end
+
+  @doc """
+  The current public state of every managed device, keyed by device ID.
+
+  What a surface reads when it opens. `dobby.device.state_changed` keeps it
+  current after that, but it only fires on change — a board opened in the
+  middle of a quiet afternoon has to get the house from somewhere, and this is
+  where.
+
+  A device whose agent is not running answers from its manifest entry, which
+  reads as a device that exists and has told us nothing. That is the truth in
+  that situation, and it is better than a hole in the board.
+  """
+  @spec snapshots() :: %{String.t() => map()}
+  def snapshots do
+    Map.new(devices(), fn device -> {device.id, snapshot(device)} end)
+  end
+
+  defp snapshot(%Device{agent_module: module} = device) do
+    case Dobby.Jido.whereis(device.id) do
+      pid when is_pid(pid) ->
+        {:ok, server_state} = Jido.AgentServer.state(pid)
+        module.snapshot(server_state.agent.state)
+
+      nil ->
+        # Through `new/1` rather than `initial_state/1` directly, so the schema
+        # defaults are applied. A raw manifest projection is missing every
+        # observable field, and a snapshot built from it would raise rather
+        # than say "nothing known yet".
+        module.new(id: device.id, state: module.initial_state(device)).state
+        |> module.snapshot()
+    end
+  end
+
+  @doc """
   The tool modules this house's devices advertise to the model.
 
   Derived from the configured agent modules, so adding a device type to the

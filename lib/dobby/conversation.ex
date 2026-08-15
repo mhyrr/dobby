@@ -115,6 +115,11 @@ defmodule Dobby.Conversation do
 
   @doc """
   Records Dobby's reply.
+
+  `meta` carries what the board showed while the reply was being composed —
+  the steps, how long it took. It is persisted rather than held in a LiveView
+  so that scrolling back to yesterday still shows the work, which is the whole
+  point of showing it.
   """
   @spec append_reply(String.t(), keyword()) ::
           {:ok, Message.t()} | {:error, Ecto.Changeset.t()}
@@ -122,7 +127,8 @@ defmodule Dobby.Conversation do
     insert_message(%{
       role: :assistant,
       text: text,
-      request_id: Keyword.get(opts, :request_id)
+      request_id: Keyword.get(opts, :request_id),
+      meta: Keyword.get(opts, :meta, %{})
     })
   end
 

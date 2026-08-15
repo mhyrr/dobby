@@ -61,6 +61,9 @@ defmodule Dobby.DeviceAgents.Thermostat do
   end
 
   @impl Dobby.DeviceAgent
+  defdelegate snapshot(state), to: Dobby.DeviceAgents.Thermostat.SyncState
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do
     %{
       dobby_id: device.id,

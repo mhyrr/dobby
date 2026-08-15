@@ -49,6 +49,16 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
   end
 
   @doc """
+  The device's public state, read from live agent state.
+
+  `Dobby.DeviceAgent.snapshot/1` for this device type: a surface that has just
+  opened needs the house as it is now, and state-change events only describe
+  changes.
+  """
+  @spec snapshot(map()) :: map()
+  def snapshot(state), do: snapshot(state, state)
+
+  @doc """
   The device's public state — what cards render and the model is told.
   """
   @spec snapshot(map(), map()) :: map()

@@ -63,7 +63,13 @@ defmodule Dobby.Tools.CreateSchedule do
       ]
     ]
 
+  @behaviour Dobby.Tools
+
   alias Dobby.Schedules
+
+  @impl Dobby.Tools
+  def label(%{"label" => label}) when is_binary(label), do: "writing down #{label}"
+  def label(_arguments), do: "writing the schedule"
 
   # `args` arrives from the model as a JSON object, so its keys are strings —
   # and NimbleOptions reads a `:map` schema as `{:map, :atom, :any}`, which

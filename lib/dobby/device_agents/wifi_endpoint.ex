@@ -62,6 +62,9 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
   def scheduled_actions, do: %{}
 
   @impl Dobby.DeviceAgent
+  defdelegate snapshot(state), to: Dobby.DeviceAgents.WifiEndpoint.SyncState
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do
     %{
       dobby_id: device.id,

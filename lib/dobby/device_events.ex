@@ -48,7 +48,7 @@ defmodule Dobby.DeviceEvents do
 
   The three options exist for one consumer, `Dobby.Interventions.Watcher`,
   which has to tell "somebody turned the dial in the hallway" from "the room
-  got a degree colder" (design §10.1) — and Home Assistant reports neither.
+  got a degree colder" (design §10.3) — and Home Assistant reports neither.
 
       changed      everything that differs; what the log records
       moved        the subset that went from one known value to another

@@ -1,10 +1,17 @@
 # Dobby — Simple Jido Design
 
-**Draft v0.11 — August 2026**
+**Draft v0.13 — August 2026**
 
-**Status:** under construction. Phase A step 1 is built and green (§12), and
-this revision is the first one written from working code rather than from
-research. The original household vision remains in `dobby-design-original.md`.
+**Status:** under construction. Phase A step 4 is built and green (§12), and
+this revision is written from working code rather than from research. The
+original household vision remains in `dobby-design-original.md`; the visual
+system lives in `DESIGN.md`, derived from what shipped.
+
+Changes from v0.11: §10 is rewritten from the working surface, absorbing
+`dobby-design-surface.md`, which has been deleted. Three routes rather than
+one; identity is a name that sticks to a browser and nothing more; the device
+agent contract gains `snapshot/1`, `intervention?/1` and `changes/3`; and
+what the surface streams is measured rather than assumed.
 
 Changes from v0.10 are corrections the rig forced, not new ideas. Three places
 where the design was simply wrong about the libraries: `tools:` cannot be
@@ -419,14 +426,27 @@ lib/dobby/device_agents/
     └── get_status.ex
 ```
 
-Each agent module supplies four things:
+Each agent module supplies:
 
 - a schema for its `bindings` and `settings`;
 - the Jido Actions it permits, which are also what DobbyAgent advertises to the
   model as tools;
 - translation from relevant HA state into its deterministic agent state;
 - translation from effectful Actions into HA commands, emitted as directives
-  (§7).
+  (§7);
+- `scheduled_actions/0` — the narrower set a schedule may fire (§9), which is
+  deliberately not `signal_routes`: an agent routes `ha.state_changed` too, and
+  nobody should be able to schedule that;
+- `snapshot/1` — the device's public state, read from live agent state. It
+  exists because `dobby.device.state_changed` only fires on *change*, and a
+  surface opened at three in the afternoon has to get the house from somewhere.
+  Reading DobbyAgent's world model would answer the same question and would
+  make the cards depend on the language layer, which is the one thing the
+  deterministic path stands apart from;
+- `intervention?/1` — whether a change to an attribute is something somebody
+  *did* (§10.3). Home Assistant reports that an attribute changed, never why,
+  and the discriminator is per-device knowledge: a setpoint is commanded,
+  connectivity is observed.
 
 That is the extension contract. We should implement it plainly for Thermostat
 and WifiEndpoint before extracting anything. When extraction happens, the
@@ -1038,52 +1058,340 @@ hour ago — skip tonight?") is a later behavior sitting on the awareness seam.
 
 ## 10. Phoenix surface and persistence
 
-### 10.1 The thread
+*Built. Rewritten from the working surface at Phase A step 4, absorbing
+`dobby-design-surface.md`, which has been deleted. How anything **looks** is
+`DESIGN.md`, which is derived from what shipped and outlives this section;
+what it **does** is here.*
 
-The household surface is one shared, persistent, Discord-like thread — the
-transcript table rendered, with full scrollback. Speaker messages appear
-attributed; voice utterances will land inline with a channel marker; Dobby is
-a participant that answers and can eventually speak unprompted.
+### 10.1 Three routes, and no shell around them
 
-Actuations post **system lines**: muted one-liners whenever anything changes
-the house through any path — a Dobby tool call, a card tap, a schedule firing,
-or an external change observed via HA (“· thermostat set to 70 — schedule
-'weeknight heat'”). Passive observations (an endpoint going offline) stay on
-the cards and in the activity log. The rule: the thread records interventions;
-the admin records everything.
+```
+/        DobbyWeb.ThreadLive    the conversation
+/house   DobbyWeb.HouseLive     every device, as cards
+/admin   DobbyWeb.AdminLive     activity, schedules, health
+```
 
-### 10.2 Identity
+The first draft folded cards into the thread page. Wrong for the real case —
+any house worth its salt has a lot of devices, and a strip of them wedged above
+a conversation stops working at about six. So devices got their own page, and
+the thread kept a **band** of two or three rows, because "what is the
+thermostat at" should be answered before anyone asks rather than costing six
+hundred input tokens and a second of waiting.
 
-A first-visit “Who's this?” prompt names the browser; a device cookie pins it.
-Identity is personalization and attribution only, never permissions. MAC-based
-identification was considered and rejected: browsers cannot see their own MAC,
-the server could only ARP-sniff it, and modern mobile OSes randomize MACs
-per-network. ARP lookup may later serve as an auto-recognition *hint* for
-known devices, never as the identity itself.
+There is no navigation bar. The plate's nameplate is the way back, the band is
+the way in to `/house`, and one quiet link at the foot of `/house` is the only
+way in to `/admin` — which is laptop-shaped and rarely visited, so it does not
+earn permanent header space on the surface a phone opens first. A shell of
+links around this would be a second visual language arguing with the first.
 
-### 10.3 Cards
+**Every surface is live and none is special.** The kitchen iPad is a browser
+like any other. Draft 1 proposed an idle inversion where it became a glanceable
+house face after ninety seconds; that is cut. It invented a device class the
+product does not have. What survives from the thinking is the reason it was
+attractive — a wall-mounted tablet wants to answer "what is the house doing"
+without a conversation — and that is now `/house`.
 
-A card for the thermostat (status plus a direct `set_temperature` control) and
-one per Wi-Fi endpoint, updating live from `dobby.device.state_changed` over
-PubSub. Card controls hit device agents with no LLM involved.
+No auth on any route. LAN-only, flat trust, the Wi-Fi password is the boundary.
 
-### 10.4 Admin dashboard
+### 10.2 The thread
 
-Open to any household member, per flat trust:
+One shared, persistent conversation with full scrollback. Everyone reads the
+same document, which is why nothing in it is scoped to a viewer: no "my
+messages", no unread count, no per-speaker thread.
 
-- the activity feed — every request, tool call, result, and state change;
-- scheduler CRUD over the same rows the model authors;
-- agent and HA-connection health.
+**Nothing is ever aligned or positioned by author.** Alignment by author was
+considered and rejected on principle: positioning a message by who is holding
+the phone means two people reading the same conversation see two different
+documents. The speaker is a fixed column when there is width for one and an
+inline line above the words when there is not.
 
-### 10.5 Streaming and persistence
+Consecutive-message grouping was rejected on measurement rather than taste — in
+a house, consecutive messages from one speaker are the exception, so grouping
+almost never fires and its complexity is carried for nothing.
 
-Streaming plumbing is ours to build: a task per request iterates Jido AI's
-request event stream and republishes deltas to the LiveView over PubSub. Jido
-provides the events, not the LiveView wiring.
+`Dobby.Conversation.Turn` is **the only writer of the thread**. It persists the
+utterance, runs the request, republishes every runtime event to `dobby:thread`,
+and persists the reply. Surfaces subscribe and render — including to the
+message they themselves caused. A surface that optimistically rendered its own
+copy would be showing something the transcript might not have.
 
-Postgres stores speakers, the transcript, schedules, and the activity log.
-Device state remains owned by HA and is rebuilt in the agents after restart;
-DobbyAgent rehydrates its recent conversation window from the transcript.
+Markdown is stripped deterministically at render, and the soul is told not to
+emit it. Both, because a model drifts and the eval tier catches it only
+sometimes; and only both, because adding a markdown dependency to render bold
+inside a two-sentence reply is a fence larger than the loss.
+
+### 10.3 System lines: the thread records interventions
+
+The rule is unchanged from v0.9 and is now enforced in one place. **The thread
+records interventions; the admin records everything.** An endpoint flapping at
+3am reaches `Dobby.Activity` and stops there; a thermostat somebody set reaches
+both, said once for a person and once for the record.
+
+`Dobby.Interventions` is the single writer, with four callers — a tool call the
+model made, a card somebody tapped, a schedule at eight o'clock, and a hand on
+the dial in the hallway. All four produce the same row, so scrolling back to
+yesterday shows one kind of entry for "the thermostat went to 70" however it
+got there:
+
+```
+· MAIN THERMOSTAT   SET 70°   — greg, card
+· MAIN THERMOSTAT   SET 70°   — schedule "weeknight heat"
+· MAIN THERMOSTAT   SET 68°   — changed at the main thermostat
+```
+
+**The word is always `SET`,** because `SET` means "a commanded value" and an
+intervention *is* a commanded value. `HELD` is the other half: the device
+declined, and the reason goes beside it. There is no per-device vocabulary
+question here.
+
+An actuation is recognized by the write-acknowledgment protocol's own
+`accepted: true` (§6.2) rather than by a list of tool names, so a reading tool
+cannot announce an intervention and a future actuating one needs no edit.
+
+**Home Assistant does not report intent,** which is what the two additions to
+the device-agent contract (§4.2) are for.
+
+`intervention?(attribute)` is the discriminator: a setpoint is commanded,
+connectivity is observed. `Thermostat` answers true for
+`:target_temperature_f` and false for the room's temperature; `WifiEndpoint`
+answers false for everything. Per-device knowledge, so a new device type brings
+its own answer rather than editing a central list.
+
+`changes(previous, next, keys)` answers two questions of the same event. What
+**changed** is everything that differs, and it is what the log records. What
+**moved** is the subset that went from one known value to another. A value
+arriving where there was none is the house learning what it has, not something
+that happened in it — a thermostat reporting for the first time after a restart
+did not get set to 68 by anybody. This is why `available` defaults to `nil`
+rather than `false` on both device types: `false` made every first report look
+like a device coming back from the dead, and the board already had `NOT KNOWN`
+for the truth.
+
+The last piece is the echo. Every path that moves a setpoint announces itself
+at the moment it acts, and Home Assistant then reports the same change back;
+saying it twice would read as though somebody had gone and turned the dial. So
+`Thermostat.SyncState.commanded?/2` asks whether the value that came back is
+the one this house asked for and got. The case it rounds off — a person setting
+the dial to a value Dobby had already commanded — is not worth a timestamp to
+catch.
+
+**One process writes the two nobody is standing in front of.**
+`Dobby.Interventions.Watcher` subscribes to `dobby:devices` and
+`dobby:schedules`. A LiveView would have written three lines for three
+browsers, and the fourth phone to connect a minute later would show a thread
+that never happened.
+
+### 10.4 Identity
+
+**A name typed on a browser sticks until somebody switches it. That is the
+whole feature.** No shared-device flag, no idle re-prompt, no per-session
+identity, no fourth table. The kitchen iPad is a browser like any other; if
+four people use it, it says whatever the last person set it to, and Dobby
+occasionally calls someone by the wrong name.
+
+That cost is affordable *because identity gates nothing*. It personalizes and
+attributes; it never permits. The blast radius of a wrong name is a wrong name
+in one sentence and a wrong `created_by` on a schedule. The named risk stands:
+the kids will set it to each other's names as a joke, and that is still
+affordable.
+
+MAC-based identification was considered and rejected in v0.9 and stays
+rejected: browsers cannot see their own MAC, the server could only ARP-sniff
+it, and modern mobile OSes randomize per-network.
+
+The cookie is signed and lasts ten years — a browser-session cookie would make
+a kitchen tablet quietly forget who it was every few weeks, which reads as a
+bug in Dobby rather than an expiring cookie. **Naming yourself is the surface's
+one round trip,** because a LiveView cannot set a cookie: the set line becomes a
+real POST to `DobbyWeb.SpeakerController`, which writes the cookie and redirects
+back. `DobbyWeb.Plugs.Speaker` is both halves — the plug reads the cookie on
+every HTML request and copies the id into the session, and its `on_mount` hook
+reads it back when a LiveView connects.
+
+### 10.5 Cards, and the deterministic path
+
+One card per device: the thermostat with a direct setpoint control, endpoints
+read-only. Live from `dobby.device.state_changed`, with `DeviceAgent.snapshot/1`
+supplying the house as it stands to a surface that has just opened — state
+changes only describe changes, so a board opened at three in the afternoon
+would otherwise show nothing until something moved.
+
+**No model is anywhere in this path, and that is the point.** `Dobby.Controls`
+reaches a device by exactly the route the model's tool does — the same signal,
+the same `ref`, the same `DeviceAgent.command_outcome/2` read — so household
+policy applies identically and "the thermostat refused" means one thing
+whichever asked. This is what the house does when the model is down, the
+fastest way to change something when saying a sentence is more work than moving
+a dial, and a test surface that needs no model in the room. The rig asserts the
+zero: a card tap makes no model call and no tool call.
+
+The control is the one place in this house where a fat finger actuates
+something. Given kids: **it commits on release, never on a drag tick, and
+offers an undo for a few seconds rather than a confirm dialog.** Dialogs train
+people to dismiss dialogs, and a household that has learned to is worse off
+than one that never had them. Undo does not offer its own undo — one step, not
+a stack. Undoing writes its own line, which is two lines in the thread for one
+mistake and is the honest count.
+
+A refusal stays on the card with its reason and is deliberately **not** written
+to the thread: nothing changed, so there was no intervention. The log has it
+either way.
+
+The control is drawn only when the device has said what it will accept, so the
+accepted range travels with the thermostat's snapshot. A fader that reaches 85°
+in a house capped at 76 is a control that exists to be refused.
+
+### 10.6 Admin
+
+`/admin`, open to the house. There is no admin *role*, because there is no role
+system; this is a different question, not a different permission.
+
+- **Health** — every agent, the Home Assistant client and which one it is, and
+  `SchedulerAgent.unregistered/0`, which is the most useful line on the page:
+  enabled schedules with no timer, which from every other angle look exactly
+  like schedules that work. Read at the moment it is asked, never cached — a
+  health page built on a cache tells you what was true when the cache was
+  written. Each row carries its registry id, because these rows are about
+  processes and the same words appear on `/house` about devices; `AWAKE` here
+  means the agent is running and `AWAKE` there means the thermostat is
+  answering, and they can honestly disagree.
+- **Schedules** — a LiveView form over `Dobby.Schedules` and nothing more. The
+  argument fields are read from the target action's own schema, the same source
+  the row is validated against, so the form can only offer what will be
+  accepted and a new device type brings its own form. Delete offers the row
+  back for a few seconds, the same bargain the cards make.
+- **Activity** — the full record, live over `dobby:activity`, announced from
+  `Activity.record/1` rather than from each of its callers so the feed cannot
+  show a different set of events from the table it claims to be a view of.
+
+### 10.7 Streaming
+
+Three things were read out of `jido_ai` source rather than its docs, and all
+three shape this.
+
+`ask_stream/3` sets `stream_to: {:pid, self()}` — **the calling process is the
+event sink** (`agent.ex:571`) — and the enumerable it returns blocks in
+`receive` until the request terminates. So the task per request is forced by
+the library rather than chosen for tidiness, and a LiveView cannot call
+`ask_stream` itself.
+
+Events are `%Jido.AI.Runtime.Event{seq, iteration, kind, tool_name, data}` with
+sixteen kinds. Token deltas flow **by default**; streaming needs no
+configuration.
+
+```
+LiveView ──"say"──▶ Task.Supervisor.async_nolink
+                        │ 1. persist the utterance
+                        │ 2. DobbyAgent.ask_stream(...)   ← the task is the sink
+                        │ 3. republish each event to "dobby:thread"
+                        │ 4. persist the reply, the steps, the activity
+                        ▼ dies
+LiveView ◀──subscribed to "dobby:thread"──
+```
+
+Three things measured against a real model, in `Dobby.Eval.StreamingEvalTest`:
+
+1. **Turn 1 does not narrate.** An actuating request emitted zero content
+   deltas in iteration 1. A proposed rule for folding pre-tool narration into a
+   step label was written against a case that does not happen, and was dropped
+   rather than built.
+2. **A tool call streams as a delta of its own**, `chunk_type: :tool_call`,
+   carrying the tool's *name*. A thread rendering every delta would have put
+   `thermostat_set_temperature` in the middle of Dobby's reply. The
+   `chunk_type: :content` filter is load-bearing, not tidy.
+3. **Arrival order is not `seq` order.** A two-event swap was observed in the
+   rig, rendering "connectivity and , set" for "connectivity, and set". Rare,
+   invisible to tests, and exactly what makes an honest board look broken. The
+   thread keys deltas by `seq` and renders them sorted.
+
+Deltas are words rather than characters — twenty-five for a long reply, nine
+for a short one, over a second or two. No batching.
+
+Named steps are shown while a turn is in flight, in **device language** —
+"setting the main thermostat", never `thermostat_set_temperature` — and
+collapse to one disclosure row after the reply. The tension is worth naming:
+the soul bans process narration in Dobby's *voice*, and these are not his
+voice. They are the board showing its work, which is the thesis. They are
+labels, never sentences.
+
+A request that fails, is cancelled, or comes back empty writes a system line
+saying so. A surface that shows an utterance and then nothing is the worst
+version of this: the person cannot tell whether Dobby is slow, broken, or
+ignoring them.
+
+### 10.8 Persistence and rehydration
+
+**Three tables.** A fourth (`browser_devices`) was proposed to carry a
+shared-device flag; §10.4 cut the flag, so the table went with it.
+
+1. `speakers` — `name` (unique, case-insensitive). A person.
+2. `messages` — the transcript. `speaker_id` (null for Dobby and for system
+   lines), `role`, `channel`, `text`, `request_id`, `meta`.
+3. `activity_entries` — everything. `request_id`, `kind`, `actor`, `device`,
+   `action`, `args`, `result`, `duration_ms`.
+
+**One table for the transcript, not two.** A system line is a message with
+`role: :system` and a `meta` map. Splitting them would mean merging two ordered
+reads by timestamp on every page of scrollback.
+
+**Rehydration is construction-time and cheaper than expected.**
+`initial_state[:context]` accepting a `%Jido.AI.Context{}` is a supported,
+validated seam (`react/strategy.ex:920-941`), so `Dobby.Home` builds DobbyAgent
+with a context rebuilt from the transcript at boot. No custom action, no
+signal, and no exposure to the deep-merge behaviour that bit `SchedulerAgent`.
+It runs inside `Home.init/1` and is deliberately non-fatal: a raise there is
+the difference between a house that forgot this morning and no house at all.
+
+System lines are **excluded** from the rehydrated history, and that is a
+doctrine question rather than a tidiness one. Device state reaches the model
+through the live `<house>` block (§6.3); replaying an old state change into the
+conversation would hand it a second, staler source of truth for exactly the
+thing it is forbidden to guess about.
+
+The role filter lives in SQL. Fetching a fixed number of rows and discarding
+system lines afterwards lets a busy hour of card taps eat the window — the
+history goes missing precisely when the house was busiest.
+
+Verified against a real model (`Dobby.Eval.RehydrationEvalTest`): say something,
+restart the house through `Dobby.Home`, and a pronoun and a number from before
+the restart both resolve.
+
+### 10.9 PubSub topics
+
+One topic per concern. Per-device topics would mean N subscriptions per
+LiveView to receive the same total volume, because every card is on one page
+and the page needs all of them — and they would not even help the worst case,
+since a flapping endpoint reaches every connected LiveView under either
+topology.
+
+```
+dobby:devices     device state changes
+dobby:schedules   firings and their outcomes
+dobby:thread      deltas, steps, messages, system lines
+dobby:activity    the full log; the admin subscribes
+```
+
+`dobby:thread` is one topic and not one per request. The thread is shared, so
+every viewer wants every request's deltas; per-request topics would mean every
+LiveView subscribing and unsubscribing on every utterance for no benefit.
+
+### 10.10 Known, open, and filed
+
+- **A second utterance while a turn is in flight is dropped** (`TK-006`). One
+  ReAct agent takes one request at a time, and two people saying something
+  within a few seconds of each other is the ordinary case in a house at six in
+  the evening. Hold-and-reissue, or inject into the running turn — jido has
+  `:input_injected` — and the choice changes what a turn *is*.
+- **History grows without bound between restarts** (`TK-007`). There is no cap
+  anywhere in `jido_ai`; `Rehydrate`'s forty-message window is the only bound
+  in the system and it applies at boot alone.
+- **An activity row occasionally records a tool call against no device**
+  (`TK-008`), roughly one full-suite run in fourteen. Suspected to be the same
+  family as the delta finding — arrival order not matching emission order — and
+  deliberately not fixed on a hypothesis.
+- **Which devices earn the band, and how `/house` lays out, once there are
+  twenty of them.** Most-recently-changed and a single column are right for a
+  house with four. The question wants the real case.
 
 ## 11. What we are deliberately not designing yet
 
@@ -1176,8 +1484,37 @@ before the server exists. Phase B can proceed in parallel.
    model sends is rejected for having string keys before `run/2` is reached.
    And per-request tool context — how `create_schedule` learns who asked without
    the model supplying it — is the `:tool_context` option, not `:context`.
-4. **Phoenix surface.** The thread with streaming and system lines, identity,
-   cards, admin dashboard — all against FakeHA.
+4. **Phoenix surface.** — *built.* Three routes against FakeHA: the thread
+   with streaming and system lines, cards with a direct setpoint control, and
+   the admin dashboard. Identity is a name that sticks to a browser. §10 is
+   written from it.
+
+   Four things the build corrected, all of them the same shape — a model that
+   was subtly wrong about what a thing *is*.
+
+   A device reporting for the first time is not a change to the house. Treating
+   it as one made every restart announce the boot sequence to the kitchen, and
+   in the test database wrote rows outside the sandbox that never rolled back.
+   `available` now defaults to `nil` rather than `false` on both device types,
+   and `DeviceAgent.changes/3` answers what *moved* separately from what
+   changed. The same rule one layer down keeps `last_changed_at` unstamped on a
+   first report, so a card cannot claim to know how long a printer has been
+   quiet when all it knows is when Dobby started.
+
+   Home Assistant echoing back a command this house issued is not a second
+   event. Without `Thermostat.SyncState.commanded?/2` every setpoint would have
+   appeared in the thread twice, the second time as though somebody had walked
+   over and turned the dial.
+
+   A system line is not necessarily the end of a turn. `ThreadLive` closed the
+   pending reply row on any of them, so a schedule firing mid-request would
+   have taken Dobby's half-written reply off the board.
+
+   And an application process that writes to the database is not a descendant
+   of the test that provoked it. `RigCase.settle_watcher!/0` is the same
+   barrier `drain_turns!` is, for the same reason: a query in flight when the
+   sandbox owner exits does not fail its own test, it kills the connection and
+   takes the next several with it.
 
 ### Phase B — hardware (parallel)
 
@@ -1209,9 +1546,12 @@ before the server exists. Phase B can proceed in parallel.
 4. Every utterance carries `speaker` and `channel` from the first build.
    Identity personalizes; it never gates. Device identity is cookie-pinned
    with a chosen name, never MAC-derived.
-5. The household surface is one shared persistent thread; actuations appear as
-   system lines; the admin dashboard carries the full activity feed, scheduler
-   CRUD, and health.
+5. The household surface is three routes — the thread, the cards, the admin —
+   and no navigation shell around them. Actuations appear as system lines
+   written by one module with four callers, so the thread shows one kind of
+   entry for a change however it was made. The direct control path reaches
+   devices with no model involved and is first-class rather than a fallback:
+   it is what the house does when the model is down.
 6. Schedules are Dobby-owned Postgres rows, authored conversationally by the
    model or in the admin, fired deterministically with no model call —
    reversing original-design §7.5 (2026-08-13).
@@ -1255,6 +1595,13 @@ before the server exists. Phase B can proceed in parallel.
    fan-out on an ambiguous request, or a model echoing input framing into
    user-visible output — all three of which it did catch. Rotating models is
    itself a test; a single-model eval hides model-specific defects.
+21. The eight-word state vocabulary is closed. A ninth word is a design
+   decision, and bending an existing one to a new meaning is worse than not
+   saying anything: a paused schedule therefore carries no state word at all,
+   because none of the eight means "somebody switched this off" (`DESIGN.md`).
+22. A control that can act on the house offers an undo rather than a confirm
+   dialog. Dialogs train people to dismiss dialogs, and a household that has
+   learned to is worse off than one that never had them (§10.5).
 
 ## Sources
 

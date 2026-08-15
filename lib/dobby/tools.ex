@@ -1,6 +1,6 @@
 defmodule Dobby.Tools do
   @moduledoc """
-  How a tool call reads on the board (design §5.3).
+  How a tool call reads on the board (design §10.7).
 
   While Dobby works, the thread shows named steps — "setting the main
   thermostat", not `thermostat_set_temperature`. Two rules make that safe.

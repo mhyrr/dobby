@@ -1,6 +1,6 @@
 defmodule DobbyWeb.Flap do
   @moduledoc """
-  The board's vocabulary (surface design §1.1).
+  The board's vocabulary (`DESIGN.md` — The State Vocabulary).
 
   A split-flap board can only display what it was set to. It cannot show a
   state nobody commanded — which is §6.2's write-acknowledgment rule as a

@@ -2,7 +2,7 @@ defmodule Dobby.InterventionsTest do
   @moduledoc """
   Every path that can move this house, and what the thread says about it.
 
-  The rule under all of these (design §10.1) is one sentence: **the thread
+  The rule under all of these (design §10.3) is one sentence: **the thread
   records interventions, the log records everything.** These tests are that
   sentence made checkable from four directions — a card someone tapped, a
   schedule at eight o'clock, a hand on the dial in the hallway, and an endpoint
@@ -96,7 +96,7 @@ defmodule Dobby.InterventionsTest do
       assert_receive {:ha_call, %HACall{entity_id: @entity, data: %{temperature: 72.0}}}, 2_000
     end
 
-    # Identity personalizes and never permits (§10.2). A browser nobody has
+    # Identity personalizes and never permits (§10.4). A browser nobody has
     # named still gets to turn the heat up; the line just says less about who.
     test "still works from a browser nobody has named" do
       assert {:ok, _result} = Controls.set_temperature(@thermostat, 72)

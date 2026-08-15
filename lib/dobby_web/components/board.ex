@@ -1,6 +1,6 @@
 defmodule DobbyWeb.Board do
   @moduledoc """
-  The header band, in two pieces (surface design §2, §3).
+  The header band, in two pieces (design §10.1).
 
   The **plate** is the board's nameplate — where it is, who is speaking, and
   whether anything is listening. Every route wears it, which is why it lives

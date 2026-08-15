@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.Turn do
   @moduledoc """
-  One request, from what somebody said to what Dobby answered (design §10.5).
+  One request, from what somebody said to what Dobby answered (design §10.7).
 
   ## Why this is a task and not a LiveView
 
@@ -305,7 +305,7 @@ defmodule Dobby.Conversation.Turn do
   # -- the record ------------------------------------------------------------
 
   # A tool call that moved the house gets a line in the thread, attributed to
-  # whoever asked (surface design §5.2). The reply already says what Dobby did
+  # whoever asked (design §10.3). The reply already says what Dobby did
   # in his own words; the line is the record, and it is the same line a card
   # tap or a schedule writes — so scrolling back to yesterday shows one kind of
   # entry for "the thermostat went to 70", however it got there.

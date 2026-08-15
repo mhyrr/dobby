@@ -1,12 +1,12 @@
 defmodule Dobby.Conversation.Speaker do
   @moduledoc """
-  A person in the household (design §10.2).
+  A person in the household (design §10.4).
 
   Attribution only. There is nothing here to authenticate against and nothing
   a speaker is allowed to do that another speaker is not — that is the design's
   flat-trust rule, and the schema is where it either holds or quietly stops
   holding. If a permission column ever appears here, the Wi-Fi password stopped
-  being the trust boundary and §10.2 needs rewriting first.
+  being the trust boundary and §10.4 needs rewriting first.
   """
 
   use Ecto.Schema

@@ -17,7 +17,7 @@ defmodule DobbyWeb.Router do
     plug :accepts, ["json"]
   end
 
-  # Three routes, no auth on any of them (surface design §2). LAN-only, flat
+  # Three routes, no auth on any of them (design §10.1). LAN-only, flat
   # trust: the Wi-Fi password is the boundary, and identity personalizes rather
   # than permits.
   scope "/", DobbyWeb do

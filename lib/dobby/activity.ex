@@ -1,9 +1,9 @@
 defmodule Dobby.Activity do
   @moduledoc """
-  Everything that happened (design §10.4).
+  Everything that happened (design §10.6).
 
   The counterpart to `Dobby.Conversation`, and the split between them is design
-  §10.1: **the thread records interventions, the admin records everything.** An
+  §10.3: **the thread records interventions, the admin records everything.** An
   endpoint flapping at 3am belongs here and nowhere else; a thermostat somebody
   set belongs in both, said once for a person and once for the record.
 

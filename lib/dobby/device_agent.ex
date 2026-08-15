@@ -73,7 +73,7 @@ defmodule Dobby.DeviceAgent do
   @callback snapshot(state :: map()) :: map()
 
   @doc """
-  Whether a change to this attribute is something somebody *did* (design §10.1).
+  Whether a change to this attribute is something somebody *did* (design §10.3).
 
   The thread records interventions and the cards record everything, but Home
   Assistant does not report intent — it reports that an attribute changed. The

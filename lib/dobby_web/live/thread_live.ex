@@ -1,6 +1,6 @@
 defmodule DobbyWeb.ThreadLive do
   @moduledoc """
-  The household thread (surface design §2, §5, §6).
+  The household thread (design §10.1, §10.2, §10.7).
 
   One shared, persistent conversation with a board header above it and the
   composer as the board's set line at the foot. Everyone in the house reads

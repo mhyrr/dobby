@@ -1,6 +1,6 @@
 defmodule Dobby.Eval.RehydrationEvalTest do
   @moduledoc """
-  Whether Dobby remembers the morning after a restart (surface design §14.2).
+  Whether Dobby remembers the morning after a restart (design §10.8).
 
       DOBBY_EVAL=1 mix test --only eval
 

@@ -1,6 +1,6 @@
 defmodule Dobby.Interventions.Watcher do
   @moduledoc """
-  The house's witness (design §10.1).
+  The house's witness (design §10.3).
 
   Two things happen in this house with nobody standing in front of them: a
   schedule going off at eight o'clock, and somebody turning the dial in the
@@ -133,7 +133,7 @@ defmodule Dobby.Interventions.Watcher do
         value: Interventions.reading(snapshot),
         action: to_string(attribute),
         # Nobody asked Dobby for this and no surface of ours did it. Somebody
-        # walked up to the device, which is the case §5.2 says is the
+        # walked up to the device, which is the case §10.3 calls the
         # interesting one.
         via: "changed at the #{snapshot[:name] || "device"}"
       })

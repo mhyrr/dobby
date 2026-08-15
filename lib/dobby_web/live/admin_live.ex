@@ -1,7 +1,7 @@
 defmodule DobbyWeb.AdminLive do
   @moduledoc """
   What the house has been doing, what it is going to do, and whether it is
-  there at all (surface design §9).
+  there at all (design §10.6).
 
   Laptop-shaped and open to the house, like everything else here — LAN-only,
   flat trust, the Wi-Fi password is the boundary. There is no admin *role*,
@@ -17,7 +17,7 @@ defmodule DobbyWeb.AdminLive do
 
   Everything: requests, tool calls, controls somebody touched, schedules
   firing, and an endpoint flapping at 3am. The thread's interventions are a
-  subset of this (design §10.1) — the thread is a document a household reads
+  subset of this (design §10.3) — the thread is a document a household reads
   and this is the log behind it, which is why the endpoint at 3am reaches here
   and stops.
   """

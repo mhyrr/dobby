@@ -1,6 +1,6 @@
 defmodule DobbyWeb.HouseLive do
   @moduledoc """
-  Every device, as cards (surface design §2, §8).
+  Every device, as cards (design §10.1, §10.5).
 
   The first draft folded these into the thread page. Wrong for the real case —
   any house worth its salt has a lot of devices, and a strip of them wedged

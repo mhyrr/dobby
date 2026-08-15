@@ -1,6 +1,6 @@
 defmodule Dobby.Interventions do
   @moduledoc """
-  What changed in the house, and who did it (design §10.1, surface design §5.2).
+  What changed in the house, and who did it (design §10.3).
 
   The thread records **interventions**; `Dobby.Activity` records everything.
   This is the writer for the first half — one line per thing somebody did,

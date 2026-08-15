@@ -1,6 +1,6 @@
 defmodule DobbyWeb.ThreadLive.Message do
   @moduledoc """
-  One line of the thread (surface design §5).
+  One line of the thread (design §10.2, §10.3).
 
   Three shapes share this module because they share a grid: what somebody
   said, what Dobby answered, and what the house did. Every one of them is

@@ -140,7 +140,7 @@ defmodule DobbyWeb.HouseLiveTest do
       refute has_element?(view, "#card-thermostat\\:main .undo")
     end
 
-    # Identity personalizes and never permits (§10.2).
+    # Identity personalizes and never permits (§10.4).
     test "works from a browser nobody has named", %{conn: conn} do
       ThreadEvents.subscribe()
       {:ok, view, _html} = live(conn, "/house")

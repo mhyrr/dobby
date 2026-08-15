@@ -1,6 +1,6 @@
 defmodule Dobby.Eval.StreamingEvalTest do
   @moduledoc """
-  What a real request actually emits on the wire (surface design §14).
+  What a real request actually emits on the wire (design §10.7).
 
       DOBBY_EVAL=1 mix test --only eval
 

@@ -2,7 +2,7 @@ defmodule Dobby.Repo.Migrations.CreateMessages do
   use Ecto.Migration
 
   @moduledoc """
-  The transcript (design §10.1, §10.5).
+  The transcript (design §10.2, §10.8).
 
   One shared household thread, rendered with full scrollback, and the source
   `DobbyAgent` rehydrates its recent conversation window from after a restart.

@@ -1,6 +1,6 @@
 defmodule DobbyWeb.Plugs.Speaker do
   @moduledoc """
-  Who is holding this browser (surface design §7).
+  Who is holding this browser (design §10.4).
 
   A name typed on a browser sticks until somebody switches it. That is the
   whole feature. There is no shared-device flag, no idle re-prompt, and no
@@ -8,7 +8,7 @@ defmodule DobbyWeb.Plugs.Speaker do
   four people use it, it says whatever the last person set it to.
 
   That cost is affordable **because identity gates nothing.** It personalizes
-  and attributes; it never permits (design §10.2). The blast radius of a wrong
+  and attributes; it never permits (design §10.4). The blast radius of a wrong
   name is a wrong name in one sentence and a wrong `created_by` on a schedule —
   which is also why the kids setting it to each other's names as a joke is a
   known and accepted outcome rather than a hole.

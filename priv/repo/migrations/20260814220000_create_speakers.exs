@@ -2,7 +2,7 @@ defmodule Dobby.Repo.Migrations.CreateSpeakers do
   use Ecto.Migration
 
   @moduledoc """
-  Who is talking (design §10.2, surface design §7).
+  Who is talking (design §10.4).
 
   A speaker is a person, not a device. Identity here is personalization and
   attribution and never permission — the Wi-Fi password is the trust boundary —

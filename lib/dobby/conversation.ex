@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation do
   @moduledoc """
-  The household thread and the people in it (design §10.1, §10.2, §10.5).
+  The household thread and the people in it (design §10.2, §10.4, §10.8).
 
   One shared, persistent conversation. Everyone reads the same document, which
   is why nothing here is scoped to a viewer: there is no "my messages", no
@@ -12,7 +12,7 @@ defmodule Dobby.Conversation do
   The thread records **interventions** — things somebody said, things Dobby
   answered, and changes to the house by any path. Passive observation (an
   endpoint flapping at 3am) belongs to `Dobby.Activity`, which records
-  everything. That split is design §10.1 and it is the reason two modules exist
+  everything. That split is design §10.3 and it is the reason two modules exist
   rather than one: the thread is something a person reads, and a log is
   something a machine queries.
   """

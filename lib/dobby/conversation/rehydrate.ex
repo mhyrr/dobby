@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.Rehydrate do
   @moduledoc """
-  Rebuilds `DobbyAgent`'s conversation window from the transcript (design §10.5).
+  Rebuilds `DobbyAgent`'s conversation window from the transcript (design §10.8).
 
   Jido AI's ReAct strategy accumulates turns in `Jido.AI.Context` for the life
   of the process and nothing more — restart the node and Dobby has forgotten

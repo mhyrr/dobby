@@ -4,7 +4,7 @@ defmodule Dobby.Tools.DeleteSchedule do
 
   The timer goes with the row. Nothing here asks "are you sure" — the model is
   told to confirm which schedule before deleting one, and a household of four
-  people sharing one thread does not need a permissions dialog (§10.2). What it
+  people sharing one thread does not need a permissions dialog (§10.4). What it
   needs is for the deletion to be announced, which the reply is.
   """
 

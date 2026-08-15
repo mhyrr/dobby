@@ -26,7 +26,7 @@ defmodule Dobby.Repo.Migrations.CreateSchedules do
 
       add :enabled, :boolean, null: false, default: true
 
-      # Attribution, never permission (design §10.2).
+      # Attribution, never permission (design §10.4).
       add :created_by, :string, null: false
       add :created_via, :string, null: false
 

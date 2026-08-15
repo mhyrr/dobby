@@ -1,6 +1,6 @@
 defmodule Dobby.ActivityTest do
   @moduledoc """
-  The full record (design §10.4).
+  The full record (design §10.6).
   """
 
   use Dobby.DataCase, async: true

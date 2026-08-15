@@ -1,6 +1,6 @@
 defmodule Dobby.Health do
   @moduledoc """
-  Whether the parts of this house are actually there (surface design §9).
+  Whether the parts of this house are actually there (design §10.6).
 
   Every answer here is read at the moment it is asked. Nothing is cached and
   nothing is reported from a note a process wrote to itself — a health page

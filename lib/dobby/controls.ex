@@ -38,7 +38,7 @@ defmodule Dobby.Controls do
   Sets a thermostat's setpoint from a control somebody touched.
 
   `:via` names the path for the thread's system line — "greg, card". Identity
-  personalizes and never permits (design §10.2), so a browser that has not been
+  personalizes and never permits (design §10.4), so a browser that has not been
   named still gets to turn the heat up; the line just says less about who.
   """
   @spec set_temperature(String.t(), number(), keyword()) :: result()

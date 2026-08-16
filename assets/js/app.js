@@ -32,8 +32,14 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
+// Show progress bar on live navigation and form submits. Brass, because it is
+// the only thing on this surface a person can see that was not drawn for it:
+// the generator's default is a #29d bar with a shadow under it, which is a
+// colour belonging to none of the board's three materials and the second
+// box-shadow in a system that has exactly one. It waits 300ms before showing
+// and a route change here takes about ten, so it is almost never on the board —
+// which is the reason to make it right rather than to argue about it.
+topbar.config({barColors: {0: "#B08A46"}, shadowColor: "transparent"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 

@@ -86,6 +86,13 @@ defmodule DobbyWeb.ThreadLive do
     <%!-- Two set lines, and only ever one of them on the page. Saying
           something is an event; naming yourself is a POST, because the cookie
           it writes can only be written by a controller. --%>
+    <%!-- Deliberately not focused on mount. A browser matches :focus-visible on
+          any focused text input however it was focused, so a composer that
+          focused itself made a 2px commanded-amber ring the board's resting
+          state — the loudest thing on a screen that hangs in a kitchen, lit all
+          night, on a page you look at as often as you type into. The name form
+          below keeps its focus, because naming yourself is the only thing that
+          page can do; this one is also a page you read. --%>
     <form :if={@speaker} class="set-line" phx-submit="say">
       <input
         type="text"
@@ -96,7 +103,6 @@ defmodule DobbyWeb.ThreadLive do
         placeholder="say something"
         aria-label="Say something to Dobby"
         phx-hook=".Composer"
-        phx-mounted={JS.focus()}
       />
       <.send_arrow />
     </form>

@@ -381,6 +381,14 @@ rule, not to a component.
 speaking about itself — states, names, times, steps. Dobby's own words are
 never set in it.
 
+**The Identifier Rule.** Capitals on this board mean a label — a state, a name,
+a time. An identifier is not a label: an entity id, an action name, a schema key
+or a filename is a thing you go and open, and it is set in the condensed face in
+lower case, `.arg`. The health panel had always done this and the three things
+beside it had not, so one page printed `thermostat:main` in one panel and
+`THERMOSTAT:MAIN` in the next. Audit test: search the surface for a shouted
+underscore — an identifier is the only string here that has one.
+
 ## Layout
 
 Three fixed bands on every viewport: the board header, the thread, and the set
@@ -627,6 +635,13 @@ The board's nameplate, worn by every route: a baseline-aligned row ruled
 underneath with a hairline. The name on the left; on the right, who is speaking,
 the mark, and a `LISTENING` / `QUIET` flap.
 
+- **The hairline rules it off from the band, so it is absent when there is no
+  band.** `/house` and `/admin` carry no rows under the nameplate, and the
+  hairline there ruled the name off from 22px of empty plate and then the
+  board's own 2px brass edge — two rules with a void between them, which reads
+  as a header that lost its contents. `:only-child` is the condition itself and
+  costs no route class, so `board-admin` is still the only one in the system
+
 - **Section:** absent on `/`. Elsewhere the name becomes a link, followed by a
   brass-dim separator and the section in quiet ink, all on the headline step
 - **Speaking as:** the speaker's name in quiet ink, a hairline, then a `switch`
@@ -634,9 +649,11 @@ the mark, and a `LISTENING` / `QUIET` flap.
   separator the set line puts before its send arrow — without it "GREG SWITCH"
   reads at a glance as two words of one name
 - **Lower case, stated:** `switch` is a verb, and everything set in capitals on
-  this board is a label — a state, a name, a time. Two other strings take the
+  this board is a label — a state, a name, a time. Two other things take the
   same exception and the list is closed: a refusal's reason, which is a
-  sentence, and a filename in a note, which is a thing you go and open
+  sentence, and an **identifier**, which is a thing you go and open. The second
+  of those used to read "a filename in a note" and was widened when three more
+  identifiers turned up shouting on `/admin` — see The Identifier Rule
 - **A form, not a link:** switching identity is a write. It is also why the
   small word is the tappable thing rather than the name — a household tablet
   that changed who was speaking because somebody brushed the header would be
@@ -696,15 +713,28 @@ default this surface is a refusal of — and rather than a stepper, which turns
   reaches 85° in a house capped at 76 is a control that exists to be refused
 - **Commits on release, not on drag.** The value rides the thumb locally while
   a finger is down; only the release reaches the house
-- **The asking label:** the value under the thumb, in commanded amber, riding
+- **The asking label:** the value above the thumb, in commanded amber, riding
   the thumb and visible **only** while a finger is down. It is deliberately not
   written into the card's own reading — that number is a value somebody
   commanded, and putting an uncommanded one in its place would be the board
   claiming a state it was never set to
-- **2.75rem tall under a coarse pointer.** The whole groove is the target, not
-  the slug: a range input jumps its thumb to wherever the track is touched, so
-  the height was the entire question and 22px was half of what a finger needs.
-  Per The Reach Rule the slug itself is unchanged
+- **It rides the slug's travel, not the track's.** A range input slides the
+  slug's *centre* from half a slug in to half a slug from the end, so a label
+  placed at a flat percentage of the width is half a slug adrift at each end and
+  right only in the middle — 6.5px, on a 13px part, on the one control whose job
+  is to say what it points at. The slug's width is a token and CSS does the
+  arithmetic. The travelled brass keeps the flat percentage on purpose: that is
+  an edge, and it lands under the slug
+- **2.75rem tall under a coarse pointer, and that is the only thing that
+  changes.** The whole groove is the target, not the slug: a range input jumps
+  its thumb to wherever the track is touched, so the height was the entire
+  question and 22px was half of what a finger needs. The block once gave 0.7rem
+  of its top margin back to keep the groove where the eye had found it, and the
+  asking label moved down into the taller box to follow — which put commanded
+  amber across the brass slug at about 1.2:1, dead centre, on a screen where the
+  finger is already covering it. That is The Reach Rule broken by the commit
+  that wrote it. Measured after the fix: label at y −16.8..3.1 against a slug at
+  y 10..34
 
 ### The Note
 
@@ -714,16 +744,29 @@ pitch — and the system's only empty-state treatment. It was already here, in
 admin's health panel, before nine other blanks were found to have nothing.
 
 - **Every blank gets one.** An empty thread, a house with no devices, a feed
-  with nothing in it, nothing scheduled, nothing schedulable. A heading over a
-  void is the board declining to answer, and "nothing has happened here" is a
-  reading like any other
+  with nothing in it, nothing scheduled, nothing schedulable, **and the reply
+  that has not arrived**. A heading over a void is the board declining to
+  answer, and "nothing has happened here" is a reading like any other
 - **One line, and the strongest true one.** A house with nothing schedulable
   obviously has nothing scheduled; saying both stacks two negations where one is
   the answer
 - **Sentence case is wrong here.** `.cards .empty` was set in Barlow, which the
   Instrument Voice Rule reserves for what a person said. The board describing
   itself is the board's own voice
-- **A filename inside one is lower case,** in quiet ink — see The Plate
+- **A filename inside one is lower case,** in quiet ink — see The Identifier
+  Rule
+- **The waiting line is the one that rotates.** Measured against a real model at
+  1440 and 390, an actuating turn runs 1.0s before its first tool call and 2.1s
+  before its first word: 89% of a turn with nothing to show. It used to be shown
+  with an ellipsis in the timestamp slot, which reads as a clock that failed.
+  Four lines now, one per turn, on one image — a card mid-turn with no word
+  landed on it — because the condensed face only ever speaks about the board and
+  "thinking" would be Dobby narrating his own process. Four and not forty: this
+  hangs on a kitchen wall and is read several times a day for a year, where a
+  joke generator wears out and a texture does not. Keyed on the request id and
+  never on chance, so two people watching one turn read one document
+- **It sits where the first step will,** so the step lands in its place rather
+  than under it. Measured: note at y=816, step at y=816
 
 ### The Blank
 
@@ -758,7 +801,8 @@ the admin's schedule delete use the same line, unchanged.
   `undo · put back "weeknight heat"`
 - **The button:** transparent, no border but a 1px `brass-dim` underline, brass
   lettering, lower case. That is the system's quiet control, and the same
-  treatment carries `pause`, `resume`, `delete` and the form's `Add`
+  treatment carries `pause`, `resume`, `delete` and the form's `add` — all five
+  lower case, because each of them is a verb
 - **One step, not a stack.** Undoing does not offer its own undo
 - **A refusal is not an undo.** `HELD` and its reason stay until the next
   attempt rather than expiring with the window: an undo is an offer and goes
@@ -770,6 +814,9 @@ the admin's schedule delete use the same line, unchanged.
   Barlow at reading scale
 - **Attribution:** speaker in brass condensed uppercase, time in faint ink,
   inline above on phone and a fixed 7.5rem column at 820px
+- **One ink for what anybody said.** Dobby's half carried a hex four percent
+  lighter than the ink around it, which was invisible at this size on this
+  ground and was a message coloured by who said it
 - **Never aligned by author**
 
 ### Steps
@@ -783,6 +830,9 @@ device language ("setting the main thermostat"), never in Dobby's voice.
   sentence case and declined rust — a sentence set beside a label in board
   type squeezes both
 - **After the reply:** collapses to one disclosure row (`2 steps · 3.8 s`)
+- **Before the first step,** the board says so itself — see The Note. Against
+  FakeHA a tool call resolves inside a frame, so the pulsing outlined tick is
+  real code that will not be seen until there is real hardware behind it
 
 ### System Line
 
@@ -811,6 +861,15 @@ The intervention record: what changed in the house, by whatever path.
 - **Placeholder:** condensed uppercase, deliberately a label rather than a
   sentence
 - **Focus:** the caret is commanded amber; focus-visible draws a 2px amber ring
+- **It does not focus itself.** A browser matches `:focus-visible` on any
+  focused text input however the focus arrived, so a composer that focused
+  itself made that ring the board's resting state — the loudest object on a
+  screen that hangs in a kitchen, lit all night, in the colour reserved for a
+  value somebody asked for. It also made a deliberately border-less input read
+  as a boxed field. The audit test is Language Is The Material's: in any thread
+  screenshot the largest text should be somebody's sentence. The name form is
+  the exception and keeps its focus, because naming yourself is the only thing
+  that page can do
 
 ### Admin
 
@@ -833,8 +892,13 @@ rather than being handed it.
   or deleting an existing row can fail, and its reason under the new-schedule
   form's last field reads as a rejection of what somebody is still typing
 - **No form when there is nothing to schedule.** A house with nothing
-  schedulable was offered two empty selects and an `Add` that could only be
+  schedulable was offered two empty selects and an `add` that could only be
   refused
+- **Health and schedules are one column, not two rows of the page grid.** A grid
+  row grows to hold an item spanning it, so the feed beside them was setting
+  their heights: at 1440×900 that put 233px of health panel in a 508px row and
+  started the schedules 275px below the thing above them. The order here is an
+  argument, and an argument does not survive a gap that size
 - **Schedule rows:** a row (label · cron · flap), a detail line, a reason line
   when there is one, and the actions. `READY` in expected cream for one waiting
   for its time; `HELD` for one that can no longer reach its device — nothing
@@ -948,6 +1012,11 @@ the card should show the new number until the house has confirmed it.
 - **Do** grow the area a finger hits, and leave the drawing exactly where it is.
 - **Do** keep every left edge on a page on one line, and stop a rule where the
   content under it stops.
+- **Do** set an identifier in lower case. Capitals are a state, a name or a
+  time.
+- **Do** say what a blank is even when the blank is a wait. The reply that has
+  not arrived is a blank like any other, and it is the one a household sees
+  most.
 
 ### Don't:
 
@@ -980,3 +1049,10 @@ the card should show the new number until the house has confirmed it.
   inside a `pointer: coarse` block.
 - **Don't** leave an interactive element in the tab order when it has nothing
   in it. An empty band is no band.
+- **Don't** focus an input on mount. A browser draws a focus ring on a focused
+  text input however the focus arrived, and a ring nobody asked for becomes the
+  page's resting state.
+- **Don't** shout an entity id, an action name or a schema key. See The
+  Identifier Rule.
+- **Don't** put anything in the timestamp slot that is not a time. An ellipsis
+  there reads as a clock that failed, not as a board at work.

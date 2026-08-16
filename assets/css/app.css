@@ -278,6 +278,17 @@ body {
   margin-bottom: .5rem;
   border-bottom: var(--rule);
 }
+/* The hairline rules the nameplate off from the band beneath it. On the two
+   routes that have no band it was ruling it off from nothing — a hairline and
+   then, 22px of empty plate later, the board's 2px brass edge. Two rules with
+   a void between them read as a header that lost its contents, which on
+   `/house` and `/admin` is exactly what it looked like. `:only-child` is the
+   condition itself, and it costs no route class. */
+.board > .plate:only-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
 .plate h1 {
   display: flex;
   align-items: baseline;
@@ -442,8 +453,11 @@ body {
   color: var(--ink-faint);
   letter-spacing: .05em;
 }
+/* One colour for what anybody said. Dobby's half used to take a hex four
+   percent lighter than the ink around it — invisible at this size on this
+   ground, outside the palette, and a message coloured by who said it, which
+   the shared-document rule forbids in as many words. */
 .msg .said { font-size: 1.12rem; line-height: 1.35; color: var(--ink); max-width: 62ch; }
-.msg.dobby .said { color: #F2EEE2; }
 
 /* steps — the board showing its work. Labels, never sentences. */
 .steps { margin-top: .4rem; display: grid; gap: .28rem; }
@@ -718,6 +732,12 @@ body {
    stretch to the viewport: a health row's three parts scattered across 775px,
    and a cron field the width of an iPad. */
 .panel { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+/* Health and schedules, as one column rather than as two rows of the page's
+   grid. A row grows to hold an item spanning it, so the feed beside them was
+   setting their heights: at 1440×900 the health panel was 233px of content in
+   a 508px row, and the schedules — the only thing on this page you can change
+   — started 275px below the thing above them. */
+.side { display: grid; gap: 1.4rem; align-content: start; min-width: 0; }
 .panel .rows,
 .panel .note,
 .panel > .why,
@@ -807,6 +827,7 @@ body {
   font-size: .74rem;
   color: var(--ink-faint);
 }
+.new-sched label span.arg { text-transform: none; letter-spacing: .04em; }
 .new-sched input, .new-sched select {
   width: 100%;
   background: var(--flap);
@@ -836,7 +857,20 @@ body {
   color: var(--ink-quiet);
 }
 .feed .entry .t, .feed .entry .took { color: var(--ink-faint); }
-.feed .entry .what { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+/* Not shouted. `what` is the only column here carrying identifiers — an entity
+   id and the name of an action — and the health panel a few centimetres to the
+   left sets the same string as `thermostat:main` while this one set it as
+   THERMOSTAT:MAIN. One page, one identifier, two casings. Lower case is the
+   side the board already argues for: capitals are a state, a name or a time,
+   and an entity id is a thing you go and open. The record columns around it
+   keep the record voice. */
+.feed .entry .what {
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: .04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .feed .entry .kind, .feed .entry .who, .feed .entry .what { white-space: nowrap; }
 .feed .entry .who { overflow: hidden; text-overflow: ellipsis; }
 .feed .entry .took { text-align: right; }
@@ -1027,10 +1061,10 @@ body {
   .board-admin {
     padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
   }
+  /* Two items and two tracks, so nothing here needs placing by hand. */
   .admin {
     grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
     align-items: start;
     justify-content: center;
   }
-  .admin .feed { grid-column: 2; grid-row: 1 / span 2; }
 }

@@ -76,88 +76,97 @@ defmodule DobbyWeb.AdminLive do
     </header>
 
     <main class="admin">
-      <section class="panel">
-        <h2>Health</h2>
+      <%!-- Health and schedules are one column and not two grid rows. As rows
+            they were sized by the feed beside them: a grid row grows to hold an
+            item spanning it, so a hundred entries of log pushed the schedules
+            275px down the page and left a void under the health panel bigger
+            than the panel. The order here is an argument — the thing you can
+            change sits under the thing that says whether it will work — and an
+            argument does not survive a gap that size. --%>
+      <div class="side">
+        <section class="panel">
+          <h2>Health</h2>
 
-        <div class="rows">
-          <div :for={row <- @health} class="row">
-            <span class="name">{row.name}</span>
-            <span class="val">{row.detail}</span>
-            <.flap state={row.state}>{row.word}</.flap>
+          <div class="rows">
+            <div :for={row <- @health} class="row">
+              <span class="name">{row.name}</span>
+              <span class="val">{row.detail}</span>
+              <.flap state={row.state}>{row.word}</.flap>
+            </div>
           </div>
-        </div>
 
-        <%!-- The most useful row on the page: a schedule accepted at authoring
-              time and then rejected by the timer looks, from every other
-              angle, exactly like one that works. Empty is the healthy
-              answer, and empty says so rather than showing nothing. --%>
-        <%!-- "That can run", not "enabled": `unregistered` measures the
-              schedules that are enabled *and* still able to reach their
-              device, so the wider claim reads as a flat contradiction of a
-              HELD row sitting two lines below it. --%>
-        <div class="note">
-          <span :if={@unregistered == []}>Every schedule that can run has a timer.</span>
-          <span :if={@unregistered != []} class="wrong">
-            {length(@unregistered)} enabled {if length(@unregistered) == 1,
-              do: "schedule has",
-              else: "schedules have"} no timer: {Enum.map_join(@unregistered, ", ", & &1.label)}
-          </span>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Schedules</h2>
-
-        <%!-- One line, and it is the stronger of the two: a house with nothing
-              schedulable obviously has nothing scheduled, and saying both
-              stacks two negations where one is the answer. --%>
-        <p :if={@schedules == [] && @devices != []} class="note">Nothing is scheduled.</p>
-
-        <div :for={schedule <- @schedules} class={["sched", !schedule.enabled && "paused"]}>
-          <div class="row">
-            <span class="name">{schedule.label}</span>
-            <span class="val">{schedule.cron}</span>
-            <.flap :if={schedule.enabled} state={status_state(schedule)}>
-              {status_word(schedule)}
-            </.flap>
+          <%!-- The most useful row on the page: a schedule accepted at authoring
+                time and then rejected by the timer looks, from every other
+                angle, exactly like one that works. Empty is the healthy
+                answer, and empty says so rather than showing nothing. --%>
+          <%!-- "That can run", not "enabled": `unregistered` measures the
+                schedules that are enabled *and* still able to reach their
+                device, so the wider claim reads as a flat contradiction of a
+                HELD row sitting two lines below it. --%>
+          <div class="note">
+            <span :if={@unregistered == []}>Every schedule that can run has a timer.</span>
+            <span :if={@unregistered != []} class="wrong">
+              {length(@unregistered)} enabled {if length(@unregistered) == 1,
+                do: "schedule has",
+                else: "schedules have"} no timer: {Enum.map_join(@unregistered, ", ", & &1.label)}
+            </span>
           </div>
-          <div class="detail">
-            {schedule.device} · {schedule.action}{args(schedule)}
-            <span :if={schedule.next_fire}>· next {fires_at(schedule)}</span>
+        </section>
+
+        <section class="panel">
+          <h2>Schedules</h2>
+
+          <%!-- One line, and it is the stronger of the two: a house with nothing
+                schedulable obviously has nothing scheduled, and saying both
+                stacks two negations where one is the answer. --%>
+          <p :if={@schedules == [] && @devices != []} class="note">Nothing is scheduled.</p>
+
+          <div :for={schedule <- @schedules} class={["sched", !schedule.enabled && "paused"]}>
+            <div class="row">
+              <span class="name">{schedule.label}</span>
+              <span class="val">{schedule.cron}</span>
+              <.flap :if={schedule.enabled} state={status_state(schedule)}>
+                {status_word(schedule)}
+              </.flap>
+            </div>
+            <div class="detail">
+              {schedule.device} · {schedule.action}{args(schedule)}
+              <span :if={schedule.next_fire}>· next {fires_at(schedule)}</span>
+            </div>
+            <div :if={schedule.enabled && blocked(schedule)} class="why">{blocked(schedule)}</div>
+            <div class="acts">
+              <button type="button" phx-click="toggle" phx-value-id={schedule.id}>
+                {if schedule.enabled, do: "pause", else: "resume"}
+              </button>
+              <button type="button" phx-click="delete" phx-value-id={schedule.id}>delete</button>
+            </div>
           </div>
-          <div :if={schedule.enabled && blocked(schedule)} class="why">{blocked(schedule)}</div>
-          <div class="acts">
-            <button type="button" phx-click="toggle" phx-value-id={schedule.id}>
-              {if schedule.enabled, do: "pause", else: "resume"}
-            </button>
-            <button type="button" phx-click="delete" phx-value-id={schedule.id}>delete</button>
+
+          <div :if={@deleted} class="undo">
+            <button type="button" phx-click="restore">undo</button>
+            <span>put back "{@deleted.label}"</span>
           </div>
-        </div>
 
-        <div :if={@deleted} class="undo">
-          <button type="button" phx-click="restore">undo</button>
-          <span>put back "{@deleted.label}"</span>
-        </div>
+          <%!-- Pausing, deleting or restoring an existing schedule can fail, and
+                its reason belongs beside the schedules — not under the new
+                schedule form's last field, where it reads as a rejection of
+                what somebody is still typing. --%>
+          <div :if={@trouble} class="why">{@trouble}</div>
 
-        <%!-- Pausing, deleting or restoring an existing schedule can fail, and
-              its reason belongs beside the schedules — not under the new
-              schedule form's last field, where it reads as a rejection of what
-              somebody is still typing. --%>
-        <div :if={@trouble} class="why">{@trouble}</div>
+          <%!-- A house with nothing schedulable used to get the form anyway: two
+                empty selects and an `add` that could only be refused. The form
+                is offered when there is something for it to act on. --%>
+          <p :if={@devices == []} class="note">Nothing in this house can be scheduled.</p>
 
-        <%!-- A house with nothing schedulable used to get the form anyway: two
-              empty selects and an Add that could only be refused. The form is
-              offered when there is something for it to act on. --%>
-        <p :if={@devices == []} class="note">Nothing in this house can be scheduled.</p>
-
-        <.schedule_form
-          :if={@devices != []}
-          form={@form}
-          devices={@devices}
-          arguments={@arguments}
-          error={@error}
-        />
-      </section>
+          <.schedule_form
+            :if={@devices != []}
+            form={@form}
+            devices={@devices}
+            arguments={@arguments}
+            error={@error}
+          />
+        </section>
+      </div>
 
       <section class="panel feed">
         <h2>Activity</h2>
@@ -228,8 +237,11 @@ defmodule DobbyWeb.AdminLive do
         </select>
       </label>
 
+      <%!-- The one field label on this page that nobody wrote: it is a key out
+            of the action's own schema, and it is set as the identifier it is
+            rather than shouted as a word. Same reading as the feed's. --%>
       <label :for={argument <- @arguments}>
-        <span>{argument.name}</span>
+        <span class="arg">{argument.name}</span>
         <input
           type={input_type(argument.type)}
           step={if input_type(argument.type) == "number", do: "any"}
@@ -241,7 +253,9 @@ defmodule DobbyWeb.AdminLive do
 
       <div :if={@error} class="why">{@error}</div>
 
-      <button type="submit">Add</button>
+      <%!-- Lower case, like every other quiet control on this board. It is a
+            verb, and capitals here mean a state, a name or a time. --%>
+      <button type="submit">add</button>
     </form>
     """
   end

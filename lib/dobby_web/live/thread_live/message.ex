@@ -107,20 +107,38 @@ defmodule DobbyWeb.ThreadLive.Message do
   # The board, waiting for a word to be set on it.
   #
   # The instrument's own voice and never Dobby's — the condensed face only ever
-  # speaks about the board (`DESIGN.md`, The Instrument Voice Rule), so these
-  # describe the mechanism working rather than a mind at work. "Thinking" would
-  # be process narration, which the soul bans in his voice and which putting it
-  # in the board's mouth does not launder.
+  # speaks about the board (`DESIGN.md`, The Instrument Voice Rule). That is the
+  # constraint that holds: whatever these say, the board is saying it about
+  # itself, and Dobby's own words never appear in this face.
   #
-  # One image, said four ways: a card is mid-turn and no word has landed. Four
-  # and not forty, because this is mounted on a kitchen wall and read several
-  # times a day for a year — a joke generator wears out where a texture does
-  # not. Extending the list is editing this list.
+  # The register is Greg's, pinned in the direction round on 2026-08-14: fun,
+  # hearted, magical. This list was flat and mechanical first, on the strength
+  # of a "no wizarding diction" Don't that turned out to be an agent's write-up
+  # of that pin rather than the pin itself. Greg reopened it, so the world is
+  # allowed to be a little magical about its own workings here.
+  #
+  # It is still a *magical instrument* and not a wizard: these describe the
+  # board doing something, never Dobby having a thought. The distinction is not
+  # pedantry — the one line the anti-references actually draw is against reading
+  # as a franchise, and a product named Dobby is one costume away from it.
+  #
+  # Ten and not four. The first version argued a small list wears better, which
+  # is true of flat lines and backwards for characterful ones: a flat line seen
+  # every fourth turn goes invisible, and a good line seen every fourth turn
+  # goes stale. Range is what survives a year on a kitchen wall. Extending or
+  # cutting the list is editing this list, and nothing else depends on its
+  # length.
   @waiting [
-    "Waiting on a word.",
-    "Still turning.",
-    "Nothing has landed yet.",
-    "No word yet."
+    "Conjuring.",
+    "Casting about.",
+    "Summoning a word.",
+    "Divining.",
+    "Riffling.",
+    "Something is coming through.",
+    "The cards are turning.",
+    "Turning it over.",
+    "No word yet.",
+    "Nothing has landed yet."
   ]
 
   # Only until the board has something truer to say. The first step replaces

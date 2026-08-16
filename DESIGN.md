@@ -190,10 +190,14 @@ had to be set by somebody.
 
 The world is a magical household instrument — enamel ground, brass rules,
 painted lettering — not a wizard. It is alive and honest rather than ornate.
-Register was pinned as fun, hearted and magical, and then narrowed: the magic
-is that the object is alive, not that it talks like a spellbook. Nothing in
-the copy uses wizarding diction, and no trademarked franchise asset appears
-anywhere.
+Register was pinned as fun, hearted and magical (direction round, 2026-08-14).
+A write-up of that pin hardened it into "no wizarding diction", which Greg
+reopened on 2026-08-16: the board is allowed to be a little magical about its
+own workings — see The Note. What holds is narrower and it is about *whose*
+magic. The object is alive; Dobby is not a wizard. No trademarked franchise
+asset appears anywhere and none ever will — the product is named Dobby, and a
+house-elf's name plus a wizard's vocabulary is the one combination that reads
+as a franchise rather than as a world.
 
 Density is low and deliberate. The board carries two or three device rows and
 then gets out of the way; the conversation below it is set at reading scale
@@ -759,12 +763,16 @@ admin's health panel, before nine other blanks were found to have nothing.
   1440 and 390, an actuating turn runs 1.0s before its first tool call and 2.1s
   before its first word: 89% of a turn with nothing to show. It used to be shown
   with an ellipsis in the timestamp slot, which reads as a clock that failed.
-  Four lines now, one per turn, on one image — a card mid-turn with no word
-  landed on it — because the condensed face only ever speaks about the board and
-  "thinking" would be Dobby narrating his own process. Four and not forty: this
-  hangs on a kitchen wall and is read several times a day for a year, where a
-  joke generator wears out and a texture does not. Keyed on the request id and
-  never on chance, so two people watching one turn read one document
+  Ten lines now, one per turn, all of them the board describing itself —
+  `CONJURING`, `SUMMONING A WORD`, `SOMETHING IS COMING THROUGH`, `RIFFLING`,
+  `NOTHING HAS LANDED YET`. Magical and mechanical in one register, because a
+  split-flap board waiting for a word is both. Never Dobby having a thought:
+  the condensed face only ever speaks about the board, and this line sits
+  directly under his name. Ten and not four — a flat line seen every fourth
+  turn goes invisible and a good one goes stale, so range is what survives a
+  year on a wall. Keyed on the request id and never on chance, so two people
+  watching one turn read one document; over 10,000 real request ids the ten
+  lines land within 9.7–10.3% of each other
 - **It sits where the first step will,** so the step lands in its place rather
   than under it. Measured: note at y=816, step at y=816
 
@@ -1030,8 +1038,12 @@ the card should show the new number until the house has confirmed it.
 - **Don't** phrase a step as Dobby speaking ("Let me just check the
   thermostat…"). Steps are labels in device language, and the soul bans
   process narration in his voice.
-- **Don't** use wizarding diction, franchise assets, or parchment-and-
-  wax-seal pastiche. The magic is that the object is alive and honest.
+- **Don't** use franchise assets or parchment-and-wax-seal pastiche. The
+  product is named Dobby and that is exactly why: this world has to earn
+  "magical" rather than borrow it.
+- **Don't** put magic in Dobby's mouth. The board may be magical about its own
+  workings — it is a magical instrument. Dobby is a capable person who lives
+  here, his voice is a tested file, and it stays plain.
 - **Don't** add a navigation bar. The nameplate, the band and one quiet link
   are the navigation.
 - **Don't** write a value a person is still choosing into a device's reading.

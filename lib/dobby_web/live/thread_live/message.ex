@@ -122,12 +122,14 @@ defmodule DobbyWeb.ThreadLive.Message do
   # pedantry — the one line the anti-references actually draw is against reading
   # as a franchise, and a product named Dobby is one costume away from it.
   #
-  # Ten and not four. The first version argued a small list wears better, which
-  # is true of flat lines and backwards for characterful ones: a flat line seen
-  # every fourth turn goes invisible, and a good line seen every fourth turn
-  # goes stale. Range is what survives a year on a kitchen wall. Extending or
-  # cutting the list is editing this list, and nothing else depends on its
-  # length.
+  # Eight, and every one of them says something. It was ten, with "No word yet"
+  # and "Nothing has landed yet" kept as flat anchors on the theory that a set
+  # this visible wants somewhere plain to rest. It does not — those two are the
+  # old mechanical list surviving inside the new one, and a line that says
+  # nothing is what this whole row was replacing. Greg cut both.
+  #
+  # Length carries no meaning here and the list is open, unlike the eight state
+  # words. Adding or cutting one is editing this list; nothing else reads it.
   @waiting [
     "Conjuring.",
     "Casting about.",
@@ -136,9 +138,7 @@ defmodule DobbyWeb.ThreadLive.Message do
     "Riffling.",
     "Something is coming through.",
     "The cards are turning.",
-    "Turning it over.",
-    "No word yet.",
-    "Nothing has landed yet."
+    "Turning it over."
   ]
 
   # Only until the board has something truer to say. The first step replaces

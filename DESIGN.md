@@ -763,16 +763,19 @@ admin's health panel, before nine other blanks were found to have nothing.
   1440 and 390, an actuating turn runs 1.0s before its first tool call and 2.1s
   before its first word: 89% of a turn with nothing to show. It used to be shown
   with an ellipsis in the timestamp slot, which reads as a clock that failed.
-  Ten lines now, one per turn, all of them the board describing itself —
+  Eight lines now, one per turn, all of them the board describing itself —
   `CONJURING`, `SUMMONING A WORD`, `SOMETHING IS COMING THROUGH`, `RIFFLING`,
-  `NOTHING HAS LANDED YET`. Magical and mechanical in one register, because a
+  `THE CARDS ARE TURNING`. Magical and mechanical in one register, because a
   split-flap board waiting for a word is both. Never Dobby having a thought:
   the condensed face only ever speaks about the board, and this line sits
-  directly under his name. Ten and not four — a flat line seen every fourth
-  turn goes invisible and a good one goes stale, so range is what survives a
-  year on a wall. Keyed on the request id and never on chance, so two people
-  watching one turn read one document; over 10,000 real request ids the ten
-  lines land within 9.7–10.3% of each other
+  directly under his name. **Every one of them says something.** Two flat
+  anchors were kept at first — "No word yet", "Nothing has landed yet" — on the
+  theory that a set this visible wants somewhere plain to rest. It does not: a
+  line that says nothing is exactly what this row was built to replace. Keyed on
+  the request id and never on chance, so two people watching one turn read one
+  document; over 10,000 real request ids the eight land within 12.2–12.9% of
+  each other. The list is open — eight is not a number that means anything here,
+  unlike the eight state words
 - **It sits where the first step will,** so the step lands in its place rather
   than under it. Measured: note at y=816, step at y=816
 

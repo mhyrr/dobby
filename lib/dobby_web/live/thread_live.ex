@@ -38,6 +38,7 @@ defmodule DobbyWeb.ThreadLive do
   alias Dobby.Home
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
+  alias DobbyWeb.HouseLive.Card
 
   @history 50
 
@@ -48,13 +49,18 @@ defmodule DobbyWeb.ThreadLive do
       DeviceEvents.subscribe()
     end
 
+    history = Conversation.recent(@history)
+
     {:ok,
      socket
      |> assign(:page_title, "Dobby")
      |> assign(:pending, %{})
      |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
-     |> stream(:messages, Conversation.recent(@history))}
+     # A stream does not know how many rows it has, and this is the one thing
+     # about the thread the page needs to know that it cannot ask the stream.
+     |> assign(:blank, history == [])
+     |> stream(:messages, history)}
   end
 
   @impl true
@@ -70,6 +76,8 @@ defmodule DobbyWeb.ThreadLive do
         <.message message={message} />
       </div>
     </main>
+
+    <.blank :if={@blank && @pending == %{}} speaker={@speaker} example={example(@snapshots)} />
 
     <div class="thread-pending">
       <.pending :for={pending <- ordered(@pending)} pending={pending} />
@@ -164,7 +172,7 @@ defmodule DobbyWeb.ThreadLive do
 
   @impl true
   def handle_info({:said, message}, socket) do
-    {:noreply, stream_insert(socket, :messages, message)}
+    {:noreply, socket |> filled() |> stream_insert(:messages, message)}
   end
 
   # A system line closes the pending row only when it *is* the end of the turn.
@@ -173,7 +181,8 @@ defmodule DobbyWeb.ThreadLive do
   # would take Dobby's half-written reply off the board while he was still
   # writing it.
   def handle_info({:system_line, message}, socket) do
-    socket = socket |> stream_insert(:messages, message) |> assign(:listening, listening?())
+    socket =
+      socket |> filled() |> stream_insert(:messages, message) |> assign(:listening, listening?())
 
     if message.meta["kind"] == "request_failed" do
       {:noreply, close_pending(socket, message.request_id)}
@@ -185,6 +194,7 @@ defmodule DobbyWeb.ThreadLive do
   def handle_info({:replied, message}, socket) do
     {:noreply,
      socket
+     |> filled()
      |> stream_insert(:messages, message)
      |> close_pending(message.request_id)
      |> assign(:listening, listening?())}
@@ -262,7 +272,37 @@ defmodule DobbyWeb.ThreadLive do
     pending |> Map.values() |> Enum.sort_by(& &1.started_at)
   end
 
+  # The thread stops being blank at the first row of any kind, including a
+  # system line — a house that changed while nobody was talking has a record,
+  # and a board still offering an example beneath it would be describing an
+  # empty page it is no longer on.
+  defp filled(socket), do: assign(socket, :blank, false)
+
   # -- the house -------------------------------------------------------------
+
+  # One sentence of the kind that works here, built from a device that has
+  # actually reported. `settable?/1` is the same question the card asks before
+  # it draws a fader — has this device told us what it will accept — and it is
+  # the right one twice over: a specimen naming a device this house does not
+  # have would be an invented device, and one naming a temperature outside its
+  # range would be a sentence the house is going to refuse.
+  #
+  # Nothing settable means no specimen, and that is the honest answer rather
+  # than a gap to be filled: before Home Assistant has said anything, the board
+  # does not yet know what this house takes.
+  defp example(snapshots) do
+    case Enum.find(snapshots, &Card.settable?/1) do
+      %{name: name} = snapshot -> "put the #{name} to #{comfortable(snapshot)}"
+      nil -> nil
+    end
+  end
+
+  # Inside the device's own range and off both ends of it, so the example is
+  # neither a value the house would decline nor the setpoint it is already on —
+  # a specimen that asks for what is already true teaches nothing.
+  defp comfortable(%{min_temperature_f: min, max_temperature_f: max}) do
+    round(min + (max - min) * 0.6)
+  end
 
   # Whether there is anything there to hear it. The board says LISTENING beside
   # Dobby's own face, so the one thing it must not do is say it when DobbyAgent

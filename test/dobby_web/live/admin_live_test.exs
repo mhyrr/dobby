@@ -52,10 +52,13 @@ defmodule DobbyWeb.AdminLiveTest do
       assert has_element?(view, ".plate .flap[data-st=silent]", "Quiet")
     end
 
+    # "That can run", not "enabled": `unregistered` measures the schedules that
+    # are enabled *and* still able to reach their device, so the wider claim
+    # reads as a flat contradiction of a HELD row two lines below it.
     test "empty says so rather than showing nothing", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/admin")
 
-      assert has_element?(view, ".panel .note", "Every enabled schedule has a timer")
+      assert has_element?(view, ".panel .note", "Every schedule that can run has a timer")
     end
 
     # The most useful row on the page: a schedule accepted at authoring time
@@ -215,6 +218,71 @@ defmodule DobbyWeb.AdminLiveTest do
 
       {:ok, house, _html} = live(conn, "/house")
       assert has_element?(house, "a.to-admin", "Admin")
+    end
+  end
+
+  # The page as a fresh box serves it, and as a box whose house has been
+  # emptied under schedules that were written against it.
+  describe "panels with nothing in them" do
+    # The one panel that used to answer a heading with a void, while the two
+    # above it both said something.
+    test "the feed says it has recorded nothing", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".feed .note", "Nothing recorded yet")
+    end
+
+    test "the feed stops saying so at the first entry", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      {:ok, entry} =
+        Activity.record(%{kind: "control", device: @thermostat, action: "set_temperature"})
+
+      ActivityEvents.recorded(entry)
+
+      assert eventually(fn -> has_element?(view, ".entry .what", "set_temperature") end)
+      refute has_element?(view, ".feed .note")
+    end
+
+    # Two empty selects and an Add that could only ever be refused.
+    test "a house with nothing schedulable is not offered the form", %{conn: conn} do
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      refute has_element?(view, "form.new-sched")
+      assert has_element?(view, ".panel .note", "Nothing in this house can be scheduled")
+
+      # One line, and the stronger of the two: a house with nothing schedulable
+      # obviously has nothing scheduled.
+      refute has_element?(view, ".panel .note", "Nothing is scheduled")
+    end
+
+    # The sentence used to end on a colon and stop, which reads as truncated to
+    # a person and tells the model even less.
+    test "an unknown device names what the house does have, or that it has none",
+         %{conn: conn} do
+      create!(label: "weeknight heat")
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".sched .why", "this house has no devices")
+      refute has_element?(view, ".sched .why", "this house has:")
+    end
+
+    # An action on an existing schedule can fail, and its reason used to land
+    # under the new-schedule form's last field, where it reads as a rejection
+    # of what somebody is still typing.
+    test "a failed action says so beside the schedules, not inside the form", %{conn: conn} do
+      schedule = create!(label: "weeknight heat")
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view |> element("button[phx-value-id='#{schedule.id}']", "pause") |> render_click()
+
+      assert has_element?(view, ".panel > .why", "unknown device")
     end
   end
 

@@ -67,7 +67,14 @@ defmodule DobbyWeb.HouseLive do
         undo={@undo[snapshot.id]}
         held={@held[snapshot.id]}
       />
-      <p :if={@snapshots == []} class="empty">No devices are configured.</p>
+      <%!-- The record voice, not Barlow: the board saying what it has is the
+            board speaking about itself, and the one person who ever sees a
+            house with nothing in it is the one who describes it — so the line
+            says where a house comes from rather than only that there isn't
+            one. --%>
+      <p :if={@snapshots == []} class="note">
+        No devices. The house is described in <span class="file">home.exs</span> on the box.
+      </p>
 
       <%!-- The way in to /admin, and the only one. It is laptop-shaped and
             rarely visited, so it does not earn permanent header space on the

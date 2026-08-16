@@ -97,13 +97,58 @@ defmodule DobbyWeb.Board do
     assigns = assign(assigns, :rows, rows)
 
     ~H"""
-    <.link navigate={~p"/house"} class="rows" aria-label="Every device in the house">
+    <%!-- A house with nothing in it has no band, rather than an empty one. A
+          band with no rows still lays out as a link the width of the board —
+          invisible, zero-high, and reachable by tab, which offers a keyboard
+          the way in to a page that has nothing on it. --%>
+    <.link
+      :if={@rows != []}
+      navigate={~p"/house"}
+      class="rows"
+      aria-label="Every device in the house"
+    >
       <div :for={row <- @rows} class="row">
         <span class="name">{row.name}</span>
         <span class="val">{row.reading.value}</span>
         <.flap state={row.reading.state}>{row.reading.word}</.flap>
       </div>
     </.link>
+    """
+  end
+
+  @doc """
+  A thread with nothing in it yet.
+
+  Sits where the first line will land, and says two things at most: what the
+  blank is, and — once the house has told us enough to promise it — one
+  sentence of the kind that works here.
+
+  **Dobby does not speak first.** Proactive behaviour is deferred (design §11),
+  and a greeting in this space would take that decision quietly, on the surface
+  where it is hardest to notice. So the label is the board's own voice and the
+  specimen is a *household* utterance: the one voice on this page that is
+  neither the instrument's nor his, and the only one that can honestly stand in
+  a space where nothing has been said.
+
+  The specimen is built from what a device has actually reported, never from
+  copy — a board that suggested a sentence naming a device this house does not
+  have would be inventing one, which is the first thing doctrine forbids.
+  """
+  attr :speaker, :map, default: nil
+  attr :example, :string, default: nil
+
+  def blank(assigns) do
+    ~H"""
+    <div class="blank">
+      <%!-- Before a name, one fact, and it is the one that answers "why is it
+            asking?" — not a rule, since a name never permits anything. --%>
+      <p :if={!@speaker} class="note">Your name goes on what you change.</p>
+
+      <p :if={@speaker} class="note">Nothing said yet.</p>
+      <p :if={@speaker && @example} class="like note">
+        Something like <span class="said">“{@example}”</span>
+      </p>
+    </div>
     """
   end
 end

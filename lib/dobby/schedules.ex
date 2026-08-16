@@ -301,12 +301,15 @@ defmodule Dobby.Schedules do
         {:ok, device}
 
       :error ->
-        known = Dobby.Home.devices() |> Enum.map_join(", ", & &1.id)
-        {:error, "unknown device #{inspect(target)}; this house has: #{known}"}
+        {:error, "unknown device #{inspect(target)}; #{roll_call(Dobby.Home.devices())}"}
     end
   end
 
   defp fetch_device(other), do: {:error, "device must be an id string, got #{inspect(other)}"}
+
+  # See `Dobby.Home`: a house with no devices ended this on a colon and stopped.
+  defp roll_call([]), do: "this house has no devices"
+  defp roll_call(devices), do: "this house has: " <> Enum.map_join(devices, ", ", & &1.id)
 
   defp lookup_action(device, action) when is_binary(action) do
     available = device.agent_module.scheduled_actions()

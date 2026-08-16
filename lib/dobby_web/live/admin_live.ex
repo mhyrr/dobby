@@ -45,19 +45,24 @@ defmodule DobbyWeb.AdminLive do
     end
 
     devices = Schedules.schedulable_devices()
+    feed = Activity.recent(@feed)
 
     {:ok,
      socket
      |> assign(:page_title, "Admin")
      |> assign(:listening, listening?())
      |> assign(:error, nil)
+     |> assign(:trouble, nil)
      |> assign(:deleted, nil)
      |> assign(:devices, devices)
      |> assign(:form, blank_form(devices))
+     # A stream cannot be asked whether it is empty, and a heading with a void
+     # under it is the one panel here that says nothing when it has nothing.
+     |> assign(:blank_feed, feed == [])
      |> load_arguments()
      |> load_health()
      |> load_schedules()
-     |> stream(:activity, Activity.recent(@feed))}
+     |> stream(:activity, feed)}
   end
 
   @impl true
@@ -83,8 +88,12 @@ defmodule DobbyWeb.AdminLive do
               time and then rejected by the timer looks, from every other
               angle, exactly like one that works. Empty is the healthy
               answer, and empty says so rather than showing nothing. --%>
+        <%!-- "That can run", not "enabled": `unregistered` measures the
+              schedules that are enabled *and* still able to reach their
+              device, so the wider claim reads as a flat contradiction of a
+              HELD row sitting two lines below it. --%>
         <div class="note">
-          <span :if={@unregistered == []}>Every enabled schedule has a timer.</span>
+          <span :if={@unregistered == []}>Every schedule that can run has a timer.</span>
           <span :if={@unregistered != []} class="wrong">
             {length(@unregistered)} enabled {if length(@unregistered) == 1,
               do: "schedule has",
@@ -96,7 +105,10 @@ defmodule DobbyWeb.AdminLive do
       <section class="panel">
         <h2>Schedules</h2>
 
-        <p :if={@schedules == []} class="note">Nothing is scheduled.</p>
+        <%!-- One line, and it is the stronger of the two: a house with nothing
+              schedulable obviously has nothing scheduled, and saying both
+              stacks two negations where one is the answer. --%>
+        <p :if={@schedules == [] && @devices != []} class="note">Nothing is scheduled.</p>
 
         <div :for={schedule <- @schedules} class={["sched", !schedule.enabled && "paused"]}>
           <div class="row">
@@ -124,11 +136,30 @@ defmodule DobbyWeb.AdminLive do
           <span>put back "{@deleted.label}"</span>
         </div>
 
-        <.schedule_form form={@form} devices={@devices} arguments={@arguments} error={@error} />
+        <%!-- Pausing, deleting or restoring an existing schedule can fail, and
+              its reason belongs beside the schedules — not under the new
+              schedule form's last field, where it reads as a rejection of what
+              somebody is still typing. --%>
+        <div :if={@trouble} class="why">{@trouble}</div>
+
+        <%!-- A house with nothing schedulable used to get the form anyway: two
+              empty selects and an Add that could only be refused. The form is
+              offered when there is something for it to act on. --%>
+        <p :if={@devices == []} class="note">Nothing in this house can be scheduled.</p>
+
+        <.schedule_form
+          :if={@devices != []}
+          form={@form}
+          devices={@devices}
+          arguments={@arguments}
+          error={@error}
+        />
       </section>
 
       <section class="panel feed">
         <h2>Activity</h2>
+
+        <p :if={@blank_feed} class="note">Nothing recorded yet.</p>
 
         <div id="activity" phx-update="stream">
           <div :for={{dom_id, entry} <- @streams.activity} id={dom_id} class="entry">
@@ -258,9 +289,9 @@ defmodule DobbyWeb.AdminLive do
   def handle_event("toggle", %{"id" => id}, socket) do
     with {:ok, schedule} <- Schedules.fetch(id),
          {:ok, _updated} <- Schedules.set_enabled(id, not schedule.enabled) do
-      {:noreply, socket |> load_schedules() |> load_health() |> assign(:error, nil)}
+      {:noreply, socket |> load_schedules() |> load_health() |> assign(:trouble, nil)}
     else
-      {:error, reason} -> {:noreply, assign(socket, :error, describe(reason))}
+      {:error, reason} -> {:noreply, assign(socket, :trouble, describe(reason))}
     end
   end
 
@@ -278,12 +309,12 @@ defmodule DobbyWeb.AdminLive do
         {:noreply,
          socket
          |> assign(:deleted, %{schedule: schedule, label: schedule.label, token: token})
-         |> assign(:error, nil)
+         |> assign(:trouble, nil)
          |> load_schedules()
          |> load_health()}
 
       {:error, reason} ->
-        {:noreply, assign(socket, :error, describe(reason))}
+        {:noreply, assign(socket, :trouble, describe(reason))}
     end
   end
 
@@ -295,10 +326,14 @@ defmodule DobbyWeb.AdminLive do
             {:noreply, socket |> assign(:deleted, nil) |> load_schedules() |> load_health()}
 
           # The device it aimed at may have left the manifest in the meantime,
-          # which is a real answer and not a failure to undo.
+          # which is a real answer and not a failure to undo. It belongs beside
+          # the schedules: the row it is about is the one that just failed to
+          # come back, and there is no row left to hang it on.
           {:error, changeset} ->
             {:noreply,
-             socket |> assign(:deleted, nil) |> assign(:error, Schedules.error_message(changeset))}
+             socket
+             |> assign(:deleted, nil)
+             |> assign(:trouble, Schedules.error_message(changeset))}
         end
 
       nil ->
@@ -310,7 +345,10 @@ defmodule DobbyWeb.AdminLive do
 
   @impl true
   def handle_info({:recorded, entry}, socket) do
-    {:noreply, stream_insert(socket, :activity, entry, at: 0, limit: @feed)}
+    {:noreply,
+     socket
+     |> assign(:blank_feed, false)
+     |> stream_insert(:activity, entry, at: 0, limit: @feed)}
   end
 
   # A firing changes what `next_fire` and `status` say, and both are computed

@@ -365,6 +365,27 @@ body {
 .thread > :first-child { margin-top: auto; }
 .thread-pending { flex: 0 0 auto; padding: 0 .9rem .7rem; }
 
+/* A thread with nothing in it, said where the first line will land. Dobby does
+   not fill this space — proactive speech is a deferred decision (design §11)
+   and a greeting here would quietly take it. What fills it is the board naming
+   its own blank, and, when the house has told us enough to promise it, one
+   sentence in a person's voice: the specimen is a household utterance, which
+   is the one voice on this surface that is neither the instrument's nor his. */
+.blank { flex: 0 0 auto; padding: 0 .9rem .9rem; display: grid; gap: .3rem; }
+.blank .like {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .55rem;
+}
+.blank .like .said {
+  font-family: var(--said-type);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--ink-quiet);
+}
+
 .msg .attr { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .12rem; }
 .msg .attr .sp {
   font-family: var(--board-type);
@@ -496,7 +517,6 @@ body {
   font-size: .74rem;
   color: var(--ink-quiet);
 }
-.cards .empty { color: var(--ink-faint); }
 
 /* the fader — a control on an instrument, not a chrome slider. Square
    everywhere, brass where a hand goes. */
@@ -642,14 +662,22 @@ body {
   padding-bottom: .35rem;
   border-bottom: var(--rule);
 }
-.panel .note {
+/* An empty region on this board is a labelled blank, not an absence. The
+   record voice says what is not there, in the same lettering it uses to say
+   what is — because "nothing has happened here" is a reading like any other,
+   and a heading over a void is the board declining to answer. */
+.note {
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .07em;
   font-size: .74rem;
   color: var(--ink-faint);
 }
-.panel .note .wrong { color: var(--st-refused); }
+.note .wrong { color: var(--st-refused); }
+/* A filename is not a label, so it is not shouted. The same exception the
+   plate's `switch` takes, and for the same reason: capitals on this board mean
+   a state, a name or a time. */
+.note .file { text-transform: none; letter-spacing: .04em; color: var(--ink-quiet); }
 /* The health rows are record-keeping, not readings: the middle column says
    which process a row is about, so it takes the small voice rather than the
    1.05rem a number on the board gets. */
@@ -670,7 +698,9 @@ body {
   font-size: .74rem;
   color: var(--ink-quiet);
 }
-.sched .why {
+/* A reason, wherever it lands in this panel: on a schedule that cannot run, or
+   beside the schedules when an action on one of them failed. */
+.panel .why {
   font-size: .74rem;
   color: var(--st-refused);
 }

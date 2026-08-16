@@ -151,6 +151,30 @@ defmodule DobbyWeb.HouseLiveTest do
     end
   end
 
+  describe "a house with nothing in it" do
+    # The record voice, not Barlow. The board saying what it has is the board
+    # speaking about itself, and the only person who ever opens an unconfigured
+    # house is the one who configures it — so the line says where a house comes
+    # from rather than only that there isn't one.
+    test "says so in the board's own voice, and where a house comes from", %{conn: conn} do
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/house")
+
+      assert has_element?(view, ".cards .note", "No devices")
+      assert has_element?(view, ".cards .note .file", "home.exs")
+      refute has_element?(view, ".card")
+    end
+
+    test "still offers the way in to admin", %{conn: conn} do
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/house")
+
+      assert has_element?(view, "a.to-admin")
+    end
+  end
+
   describe "getting about" do
     test "the band on the thread opens the house", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")

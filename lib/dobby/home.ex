@@ -223,10 +223,16 @@ defmodule Dobby.Home do
         {:ok, device}
 
       :error ->
-        known = devices() |> Enum.map(& &1.id) |> Enum.join(", ")
-        {:error, "unknown device #{inspect(device_id)}; this house has: #{known}"}
+        {:error, "unknown device #{inspect(device_id)}; #{roll_call(devices())}"}
     end
   end
+
+  # A house with nothing in it used to end this sentence on a colon and stop,
+  # which reads as truncated to a person and tells the model even less than
+  # saying so. Both audiences are real: the same string reaches the admin page
+  # and the model's create_schedule refusal.
+  defp roll_call([]), do: "this house has no devices"
+  defp roll_call(devices), do: "this house has: " <> Enum.map_join(devices, ", ", & &1.id)
 
   defp expect_module(%Device{agent_module: module}, module), do: :ok
 

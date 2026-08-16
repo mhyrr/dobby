@@ -6,8 +6,68 @@
     "colorMeta": {
       "board": {
         "role": "neutral",
-        "displayName": "Enamel",
-        "canonical": "oklch(19.2% 0.019 171.2)",
+        "displayName": "Bronze Enamel",
+        "canonical": "#17140A",
+        "tonalRamp": [
+          "oklch(15.0% 0.019 93.4)",
+          "oklch(26.4% 0.019 93.4)",
+          "oklch(37.9% 0.019 93.4)",
+          "oklch(49.3% 0.019 93.4)",
+          "oklch(60.7% 0.019 93.4)",
+          "oklch(72.1% 0.019 93.4)",
+          "oklch(83.6% 0.019 93.4)",
+          "oklch(95.0% 0.019 93.4)"
+        ]
+      },
+      "board-raised": {
+        "role": "neutral",
+        "displayName": "Bronze, Raised",
+        "canonical": "#1E1B0F",
+        "tonalRamp": [
+          "oklch(15.0% 0.022 95.8)",
+          "oklch(26.4% 0.022 95.8)",
+          "oklch(37.9% 0.022 95.8)",
+          "oklch(49.3% 0.022 95.8)",
+          "oklch(60.7% 0.022 95.8)",
+          "oklch(72.1% 0.022 95.8)",
+          "oklch(83.6% 0.022 95.8)",
+          "oklch(95.0% 0.022 95.8)"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail",
+        "canonical": "rgba(30, 27, 15, .88)",
+        "tonalRamp": [
+          "oklch(15.0% 0.022 95.8)",
+          "oklch(26.4% 0.022 95.8)",
+          "oklch(37.9% 0.022 95.8)",
+          "oklch(49.3% 0.022 95.8)",
+          "oklch(60.7% 0.022 95.8)",
+          "oklch(72.1% 0.022 95.8)",
+          "oklch(83.6% 0.022 95.8)",
+          "oklch(95.0% 0.022 95.8)"
+        ]
+      },
+      "lit": {
+        "role": "neutral",
+        "displayName": "The Light",
+        "canonical": "#241F12",
+        "tonalRamp": [
+          "oklch(15.0% 0.024 89.4)",
+          "oklch(26.4% 0.024 89.4)",
+          "oklch(37.9% 0.024 89.4)",
+          "oklch(49.3% 0.024 89.4)",
+          "oklch(60.7% 0.024 89.4)",
+          "oklch(72.1% 0.024 89.4)",
+          "oklch(83.6% 0.024 89.4)",
+          "oklch(95.0% 0.024 89.4)"
+        ]
+      },
+      "patina": {
+        "role": "neutral",
+        "displayName": "Patina",
+        "canonical": "rgba(11, 23, 19, .92)",
         "tonalRamp": [
           "oklch(15.0% 0.019 171.2)",
           "oklch(26.4% 0.019 171.2)",
@@ -19,25 +79,10 @@
           "oklch(95.0% 0.019 171.2)"
         ]
       },
-      "board-raised": {
-        "role": "neutral",
-        "displayName": "Enamel, Raised",
-        "canonical": "oklch(22.0% 0.022 169.8)",
-        "tonalRamp": [
-          "oklch(15.0% 0.022 169.8)",
-          "oklch(26.4% 0.022 169.8)",
-          "oklch(37.9% 0.022 169.8)",
-          "oklch(49.3% 0.022 169.8)",
-          "oklch(60.7% 0.022 169.8)",
-          "oklch(72.1% 0.022 169.8)",
-          "oklch(83.6% 0.022 169.8)",
-          "oklch(95.0% 0.022 169.8)"
-        ]
-      },
       "flap": {
         "role": "neutral",
         "displayName": "Flap Face",
-        "canonical": "oklch(24.5% 0.022 166.1)",
+        "canonical": "#16241E",
         "tonalRamp": [
           "oklch(15.0% 0.022 166.1)",
           "oklch(26.4% 0.022 166.1)",
@@ -52,7 +97,7 @@
       "flap-edge": {
         "role": "neutral",
         "displayName": "Split",
-        "canonical": "oklch(16.7% 0.015 171.9)",
+        "canonical": "#08110E",
         "tonalRamp": [
           "oklch(15.0% 0.015 171.9)",
           "oklch(26.4% 0.015 171.9)",
@@ -64,10 +109,40 @@
           "oklch(95.0% 0.015 171.9)"
         ]
       },
+      "groove": {
+        "role": "neutral",
+        "displayName": "Groove",
+        "canonical": "#242014",
+        "tonalRamp": [
+          "oklch(15.0% 0.022 91.8)",
+          "oklch(26.4% 0.022 91.8)",
+          "oklch(37.9% 0.022 91.8)",
+          "oklch(49.3% 0.022 91.8)",
+          "oklch(60.7% 0.022 91.8)",
+          "oklch(72.1% 0.022 91.8)",
+          "oklch(83.6% 0.022 91.8)",
+          "oklch(95.0% 0.022 91.8)"
+        ]
+      },
+      "groove-edge": {
+        "role": "neutral",
+        "displayName": "Groove",
+        "canonical": "#110F07",
+        "tonalRamp": [
+          "oklch(15.0% 0.016 96.2)",
+          "oklch(26.4% 0.016 96.2)",
+          "oklch(37.9% 0.016 96.2)",
+          "oklch(49.3% 0.016 96.2)",
+          "oklch(60.7% 0.016 96.2)",
+          "oklch(72.1% 0.016 96.2)",
+          "oklch(83.6% 0.016 96.2)",
+          "oklch(95.0% 0.016 96.2)"
+        ]
+      },
       "brass": {
         "role": "primary",
         "displayName": "Brass",
-        "canonical": "oklch(65.5% 0.098 80.2)",
+        "canonical": "#B08A46",
         "tonalRamp": [
           "oklch(15.0% 0.098 80.2)",
           "oklch(26.4% 0.098 80.2)",
@@ -82,7 +157,7 @@
       "brass-dim": {
         "role": "primary",
         "displayName": "Brass, Dim",
-        "canonical": "oklch(47.8% 0.064 84.0)",
+        "canonical": "#6E5A31",
         "tonalRamp": [
           "oklch(15.0% 0.064 84.0)",
           "oklch(26.4% 0.064 84.0)",
@@ -94,10 +169,40 @@
           "oklch(95.0% 0.064 84.0)"
         ]
       },
+      "brass-lit": {
+        "role": "primary",
+        "displayName": "Brass, Lit",
+        "canonical": "#C9A568",
+        "tonalRamp": [
+          "oklch(15.0% 0.090 79.9)",
+          "oklch(26.4% 0.090 79.9)",
+          "oklch(37.9% 0.090 79.9)",
+          "oklch(49.3% 0.090 79.9)",
+          "oklch(60.7% 0.090 79.9)",
+          "oklch(72.1% 0.090 79.9)",
+          "oklch(83.6% 0.090 79.9)",
+          "oklch(95.0% 0.090 79.9)"
+        ]
+      },
+      "brass-shade": {
+        "role": "primary",
+        "displayName": "Brass, Shade",
+        "canonical": "#8B6827",
+        "tonalRamp": [
+          "oklch(15.0% 0.093 79.8)",
+          "oklch(26.4% 0.093 79.8)",
+          "oklch(37.9% 0.093 79.8)",
+          "oklch(49.3% 0.093 79.8)",
+          "oklch(60.7% 0.093 79.8)",
+          "oklch(72.1% 0.093 79.8)",
+          "oklch(83.6% 0.093 79.8)",
+          "oklch(95.0% 0.093 79.8)"
+        ]
+      },
       "ink": {
         "role": "neutral",
         "displayName": "Ink",
-        "canonical": "oklch(91.3% 0.022 89.8)",
+        "canonical": "#E8E2D2",
         "tonalRamp": [
           "oklch(15.0% 0.022 89.8)",
           "oklch(26.4% 0.022 89.8)",
@@ -112,7 +217,7 @@
       "ink-quiet": {
         "role": "neutral",
         "displayName": "Ink, Quiet",
-        "canonical": "oklch(72.5% 0.024 160.0)",
+        "canonical": "#9AABA1",
         "tonalRamp": [
           "oklch(15.0% 0.024 160.0)",
           "oklch(26.4% 0.024 160.0)",
@@ -127,7 +232,7 @@
       "ink-faint": {
         "role": "neutral",
         "displayName": "Ink, Faint",
-        "canonical": "oklch(67.6% 0.025 161.4)",
+        "canonical": "#8A9C92",
         "tonalRamp": [
           "oklch(15.0% 0.025 161.4)",
           "oklch(26.4% 0.025 161.4)",
@@ -142,22 +247,22 @@
       "rule": {
         "role": "neutral",
         "displayName": "Rule",
-        "canonical": "oklch(28.3% 0.027 168.1)",
+        "canonical": "#2E2A1A",
         "tonalRamp": [
-          "oklch(15.0% 0.027 168.1)",
-          "oklch(26.4% 0.027 168.1)",
-          "oklch(37.9% 0.027 168.1)",
-          "oklch(49.3% 0.027 168.1)",
-          "oklch(60.7% 0.027 168.1)",
-          "oklch(72.1% 0.027 168.1)",
-          "oklch(83.6% 0.027 168.1)",
-          "oklch(95.0% 0.027 168.1)"
+          "oklch(15.0% 0.028 95.8)",
+          "oklch(26.4% 0.028 95.8)",
+          "oklch(37.9% 0.028 95.8)",
+          "oklch(49.3% 0.028 95.8)",
+          "oklch(60.7% 0.028 95.8)",
+          "oklch(72.1% 0.028 95.8)",
+          "oklch(83.6% 0.028 95.8)",
+          "oklch(95.0% 0.028 95.8)"
         ]
       },
       "st-set": {
         "role": "secondary",
         "displayName": "Commanded Amber",
-        "canonical": "oklch(75.6% 0.136 76.7)",
+        "canonical": "#E0A33C",
         "tonalRamp": [
           "oklch(15.0% 0.136 76.7)",
           "oklch(26.4% 0.136 76.7)",
@@ -172,7 +277,7 @@
       "st-acting": {
         "role": "secondary",
         "displayName": "Acting Green",
-        "canonical": "oklch(72.2% 0.125 139.1)",
+        "canonical": "#7BB86A",
         "tonalRamp": [
           "oklch(15.0% 0.125 139.1)",
           "oklch(26.4% 0.125 139.1)",
@@ -187,7 +292,7 @@
       "st-refused": {
         "role": "secondary",
         "displayName": "Declined Rust",
-        "canonical": "oklch(62.5% 0.149 32.6)",
+        "canonical": "#D2604A",
         "tonalRamp": [
           "oklch(15.0% 0.149 32.6)",
           "oklch(26.4% 0.149 32.6)",
@@ -202,7 +307,7 @@
       "st-silent": {
         "role": "secondary",
         "displayName": "Silent Sage",
-        "canonical": "oklch(62.3% 0.020 169.7)",
+        "canonical": "#7C8B85",
         "tonalRamp": [
           "oklch(15.0% 0.020 169.7)",
           "oklch(26.4% 0.020 169.7)",
@@ -217,7 +322,7 @@
       "st-expected": {
         "role": "secondary",
         "displayName": "Expected Cream",
-        "canonical": "oklch(91.3% 0.022 89.8)",
+        "canonical": "#E8E2D2",
         "tonalRamp": [
           "oklch(15.0% 0.022 89.8)",
           "oklch(26.4% 0.022 89.8)",
@@ -228,35 +333,50 @@
           "oklch(83.6% 0.022 89.8)",
           "oklch(95.0% 0.022 89.8)"
         ]
+      },
+      "seam-light": {
+        "role": "neutral",
+        "displayName": "Seam, Lit",
+        "canonical": "rgba(255, 255, 255, .045)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 89.9)",
+          "oklch(26.4% 0.000 89.9)",
+          "oklch(37.9% 0.000 89.9)",
+          "oklch(49.3% 0.000 89.9)",
+          "oklch(60.7% 0.000 89.9)",
+          "oklch(72.1% 0.000 89.9)",
+          "oklch(83.6% 0.000 89.9)",
+          "oklch(95.0% 0.000 89.9)"
+        ]
       }
     },
     "typographyMeta": {
       "display": {
-        "displayName": "Utterance",
-        "purpose": "What a person said, and what Dobby answered. The largest text on the surface; capped at 62ch."
+        "displayName": "Display",
+        "purpose": "What somebody said, and what Dobby answered. The largest text on the surface; capped at 62ch."
       },
       "headline": {
-        "displayName": "Plate",
-        "purpose": "The board's own nameplate. Same size as Label, Medium and told apart by tracking alone — twice the letter-spacing, because a nameplate is spaced and a device name is not."
+        "displayName": "Headline",
+        "purpose": "The plate — the board's own nameplate. Small on purpose; it is a label riveted to an instrument, not a page title. Same size as Label, Medium and told apart by tracking alone."
       },
       "title": {
-        "displayName": "Reading",
-        "purpose": "A device's number on the board. Tabular figures."
+        "displayName": "Title",
+        "purpose": "Device readings. The number on the board, in tabular figures."
       },
       "body": {
         "displayName": "Body",
         "purpose": "The composer, and any running prose."
       },
       "label": {
-        "displayName": "Flap",
-        "purpose": "Every state word. Uppercase condensed on a flap card."
+        "displayName": "Label",
+        "purpose": "The flap. Every state word."
       },
       "label-medium": {
-        "displayName": "Board Label",
+        "displayName": "Label, Medium",
         "purpose": "Device names on the board, and the set line's placeholder."
       },
       "label-small": {
-        "displayName": "Record",
+        "displayName": "Label, Small",
         "purpose": "Attribution, timestamps, steps, system lines. The record-keeping voice."
       }
     },
@@ -264,161 +384,136 @@
       {
         "name": "flap",
         "value": "0 1px 2px rgba(0, 0, 0, .45)",
-        "purpose": "The only shadow in the system. A flap card is a physical object sitting proud of the board; without it the words look printed on rather than set into place."
+        "purpose": "The only box-shadow in the entire system — there is no second one, and adding one is a change to The One Shadow Rule rather than to a component. A flap card is a physical object sitting proud of the board; without it the words look printed on rather than set into place. Everything else that wants depth takes a tonal step or a brass rule."
       }
     ],
     "motion": [
       {
+        "name": "flap-turn",
+        "value": "300ms, keyframes perspective(340px) rotateX(-88deg) [cubic-bezier(.5,0,.7,.6)] → rotateX(9deg) at offset .68 [ease-out] → rotateX(0deg)",
+        "purpose": "The board's one moving part. When a state word changes, the card falls, overshoots its stop and settles, so it reads as a physical thing landing rather than a value being replaced. Driven from app.js by a MutationObserver on characterData — a flap arriving does not turn, only a word changing — and skipped entirely under prefers-reduced-motion."
+      },
+      {
         "name": "mark-lean",
         "value": "transform .25s ease, color .25s ease",
-        "purpose": "Dobby tilting −15° into the conversation when he is attending, and back upright when he is not."
+        "purpose": "Dobby rotating −15° into the conversation when he is attending, and back upright in faint ink when he is not. Transition removed under prefers-reduced-motion."
       },
       {
-        "name": "step-pulse",
-        "value": "opacity 1.1s ease-in-out infinite (0.3 → 1 → 0.3)",
-        "purpose": "A running step's tick, breathing while a tool call is in flight. Suppressed under prefers-reduced-motion."
+        "name": "tick-pulse",
+        "value": "pulse 1.1s ease-in-out infinite; @keyframes pulse { 0%, 100% { opacity: .3 } 50% { opacity: 1 } }",
+        "purpose": "A running step's tick breathing while a tool call is in flight. Animation set to none under prefers-reduced-motion."
       },
       {
-        "name": "disclosure",
-        "value": "transform .12s ease",
-        "purpose": "The collapsed-steps caret rotating 90° on open."
+        "name": "disclosure-caret",
+        "value": "transform .12s ease, to rotate(90deg) on [open]",
+        "purpose": "The collapsed-steps caret turning when the record of a reply's work is opened."
       }
     ],
     "breakpoints": [
       {
         "name": "wide",
-        "value": "820px"
+        "value": "820px",
+        "purpose": "The system's only global breakpoint. The thread becomes a two-column grid — a 7.5rem speaker column and the body — system lines indent to the body column, and edge padding goes from .9rem to 1.4rem. Nothing else changes; there is one composition, not two. A content breakpoint, not a device size."
       },
       {
-        "name": "admin",
-        "value": "980px"
+        "name": "admin-columns",
+        "value": "980px",
+        "purpose": "The system's second breakpoint and its only two-column layout, on /admin alone: minmax(0, 22rem) minmax(0, 1fr), with health and schedules on the left because they are short and they are where the changing happens, and the feed on the right because it is the long one."
       }
     ],
     "backdrop": [
       {
-        "name": "enamel-unevenness",
-        "value": "radial-gradient(ellipse 120% 80% at 50% -10%, #12211B 0%, transparent 60%)",
-        "purpose": "Uneven enamel under a light, behind the whole page. Material, not decoration."
+        "name": "the-plate",
+        "value": "background-color: #17140A; background-image: url(grain-svg, feTurbulence fractalNoise baseFrequency .85 numOctaves 3, opacity .04), linear-gradient(to bottom, transparent 42%, rgba(11, 23, 19, .92) 100%), radial-gradient(ellipse 120% 80% at 50% -10%, #241F12 0%, transparent 60%)",
+        "purpose": "Three layers behind the whole page, in the order a real surface has them: the grain of the enamel, the patina gathering at the foot, and the light falling from above. All three are material rather than decoration, and that is the test any fourth would have to pass. The body is exactly one viewport tall, so the foot of the patina is always the foot of the board."
       }
     ]
   },
   "components": [
     {
-      "name": "Flap",
+      "name": "The Flap",
       "kind": "chip",
       "refersTo": "flap",
-      "description": "The system's atom: a state word on a card, with the fold drawn behind the lettering.",
+      "description": "The system's atom: a state word on a cool enamel card set into the bronze plate, with the fold drawn behind the lettering and the system's one shadow under it. The word takes the state colour; the card face never does.",
       "html": "<span class=\"ds-flap\" data-st=\"set\">Set</span> <span class=\"ds-flap\" data-st=\"acting\">Warming</span> <span class=\"ds-flap\" data-st=\"refused\">Held</span> <span class=\"ds-flap\" data-st=\"silent\">Quiet</span> <span class=\"ds-flap\" data-st=\"expected\">Ready</span>",
-      "css": ".ds-flap { position: relative; display: inline-block; background: var(--flap, #16241E); padding: .16rem .5rem .18rem; min-height: 1.55rem; line-height: 1.2; color: var(--ink, #E8E2D2); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; font-size: .94rem; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.45); isolation: isolate; margin-right: .4rem; } .ds-flap::before { content: \"\"; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, transparent calc(50% - 1px), rgba(255,255,255,.045) calc(50% - 1px), rgba(255,255,255,.045) 50%, var(--flap-edge, #08110E) 50%, var(--flap-edge, #08110E) calc(50% + 1px), transparent calc(50% + 1px)); } .ds-flap[data-st=\"set\"] { color: var(--st-set, #E0A33C); } .ds-flap[data-st=\"acting\"] { color: var(--st-acting, #7BB86A); } .ds-flap[data-st=\"refused\"] { color: var(--st-refused, #D2604A); } .ds-flap[data-st=\"silent\"] { color: var(--st-silent, #7C8B85); } .ds-flap[data-st=\"expected\"] { color: var(--st-expected, #E8E2D2); }"
+      "css": ".ds-flap { position: relative; display: inline-block; background: var(--flap, #16241E); padding: .16rem .5rem .18rem; min-height: var(--ds-flap-h, 1.55rem); line-height: 1.2; color: var(--ink, #E8E2D2); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; font-size: .94rem; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, .45); isolation: isolate; transform-origin: center center; backface-visibility: hidden; margin-right: .4rem; } .ds-flap::before { content: \"\"; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, transparent calc(50% - 1px), var(--seam-light, rgba(255,255,255,.045)) calc(50% - 1px), var(--seam-light, rgba(255,255,255,.045)) 50%, var(--flap-edge, #08110E) 50%, var(--flap-edge, #08110E) calc(50% + 1px), transparent calc(50% + 1px)); } .ds-flap[data-st=\"set\"] { color: var(--st-set, #E0A33C); } .ds-flap[data-st=\"acting\"] { color: var(--st-acting, #7BB86A); } .ds-flap[data-st=\"refused\"] { color: var(--st-refused, #D2604A); } .ds-flap[data-st=\"silent\"] { color: var(--st-silent, #7C8B85); } .ds-flap[data-st=\"expected\"] { color: var(--st-expected, #E8E2D2); } .ds-flap.ds-flap-small { font-size: .74rem; padding: .1rem .4rem .12rem; --ds-flap-h: 1.2rem; }"
     },
     {
       "name": "Board Row",
       "kind": "custom",
       "refersTo": "flap",
-      "description": "One device on the header band: name, reading, state. Most-recently-changed leads.",
-      "html": "<div class=\"ds-row\"><span class=\"ds-row-name\">Main thermostat</span><span class=\"ds-row-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"acting\">Warming</span></div><div class=\"ds-row\"><span class=\"ds-row-name\">Office printer</span><span class=\"ds-row-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Not known</span></div>",
-      "css": ".ds-row { display: grid; grid-template-columns: 1fr auto 9.5rem; align-items: center; gap: .5rem; max-width: 34rem; margin-bottom: .3rem; } .ds-row .ds-flap { justify-self: start; margin-right: 0; } .ds-row-name { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .86rem; color: var(--ink-quiet, #9AABA1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-val { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: 1.05rem; font-weight: 600; color: var(--ink, #E8E2D2); font-variant-numeric: tabular-nums; }"
+      "description": "One device on the board: name, reading, state, on a 1fr auto 9.5rem grid capped at 34rem so the flap column stays a fixed pitch however wide the screen gets. The same row is the atom of the header band, of a device card, of an admin health row and of a schedule row.",
+      "html": "<a class=\"ds-rows\" href=\"#\"><div class=\"ds-row\"><span class=\"ds-name\">Main thermostat</span><span class=\"ds-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"acting\">Warming</span></div><div class=\"ds-row\"><span class=\"ds-name\">Kitchen TV</span><span class=\"ds-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Not known</span></div></a>",
+      "css": ".ds-rows { position: relative; display: grid; gap: .3rem; max-width: 34rem; color: inherit; text-decoration: none; } .ds-rows:hover .ds-name { color: var(--ink, #E8E2D2); } .ds-row { display: grid; grid-template-columns: 1fr auto 9.5rem; align-items: center; gap: .5rem; } .ds-row .ds-flap { justify-self: start; margin-right: 0; } .ds-name { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .86rem; color: var(--ink-quiet, #9AABA1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-val { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: 1.05rem; font-weight: 600; color: var(--ink, #E8E2D2); font-variant-numeric: tabular-nums; }"
     },
     {
-      "name": "Utterance",
-      "kind": "custom",
-      "refersTo": "utterance",
-      "description": "One line of the household thread. Never aligned or coloured by author.",
-      "html": "<div class=\"ds-msg\"><div class=\"ds-attr\"><span class=\"ds-sp\">greg</span><span class=\"ds-t\">4:12 PM</span></div><p class=\"ds-said\">set the thermostat to 70</p></div>",
-      "css": ".ds-msg { margin-bottom: 1.05rem; } .ds-attr { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .12rem; } .ds-sp { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; font-size: .74rem; font-weight: 600; color: var(--brass, #B08A46); } .ds-t { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; color: var(--ink-faint, #8A9C92); letter-spacing: .05em; font-variant-numeric: tabular-nums; } .ds-said { font-family: Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 1.12rem; line-height: 1.35; color: var(--ink, #E8E2D2); max-width: 62ch; margin: 0; }"
+      "name": "The Plate",
+      "kind": "nav",
+      "refersTo": "flap",
+      "description": "The board's nameplate, worn by every route, ruled underneath with a hairline: where you are, who is speaking, the mark, and a LISTENING / QUIET flap. The name is the way back — there is no navigation bar — and 'switch' is lower case because it is a verb, not a label.",
+      "html": "<div class=\"ds-plate\"><h1><a href=\"#\">The House</a><span class=\"ds-sep\">&middot;</span><span class=\"ds-section\">Devices</span></h1><div class=\"ds-who\"><span class=\"ds-speaking-as\"><span class=\"ds-sp-name\">Greg</span><button type=\"button\">switch</button></span><span class=\"ds-flap ds-flap-small\" data-st=\"acting\">Listening</span></div></div>",
+      "css": ".ds-plate { position: relative; display: flex; align-items: baseline; justify-content: space-between; padding: .55rem .9rem .7rem; background: var(--rail, rgba(30, 27, 15, .88)); border-bottom: 1px solid var(--rule, #2E2A1A); } .ds-plate h1 { display: flex; align-items: baseline; gap: .5rem; margin: 0; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .16em; font-size: .86rem; font-weight: 600; color: var(--brass, #B08A46); } .ds-plate h1 a { color: inherit; text-decoration: none; } .ds-plate h1 a:hover { text-decoration: underline; text-underline-offset: .2rem; } .ds-plate h1 a:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; } .ds-sep { color: var(--brass-dim, #6E5A31); letter-spacing: normal; } .ds-section { color: var(--ink-quiet, #9AABA1); } .ds-who { display: flex; align-items: center; gap: .6rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-speaking-as { display: flex; align-items: stretch; } .ds-sp-name { color: var(--ink-quiet, #9AABA1); padding-right: .45rem; } .ds-speaking-as button { background: transparent; border: 0; border-left: 1px solid var(--rule, #2E2A1A); padding: 0 0 0 .45rem; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass-dim, #6E5A31); } .ds-speaking-as button:hover { color: var(--brass, #B08A46); } .ds-speaking-as button:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; }"
     },
     {
-      "name": "Steps",
-      "kind": "custom",
-      "refersTo": "step",
-      "description": "The board showing its work: one row per tool call, in device language. A held step carries its reason on its own line.",
-      "html": "<div class=\"ds-steps\"><div class=\"ds-step ds-step-done\"><span class=\"ds-tick\"></span>writing down morning warmup</div><div class=\"ds-step ds-step-held\"><span class=\"ds-tick\"></span>setting the main thermostat<span class=\"ds-why\">&mdash; 85&deg; is above the main thermostat's maximum of 76&deg;</span></div><div class=\"ds-step ds-step-running\"><span class=\"ds-tick\"></span>checking the kitchen TV</div></div>",
-      "css": ".ds-steps { display: grid; gap: .28rem; } .ds-step { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-tick { width: 8px; height: 8px; flex: 0 0 auto; border: 1px solid var(--ink-faint, #8A9C92); } .ds-step-done .ds-tick { background: var(--st-acting, #7BB86A); border-color: var(--st-acting, #7BB86A); } .ds-step-held .ds-tick { background: var(--st-refused, #D2604A); border-color: var(--st-refused, #D2604A); } .ds-step-running .ds-tick { animation: ds-pulse 1.1s ease-in-out infinite; } @keyframes ds-pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } } .ds-why { flex: 1 0 100%; margin-left: 1rem; color: var(--st-refused, #D2604A); text-transform: none; letter-spacing: 0; } @media (prefers-reduced-motion: reduce) { .ds-step-running .ds-tick { animation: none; } }"
+      "name": "The Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A board row that grew a control. Same three columns, same vocabulary, same 34rem pitch — what a card adds is the room underneath the row. Separated by a hairline rule and padding rather than a border, a fill or a shadow: a card is not a panel. One column on every viewport.",
+      "html": "<div class=\"ds-cards\"><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-name\">Main thermostat</span><span class=\"ds-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"set\">Set</span></div><div class=\"ds-detail\">Room 68&deg;</div></article><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-name\">Kitchen TV</span><span class=\"ds-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Quiet</span></div><div class=\"ds-detail\">Since 4:12 PM</div></article></div>",
+      "css": ".ds-cards { display: grid; gap: .9rem; align-content: start; max-width: 34rem; padding: .9rem .9rem 1.4rem; } .ds-card { display: grid; gap: .5rem; padding: .7rem 0 .8rem; border-top: 1px solid var(--rule, #2E2A1A); } .ds-card:first-child { border-top: 0; } .ds-detail { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } @media (min-width: 820px) { .ds-cards { padding: 1.2rem 1.4rem 1.8rem; } }"
+    },
+    {
+      "name": "The Fader",
+      "kind": "input",
+      "refersTo": "fader-thumb",
+      "description": "The setpoint control, and the only place in this house where a fat finger actuates something. The groove is cut into the plate — groove material, a groove-edge line on top and a seam-light line under it, the same construction as the flap's fold — and the travelled part is brass-dim. The thumb is a machined slug in three layers: a witness line, the knurl, and brass falling from brass-lit at the top edge to brass-shade at the bottom. The asking label rides the thumb in commanded amber and is on the board only while a finger is down.",
+      "html": "<div class=\"ds-fader\" style=\"--at: 55%\"><div class=\"ds-asking ds-live\" style=\"left: 55%\">72&deg;</div><input type=\"range\" min=\"60\" max=\"80\" value=\"72\" aria-label=\"Set the main thermostat\" /><div class=\"ds-ends\"><span>60&deg;</span><span>80&deg;</span></div></div>",
+      "css": ".ds-fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; max-width: 34rem; --ds-thumb: linear-gradient(to right, transparent 0 6px, var(--brass-shade, #8B6827) 6px 7px, transparent 7px), repeating-linear-gradient(to bottom, var(--brass-shade, #8B6827) 0 1px, transparent 1px 3px), linear-gradient(to bottom, var(--brass-lit, #C9A568) 0%, var(--brass, #B08A46) 42%, var(--brass-shade, #8B6827) 100%); } .ds-fader input[type=\"range\"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.4rem; background: transparent; cursor: pointer; } .ds-fader input[type=\"range\"]::-webkit-slider-runnable-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-moz-range-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 1.5rem; margin-top: calc((6px - 1.5rem) / 2); background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]::-moz-range-thumb { width: 13px; height: 1.5rem; background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; } .ds-asking { position: absolute; top: -1.05rem; transform: translateX(-50%); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .86rem; font-weight: 600; letter-spacing: .05em; color: var(--st-set, #E0A33C); opacity: 0; pointer-events: none; } .ds-asking.ds-live { opacity: 1; } .ds-ends { display: flex; justify-content: space-between; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .05em; color: var(--ink-faint, #8A9C92); font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "The Undo Line",
+      "kind": "button",
+      "refersTo": "undo-line",
+      "description": "The system's alternative to a confirm dialog: do it, then offer a way back for eight seconds. The button — transparent, no border but a 1px brass-dim underline, brass lettering, lower case — is the system's quiet control, and the same treatment carries pause, resume, delete and the form's Add. A refusal is not an undo: HELD and its reason stay until the next attempt.",
+      "html": "<div class=\"ds-undo\"><button type=\"button\">undo</button><span>back to 70&deg;</span></div><div class=\"ds-undo ds-held\"><span class=\"ds-flap ds-flap-small\" data-st=\"refused\">Held</span><span class=\"ds-why\">the thermostat is in a hold until 6 pm</span></div>",
+      "css": ".ds-undo { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-undo button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass, #B08A46); } .ds-undo button:hover { color: var(--ink, #E8E2D2); } .ds-undo button:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; } .ds-held .ds-why { color: var(--st-refused, #D2604A); text-transform: none; letter-spacing: 0; }"
     },
     {
       "name": "System Line",
       "kind": "custom",
       "refersTo": "system-line",
-      "description": "The intervention record: what changed in the house, by whatever path.",
-      "html": "<div class=\"ds-sys\"><span class=\"ds-dev\">Main thermostat set 70&deg;</span><span class=\"ds-via\">&mdash; greg</span></div>",
-      "css": ".ds-sys { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; padding: .28rem 0; border-top: 1px solid var(--rule, #1C2E27); border-bottom: 1px solid var(--rule, #1C2E27); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-dev { color: var(--ink, #E8E2D2); } .ds-via { color: var(--ink-faint, #8A9C92); }"
+      "description": "The intervention record: what changed in the house, by whatever path. Ruled above and below with hairlines, condensed uppercase, the device name in full ink because it is the content of the line and the via half in faint ink. The word is always SET, or HELD for a device that declined; a refusal's reason takes its own line in sentence case and declined rust. Indents to the body column at 820px.",
+      "html": "<div class=\"ds-sys\"><span class=\"ds-dev\">Main thermostat</span><span class=\"ds-flap ds-flap-small\" data-st=\"set\">Set</span><span class=\"ds-sys-val\">70&deg;</span><span class=\"ds-via\">via greg</span></div><div class=\"ds-sys\"><span class=\"ds-dev\">Kitchen TV</span><span class=\"ds-flap ds-flap-small\" data-st=\"refused\">Held</span><span class=\"ds-via\">via weeknight heat</span><span class=\"ds-why\">the kitchen TV has not answered since 3:40 PM</span></div>",
+      "css": ".ds-sys { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; padding: .28rem 0; border-top: 1px solid var(--rule, #2E2A1A); border-bottom: 1px solid var(--rule, #2E2A1A); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); font-variant-numeric: tabular-nums; } .ds-sys .ds-dev { color: var(--ink, #E8E2D2); } .ds-sys .ds-sys-val { color: var(--ink, #E8E2D2); font-size: .86rem; } .ds-sys .ds-via { color: var(--ink-faint, #8A9C92); } .ds-sys .ds-why { flex: 1 0 100%; color: var(--st-refused, #D2604A); text-transform: none; letter-spacing: 0; } .ds-sys .ds-flap { margin-right: 0; } @media (min-width: 820px) { .ds-sys { padding-left: 8.6rem; } }"
     },
     {
-      "name": "Set Line",
+      "name": "The Set Line",
       "kind": "input",
       "refersTo": "set-line-input",
-      "description": "The composer, as the board's set line. Transparent input on the raised rail, brass rule above, brass send arrow behind a hairline.",
-      "html": "<form class=\"ds-setline\" onsubmit=\"return false\"><input class=\"ds-setline-input\" type=\"text\" placeholder=\"say something\" aria-label=\"Say something to Dobby\"><button class=\"ds-setline-btn\" type=\"submit\" aria-label=\"Send\"><svg viewBox=\"0 0 17 17\" fill=\"none\" aria-hidden=\"true\"><path d=\"M2 8.5h12M9.5 4l4.5 4.5L9.5 13\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"square\"/></svg></button></form>",
-      "css": ".ds-setline { display: flex; align-items: stretch; border-top: 2px solid var(--brass-dim, #6E5A31); background: var(--board-raised, #101E19); } .ds-setline-input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--ink, #E8E2D2); font-family: Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 1rem; padding: .85rem .9rem; caret-color: var(--st-set, #E0A33C); } .ds-setline-input::placeholder { color: var(--ink-faint, #8A9C92); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .86rem; } .ds-setline-input:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: -2px; border-radius: 1px; } .ds-setline-btn { background: transparent; border: 0; border-left: 1px solid var(--rule, #1C2E27); padding: 0 1.05rem; cursor: pointer; color: var(--brass, #B08A46); display: flex; align-items: center; } .ds-setline-btn svg { width: 17px; height: 17px; } .ds-setline-btn:hover { color: var(--ink, #E8E2D2); } .ds-setline-btn:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: -2px; }"
+      "description": "The composer as the board's set line: a transparent input on the raised rail, no border, a 2px brass rule above it, and a brass send arrow behind a hairline divider. The placeholder is condensed uppercase, deliberately a label rather than a sentence. The caret is commanded amber and focus-visible draws a 2px amber ring — the one global interactive state in the system.",
+      "html": "<form class=\"ds-set-line\" onsubmit=\"return false\"><input type=\"text\" placeholder=\"say something\" aria-label=\"Say something to Dobby\" /><button type=\"submit\" aria-label=\"Send\"><svg viewBox=\"0 0 17 17\" fill=\"none\" aria-hidden=\"true\"><path d=\"M2 8.5h12M9.5 4l4.5 4.5L9.5 13\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"square\" /></svg></button></form>",
+      "css": ".ds-set-line { display: flex; align-items: stretch; border-top: 2px solid var(--brass-dim, #6E5A31); background: var(--rail, rgba(30, 27, 15, .88)); } .ds-set-line input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--ink, #E8E2D2); font-family: Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 1rem; padding: .85rem .9rem; caret-color: var(--st-set, #E0A33C); } .ds-set-line input::placeholder { color: var(--ink-faint, #8A9C92); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .86rem; } .ds-set-line input:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: -2px; border-radius: 1px; } .ds-set-line button { background: transparent; border: 0; border-left: 1px solid var(--rule, #2E2A1A); padding: 0 1.05rem; cursor: pointer; color: var(--brass, #B08A46); display: flex; align-items: center; } .ds-set-line button svg { width: 17px; height: 17px; } .ds-set-line button:hover { color: var(--ink, #E8E2D2); } .ds-set-line button:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: -2px; border-radius: 1px; }"
     },
     {
-      "name": "The Mark",
-      "kind": "custom",
-      "refersTo": "flap",
-      "description": "Dobby, drawn in ink. Attending he leans −15° in full ink; quiet he sits upright in faint ink. Never rendered below 40px.",
-      "html": "<div class=\"ds-mark-row\"><svg class=\"ds-mark ds-attending\" width=\"44\" height=\"44\" viewBox=\"0 0 1000 1000\" role=\"img\" aria-label=\"Dobby\"><g fill=\"none\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><g id=\"ds-ear\"><path fill=\"var(--board-raised, #101E19)\" d=\"M 340 430 C 245 408, 120 376, 55 368 C 58 486, 150 645, 355 725\"/><path d=\"M 128 424 C 188 476, 248 572, 298 660\"/></g><use href=\"#ds-ear\" transform=\"translate(1000 0) scale(-1 1)\"/><ellipse cx=\"500\" cy=\"520\" rx=\"235\" ry=\"290\" fill=\"var(--board-raised, #101E19)\"/><path d=\"M 372 537 Q 410 509, 448 537\"/><path d=\"M 552 537 Q 590 509, 628 537\"/><path d=\"M 376 599 Q 410 633, 444 599\"/><path d=\"M 556 599 Q 590 633, 624 599\"/><path d=\"M 483 660 Q 500 676, 517 660\"/><path d=\"M 433 707 Q 500 749, 567 707\"/></g></svg><span class=\"ds-flap\" data-st=\"acting\">Listening</span></div>",
-      "css": ".ds-mark-row { display: flex; align-items: center; gap: .6rem; background: var(--board-raised, #101E19); padding: .55rem .9rem; } .ds-mark { flex: 0 0 auto; display: block; color: var(--ink-faint, #8A9C92); transition: transform .25s ease, color .25s ease; } .ds-mark.ds-attending { color: var(--ink, #E8E2D2); transform: rotate(-15deg); } @media (prefers-reduced-motion: reduce) { .ds-mark { transition: none; } }"
-    },
-    {
-      "name": "The Plate",
-      "kind": "custom",
-      "refersTo": "flap",
-      "description": "The board's nameplate, worn by every route: where you are, who is speaking, and whether anything is listening. The name is the way back; there is no navigation bar.",
-      "html": "<div class=\"ds-plate\"><h1><a href=\"#\">The House</a><span class=\"ds-sep\">&middot;</span><span class=\"ds-section\">Devices</span></h1><div class=\"ds-who\"><span class=\"ds-speaking\"><span class=\"ds-name\">Greg</span><button type=\"button\">switch</button></span><span class=\"ds-flap\" data-st=\"acting\">Listening</span></div></div>",
-      "css": ".ds-plate { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: .45rem; border-bottom: 1px solid var(--rule, #1C2E27); background: var(--board-raised, #101E19); } .ds-plate h1 { display: flex; align-items: baseline; gap: .5rem; margin: 0; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .16em; font-size: .86rem; font-weight: 600; color: var(--brass, #B08A46); } .ds-plate h1 a { color: inherit; text-decoration: none; } .ds-sep { color: var(--brass-dim, #6E5A31); letter-spacing: normal; } .ds-section { color: var(--ink-quiet, #9AABA1); } .ds-who { display: flex; align-items: center; gap: .6rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-speaking { display: flex; align-items: stretch; } .ds-speaking .ds-name { padding-right: .45rem; } .ds-speaking button { background: transparent; border: 0; border-left: 1px solid var(--rule, #1C2E27); padding: 0 0 0 .45rem; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass-dim, #6E5A31); } .ds-who .ds-flap { font-size: .74rem; padding: .1rem .4rem .12rem; min-height: 1.2rem; }"
-    },
-    {
-      "name": "The Card",
-      "kind": "custom",
-      "refersTo": "card",
-      "description": "A board row that grew a control. Same three columns, same vocabulary, same 34rem pitch; what a card adds is the room underneath. One column on every viewport.",
-      "html": "<article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-row-name\">Main thermostat</span><span class=\"ds-row-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"set\">Set</span></div><div class=\"ds-detail\">Room 68&deg;</div></article><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-row-name\">Office printer</span><span class=\"ds-row-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Quiet</span></div><div class=\"ds-detail\">Since 4:12 PM</div></article>",
-      "css": ".ds-card { display: grid; gap: .5rem; padding: .7rem 0 .8rem; max-width: 34rem; border-top: 1px solid var(--rule, #1C2E27); } .ds-card:first-of-type { border-top: 0; } .ds-detail { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); }"
-    },
-    {
-      "name": "The Fader",
-      "kind": "custom",
-      "refersTo": "fader-thumb",
-      "description": "The setpoint control. Square brass thumb, a groove built from flap-edge over seam-light the way the flap's fold is, commits on release rather than on drag, and a commanded-amber asking label that rides the thumb only while a finger is down.",
-      "html": "<div class=\"ds-fader\"><div class=\"ds-asking\" style=\"left: 55%\">72&deg;</div><input type=\"range\" min=\"60\" max=\"80\" value=\"72\" aria-label=\"Set the main thermostat\" /><div class=\"ds-ends\"><span>60&deg;</span><span>80&deg;</span></div></div>",
-      "css": ".ds-fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; max-width: 34rem; } .ds-fader input[type=\"range\"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.4rem; background: transparent; cursor: pointer; } .ds-fader input[type=\"range\"]::-webkit-slider-runnable-track { height: 4px; background: var(--flap, #16241E); border-top: 1px solid var(--flap-edge, #08110E); border-bottom: 1px solid rgba(255,255,255,.045); } .ds-fader input[type=\"range\"]::-moz-range-track { height: 4px; background: var(--flap, #16241E); border-top: 1px solid var(--flap-edge, #08110E); border-bottom: 1px solid rgba(255,255,255,.045); } .ds-fader input[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 1.35rem; margin-top: calc((6px - 1.35rem) / 2); background: var(--brass, #B08A46); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]::-moz-range-thumb { width: 10px; height: 1.35rem; background: var(--brass, #B08A46); border: 0; border-radius: 0; } .ds-asking { position: absolute; top: -1.05rem; transform: translateX(-50%); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .86rem; font-weight: 600; letter-spacing: .05em; color: var(--st-set, #E0A33C); pointer-events: none; } .ds-ends { display: flex; justify-content: space-between; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .05em; color: var(--ink-faint, #8A9C92); }"
-    },
-    {
-      "name": "The Undo Line",
-      "kind": "custom",
-      "refersTo": "undo-line",
-      "description": "The system's alternative to a confirm dialog: do it, then offer a way back for eight seconds. Used by the card and by the admin's schedule delete. The underlined brass button is the system's quiet control, shared with pause, resume, delete and Add.",
-      "html": "<div class=\"ds-undo\"><button type=\"button\">undo</button><span>back to 70&deg;</span></div><div class=\"ds-undo ds-held\"><span class=\"ds-flap\" data-st=\"refused\">Held</span><span class=\"ds-why\">the thermostat is in a hold until 6 pm</span></div>",
-      "css": ".ds-undo { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-undo button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass, #B08A46); } .ds-held .ds-flap { font-size: .74rem; padding: .1rem .4rem .12rem; min-height: 1.2rem; } .ds-why { color: var(--st-refused, #D2604A); text-transform: none; letter-spacing: 0; }"
-    },
-    {
-      "name": "Schedule Row",
-      "kind": "custom",
-      "refersTo": "flap",
-      "description": "A schedule on /admin: row, detail, reason, actions. READY while it waits for its time, HELD when it can no longer reach its device. A paused schedule gets no flap at all, because none of the eight words means 'somebody switched this off'.",
-      "html": "<div class=\"ds-sched\"><div class=\"ds-row\"><span class=\"ds-row-name\">Weeknight heat</span><span class=\"ds-row-val\">0 20 * * 1-5</span><span class=\"ds-flap\" data-st=\"expected\">Ready</span></div><div class=\"ds-sched-detail\">main thermostat &middot; set_temperature 70 &middot; next Mon 8:00 PM</div><div class=\"ds-acts\"><button type=\"button\">pause</button><button type=\"button\">delete</button></div></div><div class=\"ds-sched ds-paused\"><div class=\"ds-row\"><span class=\"ds-row-name\">Morning warmup</span><span class=\"ds-row-val\">0 6 * * *</span></div><div class=\"ds-sched-detail\">main thermostat &middot; set_temperature 68</div><div class=\"ds-acts\"><button type=\"button\">resume</button><button type=\"button\">delete</button></div></div>",
-      "css": ".ds-sched { display: grid; gap: .3rem; padding: .5rem 0; border-top: 1px solid var(--rule, #1C2E27); max-width: 34rem; } .ds-sched:first-of-type { border-top: 0; } .ds-sched-detail, .ds-acts { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } .ds-acts { display: flex; gap: .9rem; } .ds-acts button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font: inherit; letter-spacing: inherit; text-transform: none; cursor: pointer; color: var(--brass, #B08A46); } .ds-paused .ds-row-name, .ds-paused .ds-row-val, .ds-paused .ds-sched-detail { color: var(--ink-faint, #8A9C92); }"
-    },
-    {
-      "name": "Schedule Form",
-      "kind": "custom",
-      "refersTo": "schedule-input",
-      "description": "The only form inputs in the system: a filled flap ground, a brass-dim underline and no other border, no radius, a commanded-amber caret, and the field's name above it in the record voice.",
-      "html": "<form class=\"ds-new-sched\"><label><span>Label</span><input type=\"text\" value=\"Weeknight heat\" /></label><label><span>Cron</span><input type=\"text\" placeholder=\"0 20 * * 1-5\" /></label><div class=\"ds-form-why\">cron has an invalid field</div><button type=\"submit\">Add</button></form>",
-      "css": ".ds-new-sched { display: grid; gap: .6rem; padding-top: .7rem; border-top: 2px solid var(--brass-dim, #6E5A31); justify-items: start; max-width: 22rem; } .ds-new-sched label { display: grid; gap: .2rem; width: 100%; } .ds-new-sched label span { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-new-sched input { width: 100%; background: var(--flap, #16241E); border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); border-radius: 0; color: var(--ink, #E8E2D2); font-family: \"Barlow\", ui-sans-serif, system-ui, sans-serif; font-size: 1rem; padding: .4rem .5rem; caret-color: var(--st-set, #E0A33C); } .ds-new-sched input::placeholder { color: var(--ink-faint, #8A9C92); } .ds-form-why { font-size: .86rem; color: var(--st-refused, #D2604A); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; } .ds-new-sched button { background: transparent; border: 0; border-bottom: 1px solid var(--brass-dim, #6E5A31); padding: 0; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .07em; cursor: pointer; color: var(--brass, #B08A46); }"
-    },
-    {
-      "name": "Activity Feed",
+      "name": "Feed Row",
       "kind": "custom",
       "refersTo": "feed-entry",
-      "description": "The full record on /admin: a fixed five-column grid so a streaming log does not shift its columns under a reader. What and who truncate rather than wrap; took is right-aligned.",
+      "description": "The full record on /admin: a fixed five-column grid — time, kind, what, who, took — hairline-ruled between entries, in the record voice. Fixed pitch so a streaming log does not shift its columns under a reader; what and who truncate rather than wrap, and took is right-aligned.",
       "html": "<div class=\"ds-feed\"><div class=\"ds-entry\"><span class=\"ds-t\">8:00:04 PM</span><span class=\"ds-kind\">schedule</span><span class=\"ds-what\">main thermostat &middot; set_temperature</span><span class=\"ds-who\">weeknight heat</span><span class=\"ds-took\">0.4 s</span></div><div class=\"ds-entry\"><span class=\"ds-t\">7:58:11 PM</span><span class=\"ds-kind\">control</span><span class=\"ds-what\">main thermostat &middot; set_temperature</span><span class=\"ds-who\">greg, card</span><span class=\"ds-took\">0.2 s</span></div></div>",
-      "css": ".ds-entry { display: grid; grid-template-columns: 5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem; gap: .5rem; align-items: baseline; padding: .18rem 0; border-top: 1px solid var(--rule, #1C2E27); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .05em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); font-variant-numeric: tabular-nums; } .ds-entry .ds-t, .ds-entry .ds-took { color: var(--ink-faint, #8A9C92); } .ds-entry .ds-what { color: var(--ink, #E8E2D2); overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-kind, .ds-entry .ds-who, .ds-entry .ds-what { white-space: nowrap; } .ds-entry .ds-who { overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-took { text-align: right; }"
+      "css": ".ds-feed { min-width: 0; } .ds-entry { display: grid; grid-template-columns: 5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem; gap: .5rem; align-items: baseline; padding: .18rem 0; border-top: 1px solid var(--rule, #2E2A1A); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .05em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); font-variant-numeric: tabular-nums; } .ds-entry .ds-t, .ds-entry .ds-took { color: var(--ink-faint, #8A9C92); } .ds-entry .ds-what { color: var(--ink, #E8E2D2); overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-kind, .ds-entry .ds-who, .ds-entry .ds-what { white-space: nowrap; } .ds-entry .ds-who { overflow: hidden; text-overflow: ellipsis; } .ds-entry .ds-took { text-align: right; }"
+    },
+    {
+      "name": "Utterance",
+      "kind": "custom",
+      "refersTo": "utterance",
+      "description": "One line of the household thread, and the largest text on the surface: the only thing set in Barlow at reading scale, capped at 62ch. Speaker in brass condensed uppercase, time in faint ink — inline above on phone, a fixed 7.5rem column at 820px. Never aligned, indented or coloured by author.",
+      "html": "<div class=\"ds-msg\"><div class=\"ds-attr\"><span class=\"ds-sp\">greg</span><span class=\"ds-t\">4:12 PM</span></div><p class=\"ds-said\">set the thermostat to 70</p></div>",
+      "css": ".ds-msg { margin-bottom: 1.05rem; } .ds-attr { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .12rem; } .ds-attr .ds-sp { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; font-size: .74rem; font-weight: 600; color: var(--brass, #B08A46); } .ds-attr .ds-t { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; color: var(--ink-faint, #8A9C92); letter-spacing: .05em; font-variant-numeric: tabular-nums; } .ds-said { margin: 0; font-family: Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 1.12rem; line-height: 1.35; color: var(--ink, #E8E2D2); max-width: 62ch; } @media (min-width: 820px) { .ds-msg { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0 1.1rem; align-items: baseline; } .ds-attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; } }"
     }
   ],
   "narrative": {
     "northStar": "The Departure Board",
-    "overview": "A split-flap board can only display what it was set to. It cannot show a state nobody commanded. That mechanical fact is the whole system: Dobby is forbidden to claim a room got warm when all that happened was a command being accepted, and the surface enforces the same honesty in its materials rather than in a paragraph of prose. Every state on this board is a word on a flap, and a word had to be set by somebody.\n\nThe world is a magical household instrument — enamel ground, brass rules, painted lettering — not a wizard. It is alive and honest rather than ornate. Register was pinned as fun, hearted and magical, and then narrowed: the magic is that the object is alive, not that it talks like a spellbook. Nothing in the copy uses wizarding diction, and no trademarked franchise asset appears anywhere.\n\nDensity is low and deliberate. The board carries two or three device rows and then gets out of the way; the conversation below it is set at reading scale because what a person said is the material this product is made of. The record-keeping — steps, timings, system lines — is what gets small.",
+    "overview": "A split-flap board can only display what it was set to. It cannot show a state nobody commanded. That mechanical fact is the whole system: Dobby is forbidden to claim a room got warm when all that happened was a command being accepted, and the surface enforces the same honesty in its materials rather than in a paragraph of prose. Every state on this board is a word on a flap, and a word had to be set by somebody.\n\nThe world is a magical household instrument — enamel ground, brass rules, painted lettering — not a wizard. It is alive and honest rather than ornate. Register was pinned as fun, hearted and magical, and then narrowed: the magic is that the object is alive, not that it talks like a spellbook. Nothing in the copy uses wizarding diction, and no trademarked franchise asset appears anywhere.\n\nDensity is low and deliberate. The board carries two or three device rows and then gets out of the way; the conversation below it is set at reading scale because what a person said is the material this product is made of. The record-keeping — steps, timings, system lines — is what gets small.\n\nConfirmed anti-references: the dark card grid with a circular dial, which shows a number and tells you nothing about who set it or whether it took; parchment, wax-seal and filigree pastiche; any trademarked franchise mark.",
     "keyCharacteristics": [
       "Words on flaps, never icons and never bare numbers",
       "Five reserved state colours and no sixth",
@@ -430,7 +525,7 @@
     "rules": [
       {
         "name": "The Palette Law",
-        "body": "Five reserved state colours, each meaning exactly one thing, used decoratively nowhere. A sixth state colour is a design change, not a CSS change. Audit test: search the stylesheet for a state colour outside a [data-st] selector, a tick, a refusal reason, or one of the four sanctioned sites — commanded amber on a caret, on the focus ring and on the fader's asking label, and declined rust on a reason — there should be none.",
+        "body": "Five reserved state colours, each meaning exactly one thing, used decoratively nowhere. A sixth state colour is a design change, not a CSS change. Audit test: search the stylesheet for a state colour outside a `[data-st]` selector, a tick, a refusal reason, or one of the four sanctioned sites listed below — there should be none.",
         "section": "colors"
       },
       {
@@ -464,13 +559,23 @@
         "section": "layout"
       },
       {
+        "name": "The No Nav Rule",
+        "body": "Navigation is carried by things that already exist — the nameplate, the band of rows, one quiet link at the foot of a page. A shell of links around this would be a second visual language arguing with the first. Audit test: no route may introduce a nav element; a new page earns its way in from a surface that already leads somewhere.",
+        "section": "layout"
+      },
+      {
         "name": "The One Shadow Rule",
-        "body": "The flap has the only box-shadow in the system. Anything else that wants depth gets a tonal step or a brass rule instead.",
+        "body": "The flap has the only `box-shadow` in the system. Anything else that wants depth gets a tonal step or a brass rule instead.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Material Rule",
+        "body": "Every colour in the system belongs to one of three materials — the bronze plate, the enamel cards, the brass-and-cream ink — or to a state. A colour that belongs to none of them has no business here, and that is the question to ask of any addition: *what is it made of?* It is also the reason the cool green survived the plate going warm. It was not kept because it was liked; it was given a job — the cards, and the oxidation — and a colour with a job is material, while the same colour used for emphasis would have been a second green two shades from Acting Green, on a board whose whole argument is that a colour means exactly one thing.",
         "section": "elevation"
       },
       {
         "name": "The Fold Rule",
-        "body": "The fold is drawn behind the lettering, never across it. A seam over the glyphs reads as a strikethrough, and a struck word means cancelled — which would be a lie about every state on this board.",
+        "body": "The fold is drawn *behind* the lettering, never across it. A seam over the glyphs reads as a strikethrough, and a struck word means cancelled — which would be a lie about every state on this board.",
         "section": "shapes"
       },
       {
@@ -480,27 +585,17 @@
       },
       {
         "name": "The Commanded-Not-Observed Rule",
-        "body": "SET means a value was commanded. WARMING means the house reported the device acting on it. The board never infers a state from a reading alone, because that is precisely the lie Dobby is forbidden to tell.",
+        "body": "`SET` means a value was commanded. `WARMING` means the house reported the device acting on it. The board never infers a state from a reading alone, because that is precisely the lie Dobby is forbidden to tell.",
         "section": "components"
       },
       {
         "name": "The Affirmative Loud Rule",
-        "body": "The affirmative states are the loud ones. Refusal is HELD, quietly, with its reason beside it — never a punchline in the reserved red. A design that leads with refusal is selling the wrong product.",
+        "body": "The affirmative states are the loud ones. Refusal is `HELD`, quietly, with its reason beside it — never a punchline in the reserved red. A design that leads with refusal is selling the wrong product.",
         "section": "components"
       },
       {
-        "name": "The Six Steps Rule",
-        "body": "The type ramp is six sizes and that is the whole of it. It was ten when the system was first written down — four of them inside six hundredths of a rem of each other, which is accretion rather than a scale. A seventh needs a role none of the six can carry.",
-        "section": "typography"
-      },
-      {
-        "name": "The No Nav Rule",
-        "body": "Navigation is carried by things that already exist — the nameplate, the band of rows, one quiet link at the foot of a page. A shell of links around this would be a second visual language arguing with the first. Audit test: no route may introduce a nav element; a new page earns its way in from a surface that already leads somewhere.",
-        "section": "layout"
-      },
-      {
         "name": "The Absent Word Rule",
-        "body": "When no word in the vocabulary is true of a row, the row gets no flap. A paused schedule shows none: nothing among the eight means “somebody switched this off” — QUIET is an endpoint that stopped answering and HELD is a device declining — and bending either to fit would put a word on the board that means two things. The row goes faint and its button says resume, which says it without a word. A ninth word is a design decision, not a CSS change.",
+        "body": "When no word in the vocabulary is true of a row, the row gets no flap. A paused schedule shows none: nothing among the eight means \"somebody switched this off\" — `QUIET` is an endpoint that stopped answering and `HELD` is a device declining — and bending either to fit would put a word on the board that means two things. The row goes faint and its button says `resume`, which says it without a word. A ninth word is a design decision, not a CSS change.",
         "section": "components"
       },
       {
@@ -510,7 +605,7 @@
       }
     ],
     "dos": [
-      "Do say a state in a word from the vocabulary, on a flap.",
+      "Do say a state in a word from the vocabulary above, on a flap.",
       "Do give a new state a new word before giving it a new colour. Five reserved colours, and a sixth is a design decision.",
       "Do put state colour on ink, ticks, rules and edges.",
       "Do set anything a person said in Barlow at 1.12rem, and everything the instrument says about itself in Barlow Condensed uppercase.",
@@ -518,15 +613,14 @@
       "Do use tabular figures for every number, so a changing reading does not shift the column beside it.",
       "Do draw the fold behind the lettering.",
       "Do distinguish \"not answering\" from \"not yet known\". They are different facts and the vocabulary has a word for each.",
-      "Do tell the plate heading from a device name by tracking, not by size. They are the same 0.86rem step.",
       "Do leave the flap off entirely when none of the eight words is true. Silence is a legitimate answer; a bent word is not.",
       "Do answer a destructive action with an undo line for a few seconds, instead of a confirm dialog.",
       "Do commit a drag on release, and show what is being asked for beside the control rather than in the reading."
     ],
     "donts": [
       "Don't put a tint behind readable text, in any colour.",
-      "Don't add a border-radius to a flap, an input, a button, or a panel.",
-      "Don't add a second box-shadow. Depth is tonal.",
+      "Don't add a `border-radius` to a flap, an input, a button, or a panel.",
+      "Don't add a second `box-shadow`. Depth is tonal.",
       "Don't align, indent or colour a message by who said it.",
       "Don't shrink type to make content fit. Reflow or truncate instead.",
       "Don't render the mark below 40px, and don't use the ears without the head.",

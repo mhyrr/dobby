@@ -441,6 +441,9 @@ body {
 
 /* steps — the board showing its work. Labels, never sentences. */
 .steps { margin-top: .4rem; display: grid; gap: .28rem; }
+/* The line the board says while it has nothing else to. It sits exactly where
+   the first step will, so the step lands in its place rather than under it. */
+.msg .note { margin-top: .4rem; }
 .step {
   display: flex;
   flex-wrap: wrap;
@@ -893,7 +896,7 @@ body {
     align-items: baseline;
   }
   .msg .attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; }
-  .msg .steps, .msg .collapsed { grid-column: 2; }
+  .msg .steps, .msg .collapsed, .msg .note { grid-column: 2; }
   .sys { padding-left: 8.6rem; }
 }
 

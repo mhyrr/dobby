@@ -74,6 +74,14 @@ defmodule DobbyWeb.ThreadLive.Message do
   and they are written in device language, so they never read as Dobby
   narrating his own process — which the soul bans in his voice and which this
   would otherwise smuggle back in as a feature.
+
+  Before the first step there is nothing to show, and measured against a real
+  model that is not a flicker: an actuating request runs 1.0s before its first
+  tool call and 2.1s before its first word, so this row is on the board saying
+  nothing for most of every turn. It used to say it with an ellipsis in the
+  timestamp slot — three faint dots where a time goes, which reads as a clock
+  that failed rather than as a board at work. Every other blank here says what
+  it is in the record voice, and this is the one a household sees most.
   """
   attr :pending, :map, required: true
 
@@ -82,9 +90,9 @@ defmodule DobbyWeb.ThreadLive.Message do
     <div class="msg dobby" id={"pending-" <> @pending.request_id}>
       <div class="attr">
         <span class="sp">Dobby</span>
-        <span class="t">…</span>
       </div>
       <p :if={@pending.text != ""} class="said">{Markdown.strip(@pending.text)}</p>
+      <p :if={waiting?(@pending)} class="note">{waiting(@pending.request_id)}</p>
       <div :if={@pending.steps != []} class="steps">
         <div :for={step <- @pending.steps} class={["step", "step-#{step.state}"]}>
           <span class="tick" aria-hidden="true"></span>
@@ -94,6 +102,38 @@ defmodule DobbyWeb.ThreadLive.Message do
       </div>
     </div>
     """
+  end
+
+  # The board, waiting for a word to be set on it.
+  #
+  # The instrument's own voice and never Dobby's — the condensed face only ever
+  # speaks about the board (`DESIGN.md`, The Instrument Voice Rule), so these
+  # describe the mechanism working rather than a mind at work. "Thinking" would
+  # be process narration, which the soul bans in his voice and which putting it
+  # in the board's mouth does not launder.
+  #
+  # One image, said four ways: a card is mid-turn and no word has landed. Four
+  # and not forty, because this is mounted on a kitchen wall and read several
+  # times a day for a year — a joke generator wears out where a texture does
+  # not. Extending the list is editing this list.
+  @waiting [
+    "Waiting on a word.",
+    "Still turning.",
+    "Nothing has landed yet.",
+    "No word yet."
+  ]
+
+  # Only until the board has something truer to say. The first step replaces
+  # this in the same place, so nothing reflows when it lands.
+  defp waiting?(%{text: "", steps: []}), do: true
+  defp waiting?(_pending), do: false
+
+  # Keyed on the request and not on chance: every browser watching the same
+  # turn is reading the same document (`DESIGN.md`, The Shared Document Rule),
+  # and a kitchen tablet and a phone showing two different lines for one
+  # question would be the first place that stopped being true.
+  defp waiting(request_id) do
+    Enum.at(@waiting, :erlang.phash2(request_id, length(@waiting)))
   end
 
   # After the reply lands the steps collapse to one row, because a finished

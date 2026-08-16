@@ -121,7 +121,11 @@ defmodule DobbyWeb.HouseLive.Card do
             const at = (Number(this.el.value) - min) / (max - min)
 
             asking.textContent = this.el.value + "°"
-            asking.style.left = (at * 100) + "%"
+            // A fraction and not a percentage of the width: the label sits on
+            // the slug, and a range input slides the slug's centre across a
+            // track shortened by one slug. CSS does that arithmetic, because
+            // the slug's width is a token there and a literal here.
+            asking.style.setProperty("--f", at)
             asking.classList.add("live")
 
             // The brass in the groove follows the slug, so how far it has been

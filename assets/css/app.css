@@ -124,7 +124,13 @@
 
   /* The slug, in three layers: a witness line down the middle so you can see
      exactly where it is pointing, the knurl a finger would grip, and the brass
-     itself falling from lit at the top edge to shade at the bottom. */
+     itself falling from lit at the top edge to shade at the bottom.
+
+     Its width is a token because two other things have to know it. A range
+     input does not slide its thumb from 0% to 100% — it slides the thumb's
+     *centre* from half a slug in to half a slug from the end, so anything
+     meant to sit over the slug has to be placed on that shorter travel. */
+  --slug: 13px;
   --thumb:
     linear-gradient(to right, transparent 0 6px, var(--brass-shade) 6px 7px, transparent 7px),
     repeating-linear-gradient(to bottom, var(--brass-shade) 0 1px, transparent 1px 3px),
@@ -605,6 +611,13 @@ body {
 .fader .asking {
   position: absolute;
   top: -1.05rem;
+  /* On the slug's travel and not on the track's. Placed at a flat percentage
+     of the width, the label was half a slug adrift at each end — 6.5px left of
+     the slug at the minimum and 6.5px right of it at the maximum, correct only
+     at the midpoint — and it hung ten pixels outside the fader's own measure.
+     The travelled brass keeps the flat percentage on purpose: that is an edge
+     and it lands under the slug, where nobody can see it miss. */
+  left: calc(var(--slug) / 2 + (100% - var(--slug)) * var(--f, 0));
   transform: translateX(-50%);
   font-family: var(--board-type);
   font-size: .86rem;
@@ -622,7 +635,7 @@ body {
 .fader input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 13px;
+  width: var(--slug);
   height: 1.5rem;
   /* Centred on the groove: 6px of track (4px plus its two edges) against the
      thumb. Webkit measures the thumb's margin from the track's top. */
@@ -632,7 +645,7 @@ body {
   border-radius: 0;
 }
 .fader input[type="range"]::-moz-range-thumb {
-  width: 13px;
+  width: var(--slug);
   height: 1.5rem;
   background: var(--thumb);
   border: 0;
@@ -914,11 +927,18 @@ body {
 @media (pointer: coarse) {
   /* The whole groove is the target, not the slug: a range input jumps its
      thumb to wherever the track is touched. So the height is the whole
-     question, and 22px was half of what a finger needs. The margin comes back
-     off the block so the groove stays about where the eye already found it. */
-  .fader { margin-top: .4rem; }
+     question, and 22px was half of what a finger needs.
+
+     The height is the only thing that changes, and that is this rule obeying
+     the one beside it. The block used to give 0.7rem of its top margin back so
+     the groove stayed about where the eye had found it, and the amber value
+     moved down into the taller box to follow — which put it inside the slug's
+     own 24px, amber lettering drawn across brass at about 1.2:1, on the one
+     control in this house a hand actually touches. Moving something painted is
+     what The Reach Rule forbids, and it forbade it here for a reason nobody
+     saw until the drag was watched. The label keeps the one position it has
+     and the block keeps the room to hold it. */
   .fader input[type="range"] { height: 2.75rem; }
-  .fader .asking { top: .1rem; }
 
   /* The quiet buttons — `undo`, `pause`, `delete`, `Add`, the link to admin,
      the steps disclosure, and the plate's own two. Their lettering is 12px and

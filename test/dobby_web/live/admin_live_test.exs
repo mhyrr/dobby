@@ -191,7 +191,9 @@ defmodule DobbyWeb.AdminLiveTest do
 
       {:ok, view, _html} = live(conn, "/admin")
 
-      assert has_element?(view, ".feed .entry .kind", "device_changed")
+      # The kind is stored with an underscore and read as a label — see
+      # `AdminLive.kind/1` and The Identifier Rule.
+      assert has_element?(view, ".feed .entry .kind", "device changed")
       assert has_element?(view, ".feed .entry .what", "wifi:office_printer")
     end
 

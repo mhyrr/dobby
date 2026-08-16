@@ -177,7 +177,7 @@ defmodule DobbyWeb.AdminLive do
         <div id="activity" phx-update="stream">
           <div :for={{dom_id, entry} <- @streams.activity} id={dom_id} class="entry">
             <span class="t">{at(entry)}</span>
-            <span class="kind">{entry.kind}</span>
+            <span class="kind">{kind(entry)}</span>
             <span class="what arg">{what(entry)}</span>
             <span class="who">{entry.actor}</span>
             <span class="took">{took(entry)}</span>
@@ -523,6 +523,13 @@ defmodule DobbyWeb.AdminLive do
   defp at(entry) do
     entry.inserted_at |> Home.local() |> Calendar.strftime("%-I:%M:%S %p")
   end
+
+  # The one column here that is neither an identifier nor a time: it names what
+  # sort of record a row is, which is the board's own vocabulary about its own
+  # log and therefore a label. The underscore is how the value is stored, not
+  # what it means — and a shouted underscore is the audit test for The
+  # Identifier Rule, which this column would otherwise fail while not being one.
+  defp kind(%{kind: kind}), do: kind |> to_string() |> String.replace("_", " ")
 
   defp what(%{device: nil, action: action}), do: action
   defp what(%{device: device, action: nil}), do: device

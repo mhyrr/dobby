@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-15T00:00:00Z",
+  "generatedAt": "2026-08-16T00:00:00Z",
   "title": "Design System: Dobby",
   "extensions": {
     "colorMeta": {
@@ -413,12 +413,27 @@
       {
         "name": "wide",
         "value": "820px",
-        "purpose": "The system's only global breakpoint. The thread becomes a two-column grid — a 7.5rem speaker column and the body — system lines indent to the body column, and edge padding goes from .9rem to 1.4rem. Nothing else changes; there is one composition, not two. A content breakpoint, not a device size."
+        "purpose": "The board's one width breakpoint, and the only one that touches every route. The thread becomes a two-column grid — a 7.5rem speaker column and the body — system lines indent 8.6rem to the body column, and the edge token goes from .9rem to 1.4rem. Nothing else changes; there is one composition, not two, and below the span nothing moves at all. A content breakpoint, not a device size."
       },
       {
         "name": "admin-columns",
         "value": "980px",
-        "purpose": "The system's second breakpoint and its only two-column layout, on /admin alone: minmax(0, 22rem) minmax(0, 1fr), with health and schedules on the left because they are short and they are where the changing happens, and the feed on the right because it is the long one."
+        "purpose": "The system's second width breakpoint and its only two-column layout, on /admin alone: minmax(0, 22rem) minmax(0, var(--span)), with health and schedules on the left because they are short and they are where the changing happens, and the feed on the right because it is the long one. Both /admin's grid and its header take the wider --span-admin inset here, or the nameplate centres on one width while the panels under it centre on another."
+      },
+      {
+        "name": "short-screen",
+        "value": "(max-height: 460px)",
+        "purpose": "A phone on its side, and a laptop window somebody has squashed. The page is exactly one viewport tall by design, so the header is taking space from the thread rather than competing for it — at 390px tall the board was 43% of the screen. The header padding tightens and the band drops to two devices (`.row:nth-child(n+3) { display: none }`), which is inside what it already is. Nothing that is read changes: the type is untouched and the mark stays at 44px."
+      },
+      {
+        "name": "coarse-pointer",
+        "value": "(pointer: coarse)",
+        "purpose": "A capability query, not a width: a laptop with a touchscreen wants this and a 1180px browser window does not. The fader's input becomes 2.75rem tall — the whole groove is the target, since a range input jumps its thumb to wherever the track is touched — and the quiet buttons, the nameplate link and the steps disclosure each grow a `-0.95rem -0.45rem` ::after reach. Per The Reach Rule nothing painted moves."
+      },
+      {
+        "name": "hover-capable",
+        "value": "(hover: hover)",
+        "purpose": "A capability query gating every hover state in the system. On a tablet a hover sticks after a tap and leaves the board lit up as though something were still happening. What it holds: the nameplate's underline, the switch button and the admin link going brass, the band's name going full ink, and the quiet buttons going ink — ink and never commanded amber, since a reserved state colour doing decoration is what palette law forbids."
       }
     ],
     "backdrop": [
@@ -458,17 +473,33 @@
       "name": "The Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "A board row that grew a control. Same three columns, same vocabulary, same 34rem pitch — what a card adds is the room underneath the row. Separated by a hairline rule and padding rather than a border, a fill or a shadow: a card is not a panel. One column on every viewport.",
+      "description": "A board row that grew a control. Same three columns, same vocabulary, same pitch (34rem) — what a card adds is the room underneath the row. Separated by a hairline rule and padding rather than a border, a fill or a shadow: a card is not a panel. One column on every viewport, sitting in the centred span with the nameplate rather than hugging the left edge of the screen.",
       "html": "<div class=\"ds-cards\"><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-name\">Main thermostat</span><span class=\"ds-val\">70&deg;</span><span class=\"ds-flap\" data-st=\"set\">Set</span></div><div class=\"ds-detail\">Room 68&deg;</div></article><article class=\"ds-card\"><div class=\"ds-row\"><span class=\"ds-name\">Kitchen TV</span><span class=\"ds-val\"></span><span class=\"ds-flap\" data-st=\"silent\">Quiet</span></div><div class=\"ds-detail\">Since 4:12 PM</div></article></div>",
-      "css": ".ds-cards { display: grid; gap: .9rem; align-content: start; max-width: 34rem; padding: .9rem .9rem 1.4rem; } .ds-card { display: grid; gap: .5rem; padding: .7rem 0 .8rem; border-top: 1px solid var(--rule, #2E2A1A); } .ds-card:first-child { border-top: 0; } .ds-detail { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } @media (min-width: 820px) { .ds-cards { padding: 1.2rem 1.4rem 1.8rem; } }"
+      "css": ".ds-cards { --ds-pitch: 34rem; --ds-span: 42.6rem; --ds-edge: .9rem; display: grid; gap: .9rem; align-content: start; padding: .9rem max(var(--ds-edge), calc((100% - var(--ds-span)) / 2)) 1.4rem; } .ds-card { display: grid; gap: .5rem; padding: .7rem 0 .8rem; border-top: 1px solid var(--rule, #2E2A1A); max-width: var(--ds-pitch); } .ds-card:first-child { border-top: 0; } .ds-detail { font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-quiet, #9AABA1); } @media (min-width: 820px) { .ds-cards { --ds-edge: 1.4rem; padding-block: 1.2rem 1.8rem; } }"
     },
     {
       "name": "The Fader",
       "kind": "input",
       "refersTo": "fader-thumb",
-      "description": "The setpoint control, and the only place in this house where a fat finger actuates something. The groove is cut into the plate — groove material, a groove-edge line on top and a seam-light line under it, the same construction as the flap's fold — and the travelled part is brass-dim. The thumb is a machined slug in three layers: a witness line, the knurl, and brass falling from brass-lit at the top edge to brass-shade at the bottom. The asking label rides the thumb in commanded amber and is on the board only while a finger is down.",
+      "description": "The setpoint control, and the only place in this house where a fat finger actuates something. The groove is cut into the plate — groove material, a groove-edge line on top and a seam-light line under it, the same construction as the flap's fold — and the travelled part is brass-dim. The thumb is a machined slug in three layers: a witness line, the knurl, and brass falling from brass-lit at the top edge to brass-shade at the bottom. The asking label rides the thumb in commanded amber and is on the board only while a finger is down. Under a coarse pointer the input is 2.75rem tall and the slug, the lettering and the ends are untouched: the area that answers a finger grows and nothing painted moves.",
       "html": "<div class=\"ds-fader\" style=\"--at: 55%\"><div class=\"ds-asking ds-live\" style=\"left: 55%\">72&deg;</div><input type=\"range\" min=\"60\" max=\"80\" value=\"72\" aria-label=\"Set the main thermostat\" /><div class=\"ds-ends\"><span>60&deg;</span><span>80&deg;</span></div></div>",
-      "css": ".ds-fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; max-width: 34rem; --ds-thumb: linear-gradient(to right, transparent 0 6px, var(--brass-shade, #8B6827) 6px 7px, transparent 7px), repeating-linear-gradient(to bottom, var(--brass-shade, #8B6827) 0 1px, transparent 1px 3px), linear-gradient(to bottom, var(--brass-lit, #C9A568) 0%, var(--brass, #B08A46) 42%, var(--brass-shade, #8B6827) 100%); } .ds-fader input[type=\"range\"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.4rem; background: transparent; cursor: pointer; } .ds-fader input[type=\"range\"]::-webkit-slider-runnable-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-moz-range-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 1.5rem; margin-top: calc((6px - 1.5rem) / 2); background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]::-moz-range-thumb { width: 13px; height: 1.5rem; background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; } .ds-asking { position: absolute; top: -1.05rem; transform: translateX(-50%); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .86rem; font-weight: 600; letter-spacing: .05em; color: var(--st-set, #E0A33C); opacity: 0; pointer-events: none; } .ds-asking.ds-live { opacity: 1; } .ds-ends { display: flex; justify-content: space-between; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .05em; color: var(--ink-faint, #8A9C92); font-variant-numeric: tabular-nums; }"
+      "css": ".ds-fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; max-width: 34rem; --ds-thumb: linear-gradient(to right, transparent 0 6px, var(--brass-shade, #8B6827) 6px 7px, transparent 7px), repeating-linear-gradient(to bottom, var(--brass-shade, #8B6827) 0 1px, transparent 1px 3px), linear-gradient(to bottom, var(--brass-lit, #C9A568) 0%, var(--brass, #B08A46) 42%, var(--brass-shade, #8B6827) 100%); } .ds-fader input[type=\"range\"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.4rem; background: transparent; cursor: pointer; } .ds-fader input[type=\"range\"]::-webkit-slider-runnable-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-moz-range-track { height: 4px; background: linear-gradient(to right, var(--brass-dim, #6E5A31) 0 var(--at, 0%), transparent var(--at, 0%)), var(--groove, #242014); border-top: 1px solid var(--groove-edge, #110F07); border-bottom: 1px solid var(--seam-light, rgba(255,255,255,.045)); } .ds-fader input[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 1.5rem; margin-top: calc((6px - 1.5rem) / 2); background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]::-moz-range-thumb { width: 13px; height: 1.5rem; background: var(--ds-thumb); border: 0; border-radius: 0; } .ds-fader input[type=\"range\"]:focus-visible { outline: 2px solid var(--st-set, #E0A33C); outline-offset: 2px; border-radius: 1px; } .ds-asking { position: absolute; top: -1.05rem; transform: translateX(-50%); font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .86rem; font-weight: 600; letter-spacing: .05em; color: var(--st-set, #E0A33C); opacity: 0; pointer-events: none; } .ds-asking.ds-live { opacity: 1; } .ds-ends { display: flex; justify-content: space-between; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; font-size: .74rem; letter-spacing: .05em; color: var(--ink-faint, #8A9C92); font-variant-numeric: tabular-nums; } @media (pointer: coarse) { .ds-fader { margin-top: .4rem; } .ds-fader input[type=\"range\"] { height: 2.75rem; } .ds-asking { top: .1rem; } }"
+    },
+    {
+      "name": "The Note",
+      "kind": "custom",
+      "refersTo": "note",
+      "description": "The board saying what is not there, in the same lettering it uses to say what is: the record voice — condensed uppercase, .74rem, faint ink, capped at the pitch — and the system's only empty-state treatment. Every blank gets one: an empty thread, a house with no devices, a feed with nothing in it, nothing scheduled, nothing schedulable. One line, and the strongest true one. A reason inside a note takes declined rust; a filename inside one is lower case in quiet ink, the same exception the plate's `switch` takes.",
+      "html": "<p class=\"ds-note\">Nothing scheduled.</p><p class=\"ds-note\">This house has no devices.</p><p class=\"ds-note\">Every schedule that can run has a timer.</p><p class=\"ds-note\"><span class=\"ds-wrong\">2 enabled schedules have no timer.</span></p><p class=\"ds-note\">Reading <span class=\"ds-file\">house.exs</span></p>",
+      "css": ".ds-note { margin: 0; max-width: 34rem; font-family: \"Barlow Condensed\", \"Avenir Next Condensed\", ui-sans-serif, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .07em; font-size: .74rem; color: var(--ink-faint, #8A9C92); } .ds-note .ds-wrong { color: var(--st-refused, #D2604A); } .ds-note .ds-file { text-transform: none; letter-spacing: .04em; color: var(--ink-quiet, #9AABA1); }"
+    },
+    {
+      "name": "The Blank",
+      "kind": "custom",
+      "refersTo": "blank-said",
+      "description": "The empty thread, sitting where the first line will land, and the one place the board says something about what to do next. Dobby does not fill this space — proactive speech is a deferred decision and a greeting here would take it quietly. What fills it is a note in the record voice and then a household utterance: a person's sentence in Barlow at body scale, quoted, in quiet ink. The two faces do the telling. The specimen is built from a snapshot — a device that has actually reported, at a value inside the range it gave us — and is omitted entirely before the house has spoken. Before a name, one line instead, saying what a name is for.",
+      "html": "<div class=\"ds-blank\"><p class=\"ds-note\">Nothing said yet.</p><p class=\"ds-note ds-like\">Something like <span class=\"ds-said\">&ldquo;put the main thermostat to 70&rdquo;</span></p></div>",
+      "css": ".ds-blank { --ds-span: 42.6rem; --ds-edge: .9rem; display: grid; gap: .3rem; padding: 0 max(var(--ds-edge), calc((100% - var(--ds-span)) / 2)) .9rem; } .ds-blank .ds-like { display: flex; align-items: baseline; flex-wrap: wrap; gap: .55rem; } .ds-blank .ds-said { font-family: Barlow, ui-sans-serif, system-ui, -apple-system, sans-serif; text-transform: none; letter-spacing: normal; font-size: 1rem; color: var(--ink-quiet, #9AABA1); } @media (min-width: 820px) { .ds-blank { --ds-edge: 1.4rem; padding-block: 0 1.1rem; } }"
     },
     {
       "name": "The Undo Line",
@@ -520,7 +551,9 @@
       "Square corners everywhere; the only curve is the drawing of Dobby himself",
       "Two hue families — a green-black enamel ground and warm brass-and-cream ink",
       "Flat by default; one shadow in the entire system",
-      "Fixed-pitch columns and tabular figures, so a changing number does not shift"
+      "Fixed-pitch columns and tabular figures, so a changing number does not shift",
+      "One board width on every route; past it the board centres rather than stretches",
+      "Every blank says what it is, in the record voice"
     ],
     "rules": [
       {
@@ -561,6 +594,16 @@
       {
         "name": "The No Nav Rule",
         "body": "Navigation is carried by things that already exist — the nameplate, the band of rows, one quiet link at the foot of a page. A shell of links around this would be a second visual language arguing with the first. Audit test: no route may introduce a nav element; a new page earns its way in from a surface that already leads somewhere.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Width Rule",
+        "body": "A board has one width, and a rule stops where the content under it stops. The plate used to span the viewport while everything beneath it stopped at the pitch, which on an iPad in landscape is a 522px board under a 1180px rule — past about 900px that stops reading as restraint and starts reading as a page that failed to load. The two brass rails are the named exception, because they are the board's edges. Audit test: open any route at 1440px; every left edge on the page should fall on the same line, and no rule should be more than the span wide.",
+        "section": "layout"
+      },
+      {
+        "name": "The Reach Rule",
+        "body": "A target grows by reach, not by box. Where a finger needs more than the drawing gives it, the area that answers grows and nothing visible moves — the slug keeps its 13px, the lettering keeps its size, the underline stays under its word. Audit test: no `pointer: coarse` rule may change a font-size, a stroke, or the position of anything painted.",
         "section": "layout"
       },
       {
@@ -615,7 +658,11 @@
       "Do distinguish \"not answering\" from \"not yet known\". They are different facts and the vocabulary has a word for each.",
       "Do leave the flap off entirely when none of the eight words is true. Silence is a legitimate answer; a bent word is not.",
       "Do answer a destructive action with an undo line for a few seconds, instead of a confirm dialog.",
-      "Do commit a drag on release, and show what is being asked for beside the control rather than in the reading."
+      "Do commit a drag on release, and show what is being asked for beside the control rather than in the reading.",
+      "Do answer an empty region with a line in the record voice. A heading over a void is the board declining to answer.",
+      "Do finish the sentence when a list it names is empty — \"this house has no devices\", never \"this house has:\" and nothing.",
+      "Do grow the area a finger hits, and leave the drawing exactly where it is.",
+      "Do keep every left edge on a page on one line, and stop a rule where the content under it stops."
     ],
     "donts": [
       "Don't put a tint behind readable text, in any colour.",
@@ -629,7 +676,12 @@
       "Don't add a navigation bar. The nameplate, the band and one quiet link are the navigation.",
       "Don't write a value a person is still choosing into a device's reading.",
       "Don't widen an existing state word to cover a new case. Add a word, or leave the flap off.",
-      "Don't turn the cards page into a grid of tiles. One 34rem column, on every viewport."
+      "Don't turn the cards page into a grid of tiles. One column at the pitch, on every viewport.",
+      "Don't fill an empty thread with Dobby greeting anybody. Proactive speech is a deferred decision and this is where it gets taken by accident.",
+      "Don't name a device or a value in a specimen sentence that the house has not reported. Build it from a snapshot or leave it out.",
+      "Don't let a container run to the viewport. The board has one width, and past the span it centres.",
+      "Don't change a font-size, a stroke, or the position of anything painted inside a `pointer: coarse` block.",
+      "Don't leave an interactive element in the tab order when it has nothing in it. An empty band is no band."
     ]
   }
 }

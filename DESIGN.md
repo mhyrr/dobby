@@ -77,6 +77,12 @@ spacing:
   md: "0.9rem"
   lg: "1.05rem"
   xl: "1.4rem"
+  edge: "0.9rem"
+  edge-wide: "1.4rem"
+  pitch: "34rem"
+  gutter: "8.6rem"
+  span: "42.6rem"
+  span-admin: "66rem"
 components:
   flap:
     backgroundColor: "{colors.flap}"
@@ -116,7 +122,7 @@ components:
     borderTopColor: "{colors.rule}"
     padding: "0.7rem 0 0.8rem"
     gap: "{spacing.sm}"
-    maxWidth: "34rem"
+    maxWidth: "{spacing.pitch}"
   fader-groove:
     backgroundColor: "{colors.flap}"
     borderTopColor: "{colors.flap-edge}"
@@ -156,6 +162,17 @@ components:
     typography: "{typography.label-small}"
     gridTemplateColumns: "5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem"
     padding: "0.18rem 0"
+  note:
+    textColor: "{colors.ink-faint}"
+    typography: "{typography.label-small}"
+    textTransform: "uppercase"
+    maxWidth: "{spacing.pitch}"
+  note-file:
+    textColor: "{colors.ink-quiet}"
+    textTransform: "none"
+  blank-said:
+    textColor: "{colors.ink-quiet}"
+    typography: "{typography.body}"
 ---
 
 # Design System: Dobby
@@ -195,6 +212,8 @@ parchment, wax-seal and filigree pastiche; any trademarked franchise mark.
 - Two hue families — a green-black enamel ground and warm brass-and-cream ink
 - Flat by default; one shadow in the entire system
 - Fixed-pitch columns and tabular figures, so a changing number does not shift
+- One board width on every route; past it the board centres rather than stretches
+- Every blank says what it is, in the record voice
 
 ## Colors
 
@@ -370,26 +389,80 @@ only scrolling region — because the header is the part of a board that must
 never leave. A short thread sits down on the set line rather than floating at
 the top of an empty board.
 
+### The two widths
+
+**The pitch** (34rem) is the column a row is — a device row, a card, a
+schedule, a sentence somebody said. **The span** (42.6rem) is the widest the
+board ever gets: the pitch plus the 8.6rem gutter the speaker column takes at
+820 and up. Everything on every route sits inside the span, so a rule and the
+content under it stop at the same place.
+
 The board header is a three-column grid: device name, reading, state
-(`1fr auto 9.5rem`), capped at 34rem so the flap column stays a fixed pitch
-however wide the screen gets. The state column is a fixed field and the flap
-card hugs its word inside it.
+(`1fr auto 9.5rem`), capped at the pitch so the flap column stays a fixed
+measure however wide the screen gets. The state column is a fixed field and the
+flap card hugs its word inside it.
+
+Once there is more screen than board, the board centres. That is one
+expression — `max(edge, (100% - span) / 2)` as the horizontal padding of every
+block — rather than a max-width on each, because a max-width sits inside the
+padding on some of these and outside it on others, and 22rem of board makes
+that difference visible between the nameplate and the cards under it.
+
+The two brass rails are the exception and stay full-bleed. They are the board's
+top and bottom edges, and a 2px rule that stopped short would read as a panel
+floating on the plate rather than as the plate's own edge. What is written on
+them moves inboard with everything else, each side giving back the padding its
+own contents already carry, so what lines up with the board is the composer's
+first character and not the box around it.
 
 Phone is the primary viewport and everything adapts up from it. At 820px the
 thread becomes a two-column grid — a 7.5rem speaker column and the body — and
 system lines indent to the body column so the record aligns with what it is
 describing. Edge padding goes from 0.9rem to 1.4rem. Nothing else changes;
-there is one composition, not two.
+there is one composition, not two, and below the span nothing moves at all.
 
 Rhythm comes from the content, not from an abstract scale: 0.28rem between
 steps, 0.5rem across a row, 1.05rem between messages.
 
+### A short screen
+
+A phone on its side, and a laptop window somebody has squashed. The page is
+exactly one viewport tall by design, so the header is not competing with the
+thread for space — it is taking it. At 390px tall the board was 43% of the
+screen.
+
+Under 460px of height the board gives space back and gives up a row: the header
+padding tightens, and the band drops to two devices, which is inside what it
+already is — a watch list of "two or three". Nothing that is read changes. The
+type is untouched and the mark stays at 44px, because the two rules that would
+otherwise be broken here are the ones that matter most: The Legibility Floor,
+and never rendering the mark below 40px.
+
+### A finger
+
+The kitchen iPad is a touch device and every control here was drawn for a
+cursor. Under `pointer: coarse` the fader's input is 2.75rem tall — the whole
+groove is the target, since a range input jumps its thumb to wherever the track
+is touched — and the quiet buttons, the nameplate link and the steps disclosure
+each carry a `-0.95rem -0.45rem` reach.
+
+The reach is an area, not a box. Growing the boxes is the obvious move and it is
+wrong here: the system's quiet control is lettering with a 1px brass underline,
+and a 44px-tall button leaves that underline fifteen pixels below the word it
+belongs to. Both gaps that could otherwise collide — the schedule's actions, and
+the form's last field above `Add` — are widened past the reach on either side of
+them. The plate takes a smaller reach because it is baseline-aligned and the
+band's link sits 15px beneath it.
+
+Hover sits behind `hover: hover`. On a tablet a hover state sticks after a tap
+and leaves the board lit up as though something were still happening.
+
 ### The Three Routes
 
 Three pages and one instrument: `/` the thread, `/house` the cards, `/admin`
-the maintainer's page. They share the plate, the flap, the row and the 34rem
-pitch, because they are the same board seen from a different side rather than
-three applications.
+the maintainer's page. They share the plate, the flap, the row and the pitch,
+because they are the same board seen from a different side rather than three
+applications.
 
 There is no navigation bar. The nameplate is the way back — on `/` it is plain
 lettering, because you are already home, and on the other two it becomes a link
@@ -405,11 +478,25 @@ on the surface a phone opens first.
 scrolls, and the main region is the only scrolling thing on it.
 
 Admin is the one page with enough on it to want columns. At 980px it becomes
-`minmax(0, 22rem) minmax(0, 1fr)` — health and schedules on the left because
+`minmax(0, 22rem) minmax(0, span)` — health and schedules on the left because
 they are short and they are where the changing happens, the feed on the right
 because it is the long one. That is the system's second breakpoint and its only
 two-column layout; 820px still does everything else, and both are content
 breakpoints rather than device sizes.
+
+Admin is therefore the one page whose board is wider than the span — 22rem plus
+the gap plus the feed's own span, 66rem — and its header takes that number too.
+A nameplate centred on the one-column span while the panels beneath it centre on
+the two-column one leaves the name floating in the middle of them. That is what
+the `board-admin` class on its header is for, and it is the only route-specific
+class in the system.
+
+Inside admin, a panel is a section of the board: its heading rule is the board's
+width and its content is a row's measure. Rows, schedules and the form take the
+pitch; the feed takes the span, because five columns is the one thing here with
+a reason to be wider than a row. Before this, admin between 820 and 980 was one
+column with nothing capped — a health row's three parts scattered across 775px,
+and a cron field the width of an iPad.
 
 ### Named Rules
 
@@ -424,6 +511,21 @@ nameplate, the band of rows, one quiet link at the foot of a page. A shell of
 links around this would be a second visual language arguing with the first.
 Audit test: no route may introduce a nav element; a new page earns its way in
 from a surface that already leads somewhere.
+
+**The One Width Rule.** A board has one width, and a rule stops where the
+content under it stops. The plate used to span the viewport while everything
+beneath it stopped at the pitch, which on an iPad in landscape is a 522px board
+under a 1180px rule — past about 900px that stops reading as restraint and
+starts reading as a page that failed to load. The two brass rails are the named
+exception, because they are the board's edges. Audit test: open any route at
+1440px; every left edge on the page should fall on the same line, and no rule
+should be more than the span wide.
+
+**The Reach Rule.** A target grows by reach, not by box. Where a finger needs
+more than the drawing gives it, the area that answers grows and nothing visible
+moves — the slug keeps its 13px, the lettering keeps its size, the underline
+stays under its word. Audit test: no `pointer: coarse` rule may change a
+font-size, a stroke, or the position of anything painted.
 
 ## Elevation & Depth
 
@@ -509,7 +611,7 @@ lettering, the fold behind it, one shadow under it.
 
 - **Structure:** name (quiet ink, condensed, truncates with ellipsis) ·
   reading (ink, condensed, tabular) · flap
-- **Grid:** `1fr auto 9.5rem`, capped at 34rem
+- **Grid:** `1fr auto 9.5rem`, capped at the pitch
 - **Behaviour:** on the thread's band, most-recently-changed leads. On `/house`
   it is manifest order instead: the band is a watch list and reorders itself,
   and a page whose cards moved under a finger would be worse than one that did
@@ -532,8 +634,9 @@ the mark, and a `LISTENING` / `QUIET` flap.
   separator the set line puts before its send arrow — without it "GREG SWITCH"
   reads at a glance as two words of one name
 - **Lower case, stated:** `switch` is a verb, and everything set in capitals on
-  this board is a label — a state, a name, a time. The system's one other
-  verb-shaped string, a refusal's reason, is set the same way
+  this board is a label — a state, a name, a time. Two other strings take the
+  same exception and the list is closed: a refusal's reason, which is a
+  sentence, and a filename in a note, which is a thing you go and open
 - **A form, not a link:** switching identity is a write. It is also why the
   small word is the tappable thing rather than the name — a household tablet
   that changed who was speaking because somebody brushed the header would be
@@ -544,16 +647,23 @@ the mark, and a `LISTENING` / `QUIET` flap.
 ### The Card
 
 A board row that grew a control. Same three columns, same vocabulary, same
-34rem pitch — what a card adds is the room underneath the row.
+pitch — what a card adds is the room underneath the row.
 
 - **Structure:** the row · a detail line in the record voice (`Room 68°`, or
   `Since 4:12 PM`) · the control, when the device can take one · what happened
   after the last release
 - **Separation:** a hairline `rule` on top and 0.7/0.8rem of padding; the first
   card has none. A card is not a panel — no border, no fill, no shadow
-- **One column on every viewport.** The column stays 34rem and never becomes a
-  grid of tiles. The confirmed anti-reference is a dark card grid of dials, and
-  the pitch is what keeps a card reading as a row
+- **One column on every viewport.** The column stays the pitch and never becomes
+  a grid of tiles. The confirmed anti-reference is a dark card grid of dials, and
+  the pitch is what keeps a card reading as a row. What changed is where the
+  column sits: it used to hug the left edge of whatever screen it was on, and it
+  now sits in the centred span with the nameplate
+- **Open, and about density rather than columns.** With three devices this page
+  is right. With twenty it is a long scroll, and the reason is not the column
+  count — a read-only card costs 62px to say what the band says in 25, because
+  it carries spacing budgeted for a control it does not have. A row that grew
+  nothing is a row. Not changed, because the answer wants a real house
 - **The second number is a different fact.** The row carries the setpoint,
   because the setpoint is what somebody asked for; the detail line carries what
   the room actually reads. The same number is never said twice
@@ -591,6 +701,51 @@ default this surface is a refusal of — and rather than a stepper, which turns
   written into the card's own reading — that number is a value somebody
   commanded, and putting an uncommanded one in its place would be the board
   claiming a state it was never set to
+- **2.75rem tall under a coarse pointer.** The whole groove is the target, not
+  the slug: a range input jumps its thumb to wherever the track is touched, so
+  the height was the entire question and 22px was half of what a finger needs.
+  Per The Reach Rule the slug itself is unchanged
+
+### The Note
+
+The board saying what is not there, in the same lettering it uses to say what
+is. The record voice — condensed uppercase, 0.74rem, faint ink, capped at the
+pitch — and the system's only empty-state treatment. It was already here, in
+admin's health panel, before nine other blanks were found to have nothing.
+
+- **Every blank gets one.** An empty thread, a house with no devices, a feed
+  with nothing in it, nothing scheduled, nothing schedulable. A heading over a
+  void is the board declining to answer, and "nothing has happened here" is a
+  reading like any other
+- **One line, and the strongest true one.** A house with nothing schedulable
+  obviously has nothing scheduled; saying both stacks two negations where one is
+  the answer
+- **Sentence case is wrong here.** `.cards .empty` was set in Barlow, which the
+  Instrument Voice Rule reserves for what a person said. The board describing
+  itself is the board's own voice
+- **A filename inside one is lower case,** in quiet ink — see The Plate
+
+### The Blank
+
+The empty thread, sitting where the first line will land, and the one place the
+board says something about what to do next.
+
+- **Dobby does not fill this space.** Proactive speech is deferred (design of
+  record §11) and a greeting here would take that decision quietly, on the
+  surface where it is hardest to notice
+- **So the specimen is a household utterance** — the one voice on this page
+  that is neither the instrument's nor his. A note in the record voice
+  (`SOMETHING LIKE`) and then a person's sentence in Barlow at body scale,
+  quoted: `“put the main thermostat to 70”`. The two faces do the telling
+- **Built, never written.** The specimen names a device that has actually
+  reported, at a value inside the range that device gave us. A board suggesting
+  a sentence about a device this house lacks would be inventing one
+- **No specimen when the house has not spoken.** Before Home Assistant has said
+  anything the board does not yet know what this house takes, and silence is the
+  honest answer
+- **Before a name,** one line instead — why the set line is asking. Identity
+  personalizes and attributes, so the line says what a name is *for*, not what
+  it permits
 
 ### The Undo Line
 
@@ -666,10 +821,20 @@ thing on the page you can change, the feed last because you scroll to a log
 rather than being handed it.
 
 - **Panel heading:** the headline step in brass over a hairline — the plate's
-  type, used as a section rule
+  type, used as a section rule. The rule takes the board's width and the content
+  under it takes a row's measure, so three sections read as one board rather
+  than as three rules of two lengths
 - **Health rows:** board rows whose middle column is demoted to 0.74rem faint
   ink. Empty is the healthy answer for the note beneath them, and it says so in
-  words rather than showing nothing
+  words rather than showing nothing. The note claims what it measures — every
+  schedule *that can run* has a timer, since a schedule that can no longer reach
+  its device is excluded from the count and says `HELD` on its own row
+- **A failed action reports beside the schedules,** not inside the form. Pausing
+  or deleting an existing row can fail, and its reason under the new-schedule
+  form's last field reads as a rejection of what somebody is still typing
+- **No form when there is nothing to schedule.** A house with nothing
+  schedulable was offered two empty selects and an `Add` that could only be
+  refused
 - **Schedule rows:** a row (label · cron · flap), a detail line, a reason line
   when there is one, and the actions. `READY` in expected cream for one waiting
   for its time; `HELD` for one that can no longer reach its device — nothing
@@ -719,6 +884,11 @@ Still eight, and two new pages did not add a ninth. `SET`, `HELD`, `READY`,
 `QUIET` and `NOT KNOWN` all appear on `/house` and `/admin` with exactly the
 meanings above; nothing was widened to cover a new case, and one case was left
 wordless instead.
+
+Still eight after the empty states, too, and that was the closer call. Nine
+blanks wanted a way to say "there is nothing here", and none of the eight means
+it — a blank is not a state a device is in. So the answer was not a word on a
+flap but a line in the record voice beneath the heading. See The Note.
 
 ### Named Rules
 
@@ -771,6 +941,13 @@ the card should show the new number until the house has confirmed it.
   instead of a confirm dialog.
 - **Do** commit a drag on release, and show what is being asked for beside the
   control rather than in the reading.
+- **Do** answer an empty region with a line in the record voice. A heading over
+  a void is the board declining to answer.
+- **Do** finish the sentence when a list it names is empty — "this house has no
+  devices", never "this house has:" and nothing.
+- **Do** grow the area a finger hits, and leave the drawing exactly where it is.
+- **Do** keep every left edge on a page on one line, and stop a rule where the
+  content under it stops.
 
 ### Don't:
 
@@ -791,5 +968,15 @@ the card should show the new number until the house has confirmed it.
 - **Don't** write a value a person is still choosing into a device's reading.
 - **Don't** widen an existing state word to cover a new case. Add a word, or
   leave the flap off.
-- **Don't** turn the cards page into a grid of tiles. One 34rem column, on
-  every viewport.
+- **Don't** turn the cards page into a grid of tiles. One column at the pitch,
+  on every viewport.
+- **Don't** fill an empty thread with Dobby greeting anybody. Proactive speech
+  is a deferred decision and this is where it gets taken by accident.
+- **Don't** name a device or a value in a specimen sentence that the house has
+  not reported. Build it from a snapshot or leave it out.
+- **Don't** let a container run to the viewport. The board has one width, and
+  past the span it centres.
+- **Don't** change a font-size, a stroke, or the position of anything painted
+  inside a `pointer: coarse` block.
+- **Don't** leave an interactive element in the tab order when it has nothing
+  in it. An empty band is no band.

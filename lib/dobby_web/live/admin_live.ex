@@ -68,7 +68,10 @@ defmodule DobbyWeb.AdminLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <header class="board">
+    <%!-- Admin's board is the wide one: two columns of content sit under this
+          nameplate at 980 and up, and a header centred on the other pages'
+          span would leave the name floating in the middle of them. --%>
+    <header class="board board-admin">
       <.plate speaker={@speaker} listening={@listening} section="Admin" return_to={~p"/admin"} />
     </header>
 

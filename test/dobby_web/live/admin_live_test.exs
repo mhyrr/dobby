@@ -286,6 +286,20 @@ defmodule DobbyWeb.AdminLiveTest do
     end
   end
 
+  # The one part of the responsive work that lives in markup rather than in the
+  # stylesheet, and the coupling is easy to break by copying another route's
+  # header: admin is the only page with two columns of content, so it is the
+  # only page whose nameplate centres on the wider measure. Without the class
+  # the name floats in the middle of the panels beneath it.
+  test "admin's header is the wide one", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin")
+
+    assert has_element?(view, "header.board.board-admin")
+
+    {:ok, thread, _html} = live(conn, "/")
+    refute has_element?(thread, ".board-admin")
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   defp create!(overrides) do

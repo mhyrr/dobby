@@ -133,6 +133,38 @@
   --board-type: "Barlow Condensed", "Avenir Next Condensed", ui-sans-serif,
                 system-ui, sans-serif;
   --said-type:  "Barlow", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* THE BOARD'S TWO WIDTHS.
+
+     `pitch` is the column a row is: a device row, a card, a schedule, a
+     sentence somebody said. It was already here — the header band and the card
+     both carried 34rem literally — and it is a token now because the whole
+     board is measured against it.
+
+     `span` is the widest the board ever gets: the pitch plus the gutter the
+     speaker column takes at 820 and up. Everything on every route sits inside
+     it, so a rule and the content under it stop at the same place. Without
+     that the plate promised a board as wide as the screen and the rows
+     delivered 34rem, which past about 900px stops reading as restraint and
+     starts reading as a page that failed to load. */
+  --pitch:  34rem;
+  --gutter: 8.6rem;
+  --span:   calc(var(--pitch) + var(--gutter));
+
+  /* How far in from the edge of the screen the board starts: the edge padding
+     on a phone, and whatever it takes to centre the span once there is more
+     screen than board. One expression rather than a max-width on each block,
+     because a max-width sits inside the padding on some of these and outside
+     it on others, and 22px of that was already visible between the nameplate
+     and the cards under it. */
+  --edge:  .9rem;
+  --inset: max(var(--edge), calc((100% - var(--span)) / 2));
+
+  /* Admin is the one page whose content wants two columns, so it is the one
+     page whose board is wider than the span: the left column, the gap, and the
+     feed's own span. Its header takes the same number, or the nameplate
+     centres on one width while the panels under it centre on another. */
+  --span-admin: calc(22rem + 1.4rem + var(--span));
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -225,9 +257,12 @@ body {
   overflow: hidden;
   background: var(--rail);
   border-bottom: 2px solid var(--brass-dim);
-  padding: .55rem .9rem .7rem;
+  padding: .55rem var(--inset) .7rem;
   flex: 0 0 auto;
 }
+/* The nameplate spans the board, not the screen. Its two ends — the name and
+   the mark — are the board's two ends, which is what puts them in the same
+   world as the rows beneath rather than at the far edges of a laptop. */
 .plate {
   position: relative;
   display: flex;
@@ -251,7 +286,6 @@ body {
 /* The nameplate is the way back. There is no navigation bar: a shell of links
    around this would be a second visual language arguing with the first. */
 .plate h1 a { color: inherit; text-decoration: none; }
-.plate h1 a:hover { text-decoration: underline; text-underline-offset: .2rem; }
 .plate h1 .sep { color: var(--brass-dim); letter-spacing: normal; }
 .plate h1 .section { color: var(--ink-quiet); }
 .plate .who {
@@ -288,24 +322,25 @@ body {
   cursor: pointer;
   color: var(--brass-dim);
 }
-.plate .speaking-as button:hover { color: var(--brass); }
 /* The band is a link to /house, so the same rows are reachable with controls
    on them. It carries no underline and no hover lift — it is a board, and a
    board that behaved like a hyperlink would stop reading as one. */
+/* The band takes the board's span and its rows take the pitch, so a row's left
+   edge is the nameplate's left edge. Centring each of them on its own width
+   would have put the name 68px inboard of the rows on a laptop. */
 .rows {
   position: relative;
   display: grid;
   gap: .3rem;
-  max-width: 34rem;
   color: inherit;
   text-decoration: none;
 }
-.rows:hover .name { color: var(--ink); }
 .row {
   display: grid;
   grid-template-columns: 1fr auto 9.5rem;
   align-items: center;
   gap: .5rem;
+  max-width: var(--pitch);
 }
 .row .flap { justify-self: start; }
 .row .name {
@@ -353,7 +388,7 @@ body {
      thread would push the set line off the bottom instead of scrolling. */
   min-height: 0;
   overflow-y: auto;
-  padding: .9rem .9rem .4rem;
+  padding: .9rem var(--inset) .4rem;
   display: flex;
   flex-direction: column;
   gap: 1.05rem;
@@ -363,7 +398,7 @@ body {
    `justify-content: flex-end`, which puts the top of an overflowing thread
    out of reach of the scrollbar. */
 .thread > :first-child { margin-top: auto; }
-.thread-pending { flex: 0 0 auto; padding: 0 .9rem .7rem; }
+.thread-pending { flex: 0 0 auto; padding: 0 var(--inset) .7rem; }
 
 /* A thread with nothing in it, said where the first line will land. Dobby does
    not fill this space — proactive speech is a deferred decision (design §11)
@@ -371,7 +406,7 @@ body {
    its own blank, and, when the house has told us enough to promise it, one
    sentence in a person's voice: the specimen is a household utterance, which
    is the one voice on this surface that is neither the instrument's nor his. */
-.blank { flex: 0 0 auto; padding: 0 .9rem .9rem; display: grid; gap: .3rem; }
+.blank { flex: 0 0 auto; padding: 0 var(--inset) .9rem; display: grid; gap: .3rem; }
 .blank .like {
   display: flex;
   align-items: baseline;
@@ -462,7 +497,11 @@ body {
 }
 .collapsed[open] summary svg { transform: rotate(90deg); }
 
-/* system line — the intervention record */
+/* system line — the intervention record.
+   Ruled top and bottom, so it is the one row where running to the edge of the
+   screen shows: six of them stacked on a laptop were six full-width hairlines
+   with a short line of text at the left of each. The rule stops where the
+   board does. */
 .sys {
   display: flex;
   align-items: center;
@@ -497,17 +536,21 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: .9rem .9rem 1.4rem;
+  padding: .9rem var(--inset) 1.4rem;
   display: grid;
   gap: .9rem;
   align-content: start;
-  max-width: 34rem;
 }
+/* The card stays the pitch on every viewport and never becomes a tile in a
+   grid. What changed is where the column sits: it used to hug the left edge of
+   whatever screen it was on, so an iPad on a counter in landscape showed a
+   544px board with 650px of nothing beside it. */
 .card {
   display: grid;
   gap: .5rem;
   padding: .7rem 0 .8rem;
   border-top: var(--rule);
+  max-width: var(--pitch);
 }
 .card:first-child { border-top: 0; }
 .card .detail {
@@ -637,7 +680,6 @@ body {
   text-decoration: none;
   justify-self: start;
 }
-.to-admin:hover { color: var(--brass); }
 
 /* ── admin ────────────────────────────────────────────────────────────────
    Laptop-shaped, and the one place with enough on it to need columns. Same
@@ -646,12 +688,26 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: .9rem .9rem 1.4rem;
+  padding: .9rem var(--inset) 1.4rem;
   display: grid;
   gap: 1.4rem;
   align-content: start;
 }
+/* A panel is a section of the board, so its heading rule is the board's width
+   and what changes underneath is the content. Rows, schedules and the form are
+   a row's measure; the feed is the one thing here with five columns and a
+   reason to be wider.
+
+   Between 820 and 980 admin is one column, and everything in it used to
+   stretch to the viewport: a health row's three parts scattered across 775px,
+   and a cron field the width of an iPad. */
 .panel { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+.panel .rows,
+.panel .note,
+.panel > .why,
+.panel > .undo,
+.new-sched,
+.sched { max-width: var(--pitch); }
 .panel h2 {
   font-family: var(--board-type);
   text-transform: uppercase;
@@ -681,7 +737,6 @@ body {
 /* The health rows are record-keeping, not readings: the middle column says
    which process a row is about, so it takes the small voice rather than the
    1.05rem a number on the board gets. */
-.panel .rows { max-width: none; }
 .panel .rows .row .val {
   font-size: .74rem;
   font-weight: 600;
@@ -720,13 +775,6 @@ body {
   cursor: pointer;
   color: var(--brass);
 }
-/* Ink and not commanded amber. Amber means a value somebody asked for; spending
-   it on a hover would be a reserved state colour doing decoration, which is
-   the one thing palette law forbids. */
-.sched .acts button:hover,
-.new-sched button:hover,
-.admin .undo button:hover { color: var(--ink); }
-
 .new-sched {
   display: grid;
   gap: .6rem;
@@ -778,12 +826,21 @@ body {
 .feed .entry .took { text-align: right; }
 
 /* ── the set line ─────────────────────────────────────────────────────── */
+/* The rail runs the full width of the board — it is the board's bottom edge,
+   and a 2px brass rule that stopped short would read as a panel floating on
+   the plate. What moves inboard is what is written on it, so the composer
+   starts where every other line on this page starts. */
 .set-line {
   flex: 0 0 auto;
   display: flex;
   align-items: stretch;
   border-top: 2px solid var(--brass-dim);
   background: var(--rail);
+  /* Each side gives back the padding the thing sitting on it already has, so
+     what lines up with the board is the composer's first character and the
+     arrow — not the boxes around them. */
+  padding-left: max(0px, calc((100% - var(--span)) / 2 - .9rem));
+  padding-right: max(0px, calc((100% - var(--span)) / 2 - 1.05rem));
 }
 .set-line input {
   flex: 1;
@@ -820,11 +877,14 @@ body {
    aligned by author: the thread is a shared household record, and two people
    reading it must not see two different documents. */
 @media (min-width: 820px) {
-  .board { padding: .7rem 1.4rem .85rem; }
-  .thread { padding: 1.2rem 1.4rem .5rem; }
-  .thread-pending { padding: 0 1.4rem .9rem; }
-  .cards { padding: 1.2rem 1.4rem 1.8rem; }
-  .admin { padding: 1.2rem 1.4rem 1.8rem; }
+  :root { --edge: 1.4rem; }
+
+  .board { padding-block: .7rem .85rem; }
+  .thread { padding-block: 1.2rem .5rem; }
+  .thread-pending { padding-block: 0 .9rem; }
+  .blank { padding-block: 0 1.1rem; }
+  .cards { padding-block: 1.2rem 1.8rem; }
+  .admin { padding-block: 1.2rem 1.8rem; }
 
   .msg {
     display: grid;
@@ -837,14 +897,117 @@ body {
   .sys { padding-left: 8.6rem; }
 }
 
+/* ── a finger ─────────────────────────────────────────────────────────────
+   The kitchen iPad is a touch device, and every control on this board was
+   drawn for a cursor: the fader is a 22px-tall strip, and `undo`, `pause`,
+   `delete`, `switch`, `Add`, the nameplate and the one link to admin are all
+   quiet lettering about 17px high. None of them is a target.
+
+   Nothing here changes a drawing. The slug keeps its 13px and the lettering
+   keeps its size — the Legibility Floor is not a thing to route around — and
+   what grows is the area that answers to a finger, which nobody can see. A
+   pointer query and not a width one: a laptop with a touchscreen wants this
+   and a 1180px browser window does not. */
+@media (pointer: coarse) {
+  /* The whole groove is the target, not the slug: a range input jumps its
+     thumb to wherever the track is touched. So the height is the whole
+     question, and 22px was half of what a finger needs. The margin comes back
+     off the block so the groove stays about where the eye already found it. */
+  .fader { margin-top: .4rem; }
+  .fader input[type="range"] { height: 2.75rem; }
+  .fader .asking { top: .1rem; }
+
+  /* The quiet buttons — `undo`, `pause`, `delete`, `Add`, the link to admin,
+     the steps disclosure, and the plate's own two. Their lettering is 12px and
+     their line box is 14, which is a third of what a finger needs.
+
+     The area grows and the box does not. Growing the box was the first attempt
+     and it is wrong here: the system's quiet control is lettering with a 1px
+     brass underline under it, and a 44px-tall button leaves that underline
+     sitting fifteen pixels below the word it belongs to. The plate has a
+     second reason — it is baseline-aligned, so anything taller in it takes the
+     nameplate off the line it shares with the mark. */
+  .undo button,
+  .sched .acts button,
+  .new-sched button,
+  .to-admin,
+  .collapsed summary,
+  .plate h1 a,
+  .plate .speaking-as button { position: relative; }
+
+  .undo button::after,
+  .sched .acts button::after,
+  .new-sched button::after,
+  .to-admin::after,
+  .collapsed summary::after,
+  .plate h1 a::after,
+  .plate .speaking-as button::after {
+    content: "";
+    position: absolute;
+    inset: -0.95rem -0.45rem;
+  }
+
+  /* Both gaps are now wider than the reach on either side of them, so no two
+     of these areas overlap — a tap meant for `delete` cannot land on `pause`,
+     and one meant for the temperature field cannot land on `Add`. */
+  .sched .acts { gap: 1.4rem; }
+  .new-sched { gap: 1.1rem; }
+}
+
+/* ── a short screen ───────────────────────────────────────────────────────
+   A phone on its side, and a laptop window somebody has squashed. The page is
+   exactly one viewport tall by design, so the header is not competing for
+   space with the thread — it is taking it. At 390px the board was 168 of them,
+   43% of the screen, and the conversation got a sliver.
+
+   Nothing shrinks that is read: the type is untouched (the Legibility Floor
+   is not a thing to route around) and the mark stays at 44px, because below 40
+   the face collapses into a smear. What gives is the space between things, and
+   the third row of the band — which is a watch list of "two or three", and on
+   a screen this short it watches two. Every device is one tap away on /house,
+   which is what the band is a link to. */
+@media (max-height: 460px) {
+  .board { padding-block: .35rem .5rem; }
+  .plate { padding-bottom: .3rem; margin-bottom: .35rem; }
+  .board .rows { gap: .15rem; }
+  .board .rows .row:nth-child(n+3) { display: none; }
+  .thread { padding-block: .6rem .3rem; }
+  .set-line input { padding-block: .6rem; }
+}
+
+/* Hover belongs to a pointer that can hover. On a tablet these stick after a
+   tap and leave the board lit up as though something were still happening. */
+@media (hover: hover) {
+  .plate h1 a:hover { text-decoration: underline; text-underline-offset: .2rem; }
+  .plate .speaking-as button:hover { color: var(--brass); }
+  .rows:hover .name { color: var(--ink); }
+  .to-admin:hover { color: var(--brass); }
+  /* Ink and not commanded amber. Amber means a value somebody asked for;
+     spending it on a hover would be a reserved state colour doing decoration,
+     which is the one thing palette law forbids. */
+  .sched .acts button:hover,
+  .new-sched button:hover,
+  .admin .undo button:hover { color: var(--ink); }
+}
+
 /* Admin is the one page with enough on it to want columns, and the one that
    is read on a laptop rather than glanced at from across a kitchen. Health
    and schedules on the left because they are short and they are where the
    changing happens; the feed on the right because it is the long one. */
 @media (min-width: 980px) {
+  /* Two tracks, so admin's board is wider than every other page's: the left
+     column plus the gap plus the feed's own span. It is the one page whose
+     content genuinely wants more than one column of width, and it centres on
+     that number rather than on the one-column span — which would otherwise
+     squeeze the two tracks into 42.6rem the moment the screen grew. */
+  .admin,
+  .board-admin {
+    padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
+  }
   .admin {
-    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
     align-items: start;
+    justify-content: center;
   }
   .admin .feed { grid-column: 2; grid-row: 1 / span 2; }
 }

@@ -129,8 +129,9 @@ defmodule DobbyWeb.AdminLive do
                 {status_word(schedule)}
               </.flap>
             </div>
+            <%!-- The identifiers as identifiers, and the time as a time. --%>
             <div class="detail">
-              {schedule.device} · {schedule.action}{args(schedule)}
+              <span class="arg">{schedule.device} · {schedule.action}{args(schedule)}</span>
               <span :if={schedule.next_fire}>· next {fires_at(schedule)}</span>
             </div>
             <div :if={schedule.enabled && blocked(schedule)} class="why">{blocked(schedule)}</div>
@@ -177,7 +178,7 @@ defmodule DobbyWeb.AdminLive do
           <div :for={{dom_id, entry} <- @streams.activity} id={dom_id} class="entry">
             <span class="t">{at(entry)}</span>
             <span class="kind">{entry.kind}</span>
-            <span class="what">{what(entry)}</span>
+            <span class="what arg">{what(entry)}</span>
             <span class="who">{entry.actor}</span>
             <span class="took">{took(entry)}</span>
           </div>

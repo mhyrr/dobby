@@ -73,7 +73,7 @@ defmodule DobbyWeb.HouseLive do
             says where a house comes from rather than only that there isn't
             one. --%>
       <p :if={@snapshots == []} class="note">
-        No devices. The house is described in <span class="file">home.exs</span> on the box.
+        No devices. The house is described in <span class="file arg">home.exs</span> on the box.
       </p>
 
       <%!-- The way in to /admin, and the only one. It is laptop-shaped and

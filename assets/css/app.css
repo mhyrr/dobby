@@ -766,10 +766,14 @@ body {
   color: var(--ink-faint);
 }
 .note .wrong { color: var(--st-refused); }
-/* A filename is not a label, so it is not shouted. The same exception the
+/* An identifier is not a label, so it is not shouted. The same exception the
    plate's `switch` takes, and for the same reason: capitals on this board mean
-   a state, a name or a time. */
-.note .file { text-transform: none; letter-spacing: .04em; color: var(--ink-quiet); }
+   a state, a name or a time, and an entity id, an action name, a schema key or
+   a filename is a thing you go and open. Three panels on admin print one, and
+   the health rows were already setting theirs this way while the two beside
+   them shouted. */
+.arg { text-transform: none; letter-spacing: .04em; }
+.note .file { color: var(--ink-quiet); }
 /* The health rows are record-keeping, not readings: the middle column says
    which process a row is about, so it takes the small voice rather than the
    1.05rem a number on the board gets. */
@@ -820,14 +824,17 @@ body {
   justify-items: start;
 }
 .new-sched label { display: grid; gap: .2rem; width: 100%; }
-.new-sched label span {
-  font-family: var(--board-type);
+/* The four written labels. The fifth is a key out of an action's own schema
+   and takes `.arg` instead. */
+.new-sched label span:not(.arg) {
   text-transform: uppercase;
   letter-spacing: .07em;
+}
+.new-sched label span {
+  font-family: var(--board-type);
   font-size: .74rem;
   color: var(--ink-faint);
 }
-.new-sched label span.arg { text-transform: none; letter-spacing: .04em; }
 .new-sched input, .new-sched select {
   width: 100%;
   background: var(--flap);
@@ -857,20 +864,7 @@ body {
   color: var(--ink-quiet);
 }
 .feed .entry .t, .feed .entry .took { color: var(--ink-faint); }
-/* Not shouted. `what` is the only column here carrying identifiers — an entity
-   id and the name of an action — and the health panel a few centimetres to the
-   left sets the same string as `thermostat:main` while this one set it as
-   THERMOSTAT:MAIN. One page, one identifier, two casings. Lower case is the
-   side the board already argues for: capitals are a state, a name or a time,
-   and an entity id is a thing you go and open. The record columns around it
-   keep the record voice. */
-.feed .entry .what {
-  color: var(--ink);
-  text-transform: none;
-  letter-spacing: .04em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.feed .entry .what { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
 .feed .entry .kind, .feed .entry .who, .feed .entry .what { white-space: nowrap; }
 .feed .entry .who { overflow: hidden; text-overflow: ellipsis; }
 .feed .entry .took { text-align: right; }

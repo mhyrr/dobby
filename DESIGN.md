@@ -131,8 +131,8 @@ components:
   fader-thumb:
     backgroundColor: "{colors.brass}"
     rounded: "{rounded.none}"
-    width: "10px"
-    height: "1.35rem"
+    width: "13px"
+    height: "1.5rem"
   fader-asking:
     textColor: "{colors.st-set}"
     fontFamily: "Barlow Condensed, Avenir Next Condensed, ui-sans-serif, system-ui, sans-serif"

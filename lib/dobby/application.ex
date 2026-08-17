@@ -35,11 +35,15 @@ defmodule Dobby.Application do
   end
 
   # After the endpoint, on purpose: a name should not exist before the thing
-  # it names answers. Present only when runtime.exs saw DOBBY_LAN.
+  # it names answers — and only when the endpoint actually serves. A one-shot
+  # mix task boots this application too, and `mix dobby.ha.verify` has no
+  # business claiming the house's name on its way through.
   defp lan_beacon do
-    case Application.get_env(:dobby, :lan_beacon) do
-      nil -> []
-      opts -> [{Dobby.LanBeacon, opts}]
+    with opts when opts != nil <- Application.get_env(:dobby, :lan_beacon),
+         true <- Phoenix.Endpoint.server?(:dobby, DobbyWeb.Endpoint) do
+      [{Dobby.LanBeacon, opts}]
+    else
+      _not_serving -> []
     end
   end
 

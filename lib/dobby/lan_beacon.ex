@@ -65,22 +65,26 @@ defmodule Dobby.LanBeacon do
   defp advertise(state) do
     http_port = http_port()
 
+    # Through a shell wrapper, because dns-sd ignores stdin: a bare port
+    # child would survive the VM as an orphan still claiming the name (three
+    # of them did, before this). The watcher turns stdin EOF — the port
+    # closing, the VM dying — into a kill, and `wait` turns dns-sd's own
+    # death into an exit this process hears and retries. The fd 3 dance is
+    # not optional: POSIX gives backgrounded commands /dev/null as stdin, so
+    # without it the watcher's cat sees EOF at birth and kills the name it
+    # was guarding.
+    script = """
+    exec 3<&0
+    '#{state.dns_sd}' -P Dobby _http._tcp local #{http_port} '#{state.hostname}' '#{state.ip}' &
+    CHILD=$!
+    ( cat <&3 > /dev/null; kill $CHILD 2> /dev/null ) &
+    wait $CHILD
+    """
+
     port =
       Port.open(
-        {:spawn_executable, state.dns_sd},
-        [
-          :binary,
-          :exit_status,
-          args: [
-            "-P",
-            "Dobby",
-            "_http._tcp",
-            "local",
-            Integer.to_string(http_port),
-            state.hostname,
-            state.ip
-          ]
-        ]
+        {:spawn_executable, "/bin/sh"},
+        [:binary, :exit_status, args: ["-c", script]]
       )
 
     address =

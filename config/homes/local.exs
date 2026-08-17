@@ -65,5 +65,18 @@ config :dobby, Dobby.Home,
       agent_module: Dobby.DeviceAgents.Light,
       bindings: %{light: "light.living_room_rgbww_lights"},
       settings: %{}
+    },
+    # The actual printer, presence by ICMP: HA's ping integration pings
+    # 192.168.86.218 and Dobby reads the resulting binary_sensor. If its DHCP
+    # lease ever moves, fix the address in HA's ping entry — a reservation in
+    # the router is the durable answer.
+    %{
+      id: "wifi:office_printer",
+      name: "office printer",
+      aliases: ["the printer"],
+      agent_module: Dobby.DeviceAgents.WifiEndpoint,
+      ha_integration: :ping,
+      bindings: %{connectivity: "binary_sensor.office_printer"},
+      settings: %{}
     }
   ]

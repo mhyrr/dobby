@@ -1,0 +1,11 @@
+# The configuration the local rig instance runs (docs/local-ha.md).
+#
+# Mounted read-only over /config/configuration.yaml by compose.yaml, so the
+# instance's behavior is committed here rather than accumulated by hand.
+
+# The standard set of integrations a fresh install enables.
+default_config:
+
+# Virtual entities, no hardware: demo climate devices and demo lights, which
+# are what config/homes/local.exs binds Dobby's device agents to.
+demo:

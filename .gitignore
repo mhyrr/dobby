@@ -42,3 +42,8 @@ npm-debug.log
 
 # macOS writes these into any directory Finder has looked at.
 .DS_Store
+
+# The local Home Assistant container's runtime state. HA writes its entire
+# world here — including .storage/, which holds user accounts and every
+# issued token. Nothing under it may ever be committed.
+/dev/home-assistant/config/

@@ -66,6 +66,18 @@ config :dobby, Dobby.Home,
       bindings: %{light: "light.living_room_rgbww_lights"},
       settings: %{}
     },
+    # The Roomba, once HA holds its credentials — the one step that needs a
+    # human at the robot (docs/local-ha.md, "The Roomba"). Fill in the
+    # vacuum.* entity id HA creates, then uncomment:
+    #
+    # %{
+    #   id: "vacuum:roomba",
+    #   name: "robot vacuum",
+    #   aliases: ["the vacuum", "the roomba"],
+    #   agent_module: Dobby.DeviceAgents.Vacuum,
+    #   bindings: %{vacuum: "vacuum.roomba"},
+    #   settings: %{}
+    # },
     # The actual printer, presence by ICMP: HA's ping integration pings
     # 192.168.86.218 and Dobby reads the resulting binary_sensor. If its DHCP
     # lease ever moves, fix the address in HA's ping entry — a reservation in

@@ -34,7 +34,8 @@ config :dobby, Dobby.Home,
       "light.living_room" => %{
         state: "on",
         attributes: %{brightness: 128, supported_color_modes: ["color_temp", "hs"]}
-      }
+      },
+      "vacuum.robo" => %{state: "docked", attributes: %{battery_level: 100}}
     }
   ],
   networks: [
@@ -55,6 +56,14 @@ config :dobby, Dobby.Home,
       aliases: ["living room lamp"],
       agent_module: Dobby.DeviceAgents.Light,
       bindings: %{light: "light.living_room"},
+      settings: %{}
+    },
+    %{
+      id: "vacuum:robo",
+      name: "robot vacuum",
+      aliases: ["the vacuum"],
+      agent_module: Dobby.DeviceAgents.Vacuum,
+      bindings: %{vacuum: "vacuum.robo"},
       settings: %{}
     },
     %{

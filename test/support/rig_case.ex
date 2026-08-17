@@ -181,6 +181,32 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  A vacuum manifest entry.
+  """
+  @spec vacuum_device(String.t(), String.t(), keyword()) :: map()
+  def vacuum_device(id, name, opts \\ []) do
+    %{
+      id: id,
+      name: name,
+      aliases: Keyword.get(opts, :aliases, []),
+      agent_module: Dobby.DeviceAgents.Vacuum,
+      bindings: %{vacuum: Keyword.get(opts, :entity, "vacuum.#{String.replace(id, ":", "_")}")},
+      settings: Keyword.get(opts, :settings, %{})
+    }
+  end
+
+  @doc """
+  A vacuum entity as Home Assistant would report one.
+  """
+  @spec vacuum_entity(keyword()) :: map()
+  def vacuum_entity(opts \\ []) do
+    %{
+      state: Keyword.get(opts, :activity, "docked"),
+      attributes: %{battery_level: Keyword.get(opts, :battery, 100)}
+    }
+  end
+
+  @doc """
   Retries `fun` until it returns a truthy value, or fails.
 
   For genuinely eventual properties only. `dobby.device.state_changed` fans

@@ -198,6 +198,15 @@ defmodule Dobby.HomeAssistant.Fake do
     put_in(%{entity | state: "off"}.attributes[:brightness], nil)
   end
 
+  # The vacuum acknowledges by moving: start reports cleaning, return_to_base
+  # reports returning — reaching the dock is a later, separate event, which
+  # tests inject when the scenario needs the robot home.
+  defp apply_service(%HACall{domain: "vacuum", service: "start"}, entity),
+    do: %{entity | state: "cleaning"}
+
+  defp apply_service(%HACall{domain: "vacuum", service: "return_to_base"}, entity),
+    do: %{entity | state: "returning"}
+
   defp apply_service(_call, entity), do: entity
 
   defp dispatch_state_changed(state, entity_id, entity) do

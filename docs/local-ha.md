@@ -88,6 +88,27 @@ drives the thermostat through a real setpoint change and waits for HA's
 confirming `state_changed`. This is the development-integration layer of
 the test story; `mix test` never needs HA running.
 
+## The Roomba
+
+The one integration that needs a human at the robot. In the HA UI:
+Settings → Devices & Services → Add integration → **iRobot Roomba** → enter
+the robot's IP (`192.168.86.21`; confirm under the iRobot app or the
+router). When the flow asks for the password, make sure the robot is **on
+its dock**, then **press and hold its Home button until it plays a tone**
+— HA fetches the credential itself in that window.
+
+Note the `vacuum.*` entity id HA creates, fill it into the commented
+`vacuum:roomba` entry in `config/homes/local.exs`, uncomment, and restart.
+`mix dobby.ha.verify` should then show the robot with its battery.
+
+## Household access
+
+`DOBBY_LAN=1` (see `.env.example`) binds the dev server to every interface
+and advertises this machine as `http://dobby.local/` for exactly as long as
+the server runs. With `PORT=80` the address needs no port number. Anyone on
+the Wi-Fi can then open the thread by name — which is the point: the second
+household speaker is what the multi-speaker design exists for.
+
 ## Entity IDs
 
 The manifest binds Dobby devices to HA entity IDs. To see what this

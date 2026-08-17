@@ -148,6 +148,19 @@ defmodule DobbyWeb.ThreadLive do
     end
   end
 
+  def handle_event("say", %{"text" => text}, socket) do
+    with %{} = speaker <- socket.assigns.speaker,
+         trimmed when trimmed != "" <- String.trim(text) do
+      speaker.name
+      |> Utterance.new(trimmed)
+      |> Turn.say(speaker)
+    end
+
+    {:noreply, clear_composer(socket)}
+  end
+
+  defp clear_composer(socket), do: push_event(socket, "dobby:composer-clear", %{})
+
   # The one realistic refusal is a whole sentence typed at the name prompt —
   # observed in the wild before this note existed.
   defp name_note(%Ecto.Changeset{errors: errors}) do
@@ -163,19 +176,6 @@ defmodule DobbyWeb.ThreadLive do
         "the house could not take that as a name"
     end
   end
-
-  def handle_event("say", %{"text" => text}, socket) do
-    with %{} = speaker <- socket.assigns.speaker,
-         trimmed when trimmed != "" <- String.trim(text) do
-      speaker.name
-      |> Utterance.new(trimmed)
-      |> Turn.say(speaker)
-    end
-
-    {:noreply, clear_composer(socket)}
-  end
-
-  defp clear_composer(socket), do: push_event(socket, "dobby:composer-clear", %{})
 
   # -- what the house does ---------------------------------------------------
 

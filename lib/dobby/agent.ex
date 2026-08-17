@@ -97,6 +97,10 @@ defmodule Dobby.DobbyAgent do
     tools: [
       Dobby.Tools.ThermostatGetStatus,
       Dobby.Tools.ThermostatSetTemperature,
+      Dobby.Tools.LightGetStatus,
+      Dobby.Tools.LightTurnOn,
+      Dobby.Tools.LightTurnOff,
+      Dobby.Tools.LightSetBrightness,
       Dobby.Tools.WifiGetStatus,
       Dobby.Tools.CreateSchedule,
       Dobby.Tools.ListSchedules,
@@ -106,6 +110,15 @@ defmodule Dobby.DobbyAgent do
     system_prompt: @doctrine,
     max_iterations: 5,
     streaming: true,
+    # The ReAct config always sends `temperature` and `max_tokens` — schema
+    # defaults with no way to unset them — and req_llm adapts both per model,
+    # renaming or dropping as the model requires, narrating every adaptation
+    # as a warning on every call. In a name-the-alias-never-the-provider
+    # design (§2.1) that adaptation is normal operation, and two warnings per
+    # turn is how a real warning gets missed. Silence the narration, keep the
+    # adaptation. The cost, accepted: a translation warning that ever does
+    # carry news will also be silent here.
+    llm_opts: [on_unsupported: :ignore],
     request_transformer: Dobby.DobbyAgent.RequestTransformer,
     signal_routes: [
       {"dobby.device.state_changed", Dobby.DobbyAgent.ObserveDevice},

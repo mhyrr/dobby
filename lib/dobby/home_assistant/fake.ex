@@ -185,19 +185,12 @@ defmodule Dobby.HomeAssistant.Fake do
   defp apply_service(_call, entity), do: entity
 
   defp dispatch_state_changed(state, entity_id, entity) do
-    with agent_id when is_binary(agent_id) <- Map.get(state.routing, entity_id),
-         pid when is_pid(pid) <- Dobby.Jido.whereis(agent_id) do
-      signal =
-        Jido.Signal.new!("ha.state_changed", %{
-          entity_id: entity_id,
-          state: entity.state,
-          attributes: entity.attributes
-        })
-
-      Jido.AgentServer.cast(pid, signal)
-    else
-      _ -> :ok
-    end
+    Dobby.HomeAssistant.dispatch_state_changed(
+      state.routing,
+      entity_id,
+      entity.state,
+      entity.attributes
+    )
   end
 
   defp fetch_any(data, keys) do

@@ -47,6 +47,37 @@ defmodule Dobby.HomeAssistant do
   def impl, do: Keyword.get(options(), :client, Dobby.HomeAssistant.Fake)
 
   @doc """
+  Delivers one entity's state to whichever device agent owns it.
+
+  Both implementations dispatch inbound state through here — the fake when it
+  confirms a service call or injects a change, the real client when Home
+  Assistant reports one. The signal shape is the contract every device agent's
+  `signal_routes` matches on, so it is produced in exactly one place rather
+  than two that drift.
+
+  An entity nobody owns is dropped, as is one whose agent is not running:
+  the world moving is not an error, even when nobody is listening.
+  """
+  @spec dispatch_state_changed(%{String.t() => String.t()}, String.t(), String.t() | nil, map()) ::
+          :ok
+  def dispatch_state_changed(routing, entity_id, state, attributes) do
+    with agent_id when is_binary(agent_id) <- Map.get(routing, entity_id),
+         pid when is_pid(pid) <- Dobby.Jido.whereis(agent_id) do
+      signal =
+        Jido.Signal.new!("ha.state_changed", %{
+          entity_id: entity_id,
+          state: state,
+          attributes: attributes
+        })
+
+      Jido.AgentServer.cast(pid, signal)
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  @doc """
   The manifest's `home_assistant` block, as the client's start options.
 
   The client is told where its Home Assistant is by the same file that

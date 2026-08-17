@@ -57,6 +57,13 @@ defmodule Dobby.HomeAssistant do
 
   An entity nobody owns is dropped, as is one whose agent is not running:
   the world moving is not an error, even when nobody is listening.
+
+  Attribute keys are normalized to strings here, because that is what they
+  are on the wire — real HA speaks JSON. The fake's seeds and the rig's test
+  entities write them as atoms for convenience, and letting that shape leak
+  through would mean agents pass on the rig and fail on the house, which was
+  a bug this normalization retired. (Never the other direction: atomizing
+  keys Home Assistant controls would let the house leak atoms.)
   """
   @spec dispatch_state_changed(%{String.t() => String.t()}, String.t(), String.t() | nil, map()) ::
           :ok
@@ -67,7 +74,7 @@ defmodule Dobby.HomeAssistant do
         Jido.Signal.new!("ha.state_changed", %{
           entity_id: entity_id,
           state: state,
-          attributes: attributes
+          attributes: Map.new(attributes, fn {key, value} -> {to_string(key), value} end)
         })
 
       Jido.AgentServer.cast(pid, signal)

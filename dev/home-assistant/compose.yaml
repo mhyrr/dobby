@@ -16,7 +16,9 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: dobby-ha
     ports:
-      - "8123:8123"
+      # Loopback only, for the same reason dev.exs binds loopback: a dev rig
+      # has no business on the network.
+      - "127.0.0.1:8123:8123"
     volumes:
       - ./config:/config
       - ./configuration.seed.yaml:/config/configuration.yaml:ro

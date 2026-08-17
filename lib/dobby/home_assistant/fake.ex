@@ -182,6 +182,22 @@ defmodule Dobby.HomeAssistant.Fake do
     end
   end
 
+  # Real HA's light semantics, kept faithfully: turn_on with brightness_pct
+  # lights the bulb at that level, turn_off nulls the brightness attribute —
+  # an off light has no brightness to report.
+  defp apply_service(%HACall{domain: "light", service: "turn_on", data: data}, entity) do
+    entity = %{entity | state: "on"}
+
+    case fetch_any(data, [:brightness_pct, "brightness_pct"]) do
+      {:ok, percent} -> put_in(entity.attributes[:brightness], round(percent * 255 / 100))
+      :error -> entity
+    end
+  end
+
+  defp apply_service(%HACall{domain: "light", service: "turn_off"}, entity) do
+    put_in(%{entity | state: "off"}.attributes[:brightness], nil)
+  end
+
   defp apply_service(_call, entity), do: entity
 
   defp dispatch_state_changed(state, entity_id, entity) do

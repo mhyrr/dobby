@@ -40,5 +40,15 @@ config :dobby, Dobby.Home,
       agent_module: Dobby.DeviceAgents.Thermostat,
       bindings: %{climate: "climate.hvac"},
       settings: %{min_temperature_f: 60, max_temperature_f: 76}
+    },
+    # A demo light that dims — whether Dobby may be asked for brightness is
+    # discovered from its supported_color_modes, not assumed here.
+    %{
+      id: "light:living_room",
+      name: "living room light",
+      aliases: ["living room lamp"],
+      agent_module: Dobby.DeviceAgents.Light,
+      bindings: %{light: "light.living_room_rgbww_lights"},
+      settings: %{}
     }
   ]

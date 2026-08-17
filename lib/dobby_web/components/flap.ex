@@ -93,6 +93,14 @@ defmodule DobbyWeb.Flap do
     end
   end
 
+  def read(%{type: :light} = snapshot) do
+    cond do
+      not snapshot.available -> %{word: "Quiet", state: :silent, value: light_value(snapshot)}
+      is_nil(snapshot.power) -> unknown(nil)
+      true -> %{word: "Set", state: :set, value: light_value(snapshot)}
+    end
+  end
+
   def read(%{type: :wifi_endpoint} = snapshot) do
     case {snapshot.available, snapshot.online} do
       {true, true} -> %{word: "Awake", state: :acting, value: nil}
@@ -105,6 +113,16 @@ defmodule DobbyWeb.Flap do
   def read(_snapshot), do: unknown(nil)
 
   defp unknown(value), do: %{word: "Not known", state: :silent, value: value}
+
+  # On or off is the reading; a dimmed light's percentage is the more exact
+  # form of "on". Either way the word is SET — it is a commanded state, which
+  # is the only thing this board is allowed to say.
+  defp light_value(%{power: :on, brightness_percent: percent}) when is_number(percent),
+    do: "#{percent}%"
+
+  defp light_value(%{power: :on}), do: "On"
+  defp light_value(%{power: :off}), do: "Off"
+  defp light_value(_snapshot), do: nil
 
   # Half a degree of slack: a thermostat sitting exactly on its setpoint
   # wobbles, and a board that flips between SET and WARMING every few minutes

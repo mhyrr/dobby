@@ -148,6 +148,39 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  A light manifest entry.
+  """
+  @spec light_device(String.t(), String.t(), keyword()) :: map()
+  def light_device(id, name, opts \\ []) do
+    %{
+      id: id,
+      name: name,
+      aliases: Keyword.get(opts, :aliases, []),
+      agent_module: Dobby.DeviceAgents.Light,
+      bindings: %{light: Keyword.get(opts, :entity, "light.#{String.replace(id, ":", "_")}")},
+      settings: Keyword.get(opts, :settings, %{})
+    }
+  end
+
+  @doc """
+  A light entity as Home Assistant would report one.
+
+  `supported_color_modes` is the point: it is what dimming discovery reads,
+  and it is the hardware's word, not ours. `["onoff"]` is a switch-only bulb.
+  """
+  @spec light_entity(keyword()) :: map()
+  def light_entity(opts \\ []) do
+    state = Keyword.get(opts, :state, "on")
+
+    attributes = %{
+      supported_color_modes: Keyword.get(opts, :color_modes, ["color_temp", "hs"]),
+      brightness: if(state == "on", do: Keyword.get(opts, :brightness, 128))
+    }
+
+    %{state: state, attributes: attributes}
+  end
+
+  @doc """
   Retries `fun` until it returns a truthy value, or fails.
 
   For genuinely eventual properties only. `dobby.device.state_changed` fans

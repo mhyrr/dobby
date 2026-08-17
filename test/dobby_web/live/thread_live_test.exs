@@ -107,6 +107,37 @@ defmodule DobbyWeb.ThreadLiveTest do
       assert length(Conversation.list_speakers()) == 1
       assert Conversation.get_speaker_by_name("greg").id == existing.id
     end
+
+    test "a sentence typed as a name is refused out loud", %{conn: conn} do
+      # Observed in the wild: the placeholder question vanished under the
+      # typing, and a whole request went in as a name. The guard already
+      # refused it — this pins the refusal being said, not swallowed.
+      sentence = "Hey Dobby, can you set the thermostat to seventy three?"
+      {:ok, view, _html} = live(conn, "/")
+
+      view |> element("form.set-line") |> render_submit(%{"name" => sentence})
+
+      assert has_element?(view, ".set-note", "reads like a message")
+      assert has_element?(view, "input#composer[name=name]")
+      refute Conversation.get_speaker_by_name(sentence)
+
+      # The note clears the moment a real name lands.
+      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+      refute has_element?(view, ".set-note")
+      assert has_element?(view, "input#composer[name=text]")
+    end
+
+    test "the identity question stays visible while an answer is typed", %{conn: conn} do
+      # It lives beside the input, not inside it, because a placeholder is
+      # erased by the first letter of the answer.
+      {:ok, view, _html} = live(conn, "/")
+
+      assert has_element?(view, ".set-ask", "who's this?")
+
+      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+
+      refute has_element?(view, ".set-ask")
+    end
   end
 
   describe "a turn" do

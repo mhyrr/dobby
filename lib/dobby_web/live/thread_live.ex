@@ -51,6 +51,7 @@ defmodule DobbyWeb.ThreadLive do
      socket
      |> assign(:page_title, "Dobby")
      |> assign(:speaker, nil)
+     |> assign(:set_note, nil)
      |> assign(:pending, %{})
      |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
@@ -72,14 +73,20 @@ defmodule DobbyWeb.ThreadLive do
       <.pending :for={pending <- ordered(@pending)} pending={pending} />
     </div>
 
+    <div :if={@set_note} class="set-note" role="alert">{@set_note}</div>
+
     <form class="set-line" phx-submit={if @speaker, do: "say", else: "name"}>
+      <%!-- The question stays beside the answer rather than inside it: a
+      placeholder vanishes at the first letter, and this bar's one observed
+      failure was somebody answering a question they could no longer see. --%>
+      <span :if={is_nil(@speaker)} class="set-ask">who's this?</span>
       <input
         type="text"
         id="composer"
         name={if @speaker, do: "text", else: "name"}
         value=""
         autocomplete="off"
-        placeholder={if @speaker, do: "say something", else: "who's this?"}
+        placeholder={if @speaker, do: "say something", else: "a name to answer to"}
         aria-label={if @speaker, do: "Say something to Dobby", else: "Your name"}
         phx-hook=".Composer"
         phx-mounted={JS.focus()}
@@ -127,9 +134,33 @@ defmodule DobbyWeb.ThreadLive do
 
       name ->
         case Conversation.name_speaker(name) do
-          {:ok, speaker} -> {:noreply, socket |> assign(:speaker, speaker) |> clear_composer()}
-          {:error, _changeset} -> {:noreply, socket}
+          {:ok, speaker} ->
+            {:noreply,
+             socket |> assign(:speaker, speaker) |> assign(:set_note, nil) |> clear_composer()}
+
+          {:error, changeset} ->
+            # A refused name must say so. This board's whole vocabulary is
+            # built on "the device declined, with the reason beside it" — the
+            # composer does not get to be the one part of the surface that
+            # declines in silence.
+            {:noreply, assign(socket, :set_note, name_note(changeset))}
         end
+    end
+  end
+
+  # The one realistic refusal is a whole sentence typed at the name prompt —
+  # observed in the wild before this note existed.
+  defp name_note(%Ecto.Changeset{errors: errors}) do
+    case Keyword.get(errors, :name) do
+      {_message, opts} when is_list(opts) ->
+        if Keyword.get(opts, :kind) == :max do
+          "that reads like a message, not a name — say who you are first, in 40 letters or fewer"
+        else
+          "the house could not take that as a name"
+        end
+
+      _other ->
+        "the house could not take that as a name"
     end
   end
 

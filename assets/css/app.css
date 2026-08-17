@@ -380,6 +380,32 @@ body {
   letter-spacing: .08em;
   font-size: .86rem;
 }
+/* The identity question, standing beside the input where typing cannot
+   erase it. Same lettering as the placeholder, in brass: it is the board
+   asking, not a hint. */
+.set-ask {
+  align-self: center;
+  white-space: nowrap;
+  padding: 0 .2rem 0 .9rem;
+  color: var(--brass);
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .86rem;
+}
+/* The composer's refusal line — reason beside the decline, never silence.
+   Refused ink on the words only; no tinted field (palette law). */
+.set-note {
+  flex: 0 0 auto;
+  padding: .5rem .9rem .45rem;
+  border-top: var(--rule);
+  background: var(--board-raised);
+  color: var(--st-refused);
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .74rem;
+}
 .set-line button {
   background: transparent;
   border: 0;

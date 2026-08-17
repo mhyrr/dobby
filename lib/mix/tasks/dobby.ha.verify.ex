@@ -14,11 +14,18 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
   inbound path: connection, authentication, subscription, routing, and state
   interpretation.
 
-  With `--round-trip`, also drives the first thermostat through a real
-  setpoint change: deterministic action → `HACall` → service call → HA moves
-  the entity → `state_changed` comes back → agent state agrees. The nudge is
-  one degree inside household policy, and it is a real change to the running
-  instance.
+  With `--round-trip`, also drives a thermostat through a real setpoint
+  change and back: deterministic action → `HACall` → service call → HA moves
+  the entity → `state_changed` comes back → agent state agrees — then the
+  original setpoint is restored the same way. The nudge is one degree inside
+  household policy, and it is a real change to whatever the entity is bound
+  to, for as long as confirmation takes.
+
+  `--round-trip` alone targets the first thermostat in the manifest — keep a
+  virtual one first, so the default nudge never lands on a furnace. Name a
+  device to aim deliberately:
+
+      mix dobby.ha.verify --round-trip thermostat:house
   """
 
   use Mix.Task
@@ -26,7 +33,9 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
   alias Dobby.DeviceAgents.Thermostat
 
   @sync_timeout 10_000
-  @round_trip_timeout 10_000
+  # Generous because it has to hold for cloud-polled devices: a TCC
+  # thermostat confirms on Honeywell's schedule, not ours.
+  @round_trip_timeout 120_000
 
   @impl Mix.Task
   def run(args) do
@@ -52,13 +61,26 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
 
     Mix.shell().info("\ninitial state sync: ok")
 
-    if "--round-trip" in args, do: round_trip()
+    case Enum.drop_while(args, &(&1 != "--round-trip")) do
+      ["--round-trip", "thermostat:" <> _rest = device_id | _rest_args] -> round_trip(device_id)
+      ["--round-trip" | _rest_args] -> round_trip(nil)
+      [] -> :ok
+    end
   end
 
-  defp round_trip do
+  defp round_trip(device_id) do
     device =
-      Enum.find(Dobby.Home.devices(), &(&1.agent_module == Thermostat)) ||
-        Mix.raise("--round-trip needs a thermostat in the manifest")
+      case device_id do
+        nil -> Enum.find(Dobby.Home.devices(), &(&1.agent_module == Thermostat))
+        id -> Enum.find(Dobby.Home.devices(), &(&1.id == id))
+      end
+
+    unless device && device.agent_module == Thermostat do
+      Mix.raise(
+        "--round-trip needs a thermostat in the manifest" <>
+          if(device_id, do: "; #{inspect(device_id)} is not one", else: "")
+      )
+    end
 
     pid = Dobby.Jido.whereis(device.id)
     {:ok, server_state} = Jido.AgentServer.state(pid)
@@ -73,10 +95,25 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
     """)
 
     %{target_temperature_f: current} = snapshot(device.id)
-    target = if current == 72, do: 71.0, else: 72.0
 
-    Mix.shell().info("\nround trip: #{device.id} setpoint #{inspect(current)} → #{target}")
+    unless is_number(current) do
+      Mix.raise("#{device.id} has no target setpoint to nudge yet")
+    end
 
+    # Down one degree unless policy floors us there — and always back where
+    # it was: the proof is the loop, not the change, and nobody's afternoon
+    # should be a degree different because a verify ran.
+    nudged = if min != nil and current - 1 < min, do: current + 1.0, else: current - 1.0
+
+    Mix.shell().info("\nround trip: #{device.id} setpoint #{inspect(current)} → #{nudged} → back")
+
+    set_and_confirm(device, pid, nudged)
+    set_and_confirm(device, pid, current * 1.0)
+
+    Mix.shell().info("round trip: ok — setpoint restored to #{inspect(current)}")
+  end
+
+  defp set_and_confirm(device, pid, target) do
     ref = Jido.Util.generate_id()
 
     signal =
@@ -85,13 +122,16 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
     {:ok, agent} = Jido.AgentServer.call(pid, signal)
 
     case Dobby.DeviceAgent.command_outcome(agent.state, ref) do
-      :accepted -> Mix.shell().info("thermostat accepted; waiting for Home Assistant ...")
+      :accepted -> Mix.shell().info("  accepted #{target}; waiting for the house to confirm ...")
       {:rejected, reason} -> Mix.raise("thermostat rejected the setpoint: #{reason}")
       :unknown -> Mix.raise("could not confirm the command")
     end
 
+    started = System.monotonic_time(:millisecond)
+
     if await(fn -> snapshot(device.id).target_temperature_f == target end, @round_trip_timeout) do
-      Mix.shell().info("round trip: ok — HA reported #{target}, agent state agrees")
+      elapsed = System.monotonic_time(:millisecond) - started
+      Mix.shell().info("  confirmed at #{target} after #{elapsed}ms")
     else
       Mix.raise("""
       HA accepted the call but the confirming state change never arrived.

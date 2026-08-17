@@ -33,13 +33,28 @@ config :dobby, Dobby.Home,
     # The demo integration's full-featured thermostat. Its hardware envelope
     # (45–95°F on this instance) comes from capability discovery; settings
     # narrow it to household policy, exactly as in the rig.
+    # The demo thermostat, first on purpose: `mix dobby.ha.verify
+    # --round-trip` nudges the first thermostat it finds, and the default
+    # nudge should land on the virtual one, never the furnace.
     %{
       id: "thermostat:main",
-      name: "main thermostat",
-      aliases: ["downstairs thermostat", "the thermostat"],
+      name: "demo thermostat",
+      aliases: [],
       agent_module: Dobby.DeviceAgents.Thermostat,
       bindings: %{climate: "climate.hvac"},
       settings: %{min_temperature_f: 60, max_temperature_f: 76}
+    },
+    # The real Honeywell, through its RedLINK gateway and the TCC cloud —
+    # the first entry in any manifest describing hardware that exists.
+    # Cloud-polled, so a commanded change confirms in seconds-to-a-minute,
+    # not instantly; the acceptance/observation split absorbs that.
+    %{
+      id: "thermostat:house",
+      name: "house thermostat",
+      aliases: ["the thermostat", "downstairs thermostat"],
+      agent_module: Dobby.DeviceAgents.Thermostat,
+      bindings: %{climate: "climate.thermostat"},
+      settings: %{min_temperature_f: 60, max_temperature_f: 78}
     },
     # A demo light that dims — whether Dobby may be asked for brightness is
     # discovered from its supported_color_modes, not assumed here.

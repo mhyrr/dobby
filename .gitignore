@@ -47,3 +47,7 @@ npm-debug.log
 # world here — including .storage/, which holds user accounts and every
 # issued token. Nothing under it may ever be committed.
 /dev/home-assistant/config/
+
+# Local development environment — carries the HA token. .env.example is the
+# committed shape of it.
+/.env

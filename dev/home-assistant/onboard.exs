@@ -58,10 +58,10 @@ defmodule Dobby.Dev.HAOnboard do
 
       (cd dev/home-assistant && docker compose restart)
 
-    Dobby's environment:
+    Dobby's environment (put these in .env — see .env.example):
 
-      export DOBBY_HA_URL=#{url}
-      export DOBBY_HA_TOKEN=#{token_result["result"]}
+      DOBBY_HA_URL=#{url}
+      DOBBY_HA_TOKEN=#{token_result["result"]}
     """)
   end
 

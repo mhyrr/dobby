@@ -59,19 +59,22 @@ directory holds HA's own auth store; leave it that way.
 
 `config/homes/local.exs` is the committed manifest for this house. It binds
 the real client (`Dobby.HomeAssistant.Client`) and takes its credential from
-the environment:
+the environment. In dev the environment starts from a gitignored `.env`:
 
 ```sh
-export DOBBY_HA_URL=http://localhost:8123   # the default; optional
-export DOBBY_HA_TOKEN=<the token onboard.exs printed>
-
-DOBBY_HOME_MANIFEST=config/homes/local.exs mix phx.server
+cp .env.example .env    # then fill in the token onboard.exs printed
+mix phx.server
 ```
 
-Add `DOBBY_MODEL=...` (see `config/dev.exs`) to give the surface a real
-model. Without a manifest override, everything still runs against FakeHA —
-the rig and the real house are the same application either side of the one
+Anything exported in the shell still wins over `.env`, and `mix test` never
+reads it — the replay tier's determinism is not changeable by a file nobody
+passed to mix. Without `DOBBY_HOME_MANIFEST`, everything runs against FakeHA
+— the rig and the real house are the same application either side of the one
 boundary.
+
+Credentials for HA *integrations* (Honeywell TCC and friends) do not belong
+in `.env` or anywhere else in this repo: they are entered once in the HA UI
+and live in HA's own gitignored storage.
 
 ## Verify it
 

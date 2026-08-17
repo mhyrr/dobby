@@ -63,7 +63,10 @@ defmodule Dobby.MixProject do
       # (already in the tree via req_llm) was considered and rejected: it has
       # no synchronous call semantics for request correlation and no honest
       # disconnected state — a GenServer over Mint.WebSocket gives both.
-      {:mint_web_socket, "~> 1.0"}
+      {:mint_web_socket, "~> 1.0"},
+      # .env loading for dev (config/runtime.exs). Already in the tree via
+      # req_llm; declared because we call it ourselves.
+      {:dotenvy, "~> 1.1"}
     ]
   end
 

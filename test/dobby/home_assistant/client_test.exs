@@ -27,7 +27,8 @@ defmodule Dobby.HomeAssistant.ClientTest do
 
     ExUnit.Callbacks.start_supervised!(
       {Client,
-       Keyword.merge([url: url, token: "rig-token", name: nil, backoff: 50, dispatch: dispatch],
+       Keyword.merge(
+         [url: url, token: "rig-token", name: nil, backoff: 50, dispatch: dispatch],
          opts
        )}
     )
@@ -48,6 +49,7 @@ defmodule Dobby.HomeAssistant.ClientTest do
       start_client!(url)
 
       assert_receive {:ha_server, :connected, _handler}, 1_000
+
       assert_receive {:ha_server, :received, %{"type" => "auth", "access_token" => "rig-token"}},
                      1_000
 
@@ -79,7 +81,11 @@ defmodule Dobby.HomeAssistant.ClientTest do
   describe "initial state synchronization" do
     test "routing installed before connect: current states fan out on auth" do
       states = [
-        %{"entity_id" => "climate.hvac", "state" => "heat", "attributes" => %{"temperature" => 70}},
+        %{
+          "entity_id" => "climate.hvac",
+          "state" => "heat",
+          "attributes" => %{"temperature" => 70}
+        },
         %{"entity_id" => "sun.sun", "state" => "above_horizon", "attributes" => %{}}
       ]
 

@@ -142,7 +142,9 @@ defmodule Dobby.HomeAssistant.Client do
   end
 
   @impl GenServer
-  def handle_info(:connect, %{status: :disconnected} = state), do: {:noreply, attempt_connect(state)}
+  def handle_info(:connect, %{status: :disconnected} = state),
+    do: {:noreply, attempt_connect(state)}
+
   def handle_info(:connect, state), do: {:noreply, state}
 
   def handle_info(_message, %{conn: nil} = state), do: {:noreply, state}

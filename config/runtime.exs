@@ -75,6 +75,15 @@ if config_env() == :dev do
     config :jido_ai, :model_aliases, %{capable: model}
   end
 
+  # DOBBY_LAN opens the dev server to the household: bind every interface and
+  # advertise this machine as dobby.local for as long as the server runs
+  # (Dobby.LanBeacon). Off by default — dev.exs binds loopback, and putting a
+  # laptop on the network is a choice, not a side effect.
+  if System.get_env("DOBBY_LAN") in ~w(1 true) do
+    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
+    config :dobby, :lan_beacon, hostname: "dobby.local"
+  end
+
   # Reload browser tabs when matching files change.
   config :dobby, DobbyWeb.Endpoint,
     live_reload: [

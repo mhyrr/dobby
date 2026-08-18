@@ -61,9 +61,14 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
 
     Mix.shell().info("\ninitial state sync: ok")
 
+    # Whatever follows --round-trip is a device id unless it is another flag.
+    # Nothing forces a manifest to prefix its thermostats with `thermostat:`,
+    # so an id we do not recognise must reach round_trip/1 and be refused
+    # there by name — never silently fall through to the first thermostat.
     case Enum.drop_while(args, &(&1 != "--round-trip")) do
-      ["--round-trip", "thermostat:" <> _rest = device_id | _rest_args] -> round_trip(device_id)
-      ["--round-trip" | _rest_args] -> round_trip(nil)
+      ["--round-trip", "--" <> _flag | _rest_args] -> round_trip(nil)
+      ["--round-trip", device_id | _rest_args] -> round_trip(device_id)
+      ["--round-trip"] -> round_trip(nil)
       [] -> :ok
     end
   end
@@ -107,10 +112,33 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
 
     Mix.shell().info("\nround trip: #{device.id} setpoint #{inspect(current)} → #{nudged} → back")
 
-    set_and_confirm(device, pid, nudged)
+    # The nudge is a real change to a real house, so the restore is owed on
+    # the failure path too — a cloud-polled thermostat that never confirms is
+    # exactly when the setpoint would otherwise be left a degree off. The
+    # nudge's failure is the one worth reporting; the restore's own trouble
+    # gets a warning and the operator's attention.
+    try do
+      set_and_confirm(device, pid, nudged)
+    rescue
+      error ->
+        restore(device, pid, current * 1.0)
+        reraise error, __STACKTRACE__
+    end
+
     set_and_confirm(device, pid, current * 1.0)
 
     Mix.shell().info("round trip: ok — setpoint restored to #{inspect(current)}")
+  end
+
+  defp restore(device, pid, target) do
+    Mix.shell().info("  putting #{device.id} back to #{target} ...")
+    set_and_confirm(device, pid, target)
+  rescue
+    _error ->
+      Mix.shell().error("""
+      could not put #{device.id} back to #{target}. Set it by hand — the
+      verify left the setpoint where the nudge put it.
+      """)
   end
 
   defp set_and_confirm(device, pid, target) do

@@ -175,8 +175,14 @@ defmodule Dobby.HomeAssistant.Client do
          {:ok, conn, ref} <- Mint.WebSocket.upgrade(endpoint.ws_scheme, conn, endpoint.path, []) do
       %{state | conn: conn, ref: ref, status: :connecting}
     else
-      {:error, reason} -> retry(state, reason)
-      {:error, _conn, reason} -> retry(state, reason)
+      {:error, reason} ->
+        retry(state, reason)
+
+      # A failed upgrade means the TCP connection is already up. Retrying
+      # forever without closing it leaks a socket per attempt.
+      {:error, conn, reason} ->
+        Mint.HTTP.close(conn)
+        retry(state, reason)
     end
   end
 

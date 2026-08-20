@@ -34,6 +34,10 @@ defmodule Dobby.Application do
         Dobby.Jido,
         {Dobby.HomeAssistant.impl(), Dobby.HomeAssistant.options()},
         Dobby.Home,
+        # The one author of the home file, and a sibling of the house rather
+        # than a child of it: applying a changed house means restarting
+        # Dobby.Home, which a process living underneath it could not do.
+        Dobby.HomeConfig.Writer,
         # Start to serve requests, typically the last entry
         DobbyWeb.Endpoint
       ] ++ lan_beacon()

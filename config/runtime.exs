@@ -56,11 +56,17 @@ home_path =
   cond do
     test? -> "config/homes/rig.exs"
     path = System.get_env("DOBBY_HOME_MANIFEST") -> path
-    config_env() == :prod -> "/opt/dobby/config/home.exs"
+    config_env() == :prod -> "/opt/dobby/config/home.yaml"
     true -> "config/homes/rig.exs"
   end
 
-config :dobby, Dobby.Home, Dobby.HomeConfig.manifest!(home_path)
+home = Dobby.HomeConfig.load!(home_path)
+
+config :dobby, Dobby.Home, Dobby.HomeConfig.manifest(home)
+
+# Which file that was, so `Dobby.HomeConfig.Writer` writes back to the one this
+# boot actually read rather than to wherever the default points.
+config :dobby, :home_config_path, home_path
 
 # Dobby's soul travels with the home file and for the same reason: the two files
 # under /opt/dobby/config are the parts of Dobby a person should be able to
@@ -76,36 +82,48 @@ soul_path =
 
 config :dobby, :soul_path, soul_path
 
-# Not in test: config/test.exs has already said 4002, and a port arriving from
-# the environment is the same leak in a smaller coat.
+# The system section, in every environment except the pinned one. All three of
+# these used to sit inside `if config_env() == :dev`, which meant a household
+# running a release could not choose a provider without rebuilding, and could
+# not be reached from its own kitchen at all (TK-018, broken items 1 and 3).
+#
+# The environment still has the last word wherever it always did: the real
+# environment is sourced last, so a variable somebody actually exported beats
+# the file — which keeps `DOBBY_MODEL=… mix phx.server` working for the one-off
+# it is good at, without it being the only way.
 if not test? do
-  config :dobby, DobbyWeb.Endpoint,
-    http: [port: String.to_integer(System.get_env("PORT", "4000"))]
-end
-
-if config_env() == :dev do
-  # The dev server boots against FakeHA by default, and the one thing the
-  # fake cannot stand in for is the model. Point `:capable` at whatever
-  # provider this machine has a key for and the surface streams for real:
-  #
-  #     DOBBY_MODEL=openai:gpt-5.6-luna mix phx.server
-  #
-  # Which is the swap design §2.1 says the alias exists to make — the agent
-  # names the alias, never the provider. Here rather than dev.exs so a model
-  # named in .env is seen.
-  if model = System.get_env("DOBBY_MODEL") do
+  # The `:capable` alias, which is the swap design §2.1 says an alias exists to
+  # make: the agent names the alias, never the provider. Unset on both sides
+  # means the committed default in config/config.exs.
+  if model = System.get_env("DOBBY_MODEL") || home.system.model do
     config :jido_ai, :model_aliases, %{capable: model}
   end
 
-  # DOBBY_LAN opens the dev server to the household: bind every interface and
-  # advertise this machine as dobby.local for as long as the server runs
-  # (Dobby.LanBeacon). Off by default — dev.exs binds loopback, and putting a
-  # laptop on the network is a choice, not a side effect.
-  if System.get_env("DOBBY_LAN") in ~w(1 true) do
-    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
-    config :dobby, :lan_beacon, hostname: "dobby.local"
-  end
+  port =
+    case System.get_env("PORT") do
+      nil -> home.system.port || 4000
+      exported -> String.to_integer(exported)
+    end
 
+  config :dobby, DobbyWeb.Endpoint, http: [port: port]
+
+  # Opening Dobby to the household: bind every interface and advertise this
+  # machine on the LAN for as long as the server runs (Dobby.LanBeacon). Off by
+  # default — dev.exs binds loopback, and putting a machine on the network is a
+  # choice, not a side effect.
+  lan? =
+    case System.get_env("DOBBY_LAN") do
+      nil -> home.system.lan
+      exported -> exported in ~w(1 true)
+    end
+
+  if lan? do
+    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
+    config :dobby, :lan_beacon, hostname: home.system.hostname || "dobby.local"
+  end
+end
+
+if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :dobby, DobbyWeb.Endpoint,
     live_reload: [

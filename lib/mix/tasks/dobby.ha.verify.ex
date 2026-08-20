@@ -6,7 +6,8 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
   reports what actually happened — the development-integration layer of the
   test story (design §12), the one `mix test` deliberately does not cover.
 
-      DOBBY_HOME_MANIFEST=config/homes/local.exs DOBBY_HA_TOKEN=... \\
+      DOBBY_HOME_MANIFEST=config/homes/local.yaml \\
+      DOBBY_HA_URL=http://localhost:8123 DOBBY_HA_TOKEN=... \\
       mix dobby.ha.verify
 
   Prints every device's snapshot once Home Assistant's initial state sync has

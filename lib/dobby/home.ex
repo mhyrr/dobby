@@ -89,6 +89,59 @@ defmodule Dobby.Home do
     :ok
   end
 
+  @doc """
+  Takes the house down, and waits for it to actually be down.
+
+  `terminate_child` returns when this process is gone, but the agents it stopped
+  bring down plugin children of their own — Jido AI gives every agent a
+  Task.Supervisor. Coming back up before those have exited collides on
+  registered names, which surfaces as `:already_registered` and then a request
+  that never completes. Wait for the processes, not for the call.
+
+  Proven in the rig, where every scenario reboots the house between tests, and
+  in lib rather than in test support because production does the same thing for
+  the same reason: `Dobby.HomeConfig.Writer` applies a changed house by
+  restarting this.
+  """
+  @spec stop() :: :ok
+  def stop do
+    refs =
+      Dobby.Jido.list_agents()
+      |> Enum.map(fn {_id, pid} -> Process.monitor(pid) end)
+
+    :ok = Supervisor.terminate_child(Dobby.Supervisor, __MODULE__)
+    Enum.each(refs, &await_down/1)
+
+    :ok
+  end
+
+  @doc """
+  Reboots the house from whatever configuration is currently applied.
+
+  What changing the house has always meant (design §2.4: edit and restart) — the
+  only difference now is that a person can do it without a shell. The cards
+  honestly blink NOT KNOWN while the agents come back, and Home Assistant's
+  initial-state sync heals them.
+  """
+  @spec restart() :: {:ok, pid()} | {:error, term()}
+  def restart do
+    stop()
+
+    case Supervisor.restart_child(Dobby.Supervisor, __MODULE__) do
+      {:ok, pid} -> {:ok, pid}
+      {:ok, pid, _info} -> {:ok, pid}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp await_down(ref) do
+    receive do
+      {:DOWN, ^ref, :process, _pid, _reason} -> :ok
+    after
+      5_000 -> raise "timed out waiting for the house's agents to shut down"
+    end
+  end
+
   # -- reads -----------------------------------------------------------------
 
   @doc """

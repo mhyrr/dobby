@@ -477,6 +477,64 @@ defmodule Dobby.HomeConfigTest do
     end
   end
 
+  describe "the houses that ship" do
+    test "the example is a house Dobby would boot, with one of everything" do
+      assert {:ok, config} = HomeConfig.load("config/homes/example.yaml")
+      assert {:ok, manifest} = Dobby.Home.Manifest.load(stub_credentials(config))
+
+      assert Enum.map(manifest.devices, & &1.agent_module) |> Enum.sort() ==
+               Enum.sort(Dobby.HomeConfig.Types.modules())
+    end
+
+    test "the example names no real address and holds no credential" do
+      contents = File.read!("config/homes/example.yaml")
+      {:ok, config} = HomeConfig.load("config/homes/example.yaml")
+
+      assert config.house[:home_assistant][:url] == "env:DOBBY_HA_URL"
+      assert config.house[:home_assistant][:token] == "env:DOBBY_HA_TOKEN"
+      refute contents =~ ~r/\d+\.\d+\.\d+\.\d+/
+    end
+
+    test "the example's model line is commented out, like .env.example's now is" do
+      {:ok, config} = HomeConfig.load("config/homes/example.yaml")
+
+      assert config.system.model == nil
+      refute File.read!(".env.example") =~ ~r/^DOBBY_MODEL=/m
+    end
+
+    test "this house survived the migration with every real value on it" do
+      assert {:ok, config} = HomeConfig.load("config/homes/local.yaml")
+
+      assert config.house[:id] == "local"
+      assert config.house[:timezone] == "America/New_York"
+      assert config.house[:home_assistant][:url] == "env:DOBBY_HA_URL"
+      assert config.house[:home_assistant][:token] == "env:DOBBY_HA_TOKEN"
+
+      by_id = Map.new(config.house[:devices], &{&1.id, &1})
+      assert map_size(by_id) == 4
+
+      # The furnace, and the settings that keep anyone from asking it for 90.
+      honeywell = by_id["thermostat:house"]
+      assert honeywell.bindings == %{climate: "climate.thermostat"}
+      assert honeywell.aliases == ["the thermostat", "downstairs thermostat"]
+      assert honeywell.settings == %{min_temperature_f: 60, max_temperature_f: 78}
+
+      assert by_id["thermostat:main"].bindings == %{climate: "climate.hvac"}
+      assert by_id["thermostat:main"].settings == %{min_temperature_f: 60, max_temperature_f: 76}
+      assert by_id["light:living_room"].bindings == %{light: "light.living_room_rgbww_lights"}
+
+      assert by_id["wifi:office_printer"].bindings == %{
+               connectivity: "binary_sensor.office_printer"
+             }
+
+      assert by_id["wifi:office_printer"].ha_integration == "ping"
+      assert by_id["wifi:office_printer"].aliases == ["the printer"]
+
+      # The Roomba is still waiting on a human at the robot, and still says so.
+      assert File.read!("config/homes/local.yaml") =~ "# - id: vacuum:roomba"
+    end
+  end
+
   describe "the test environment's house" do
     test "mix test boots the rig, whatever the shell exports" do
       # The tripwire for the leak this ticket closed: a shell exporting
@@ -485,6 +543,23 @@ defmodule Dobby.HomeConfigTest do
       # device rows into the test database before the sandbox engaged.
       assert Application.get_env(:dobby, Dobby.Home)[:id] == "rig"
       assert Application.get_env(:dobby, :soul_path) == "config/soul.md"
+      assert Application.get_env(:dobby, :home_config_path) == "config/homes/rig.exs"
     end
+
+    test "and the port it was told, not the one a shell was thinking of" do
+      assert DobbyWeb.Endpoint.config(:http)[:port] == 4002
+    end
+  end
+
+  # The example ships references and never values — which is the point of it,
+  # and means loading it needs something to point at.
+  defp stub_credentials(config) do
+    Enum.map(config.house, fn
+      {:home_assistant, options} ->
+        {:home_assistant, Keyword.merge(options, url: "http://ha.invalid:8123", token: "stub")}
+
+      other ->
+        other
+    end)
   end
 end

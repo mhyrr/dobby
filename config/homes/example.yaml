@@ -1,0 +1,107 @@
+# Dobby's example house: one of everything, nothing real.
+#
+# Copy it, edit it, point Dobby at it:
+#
+#     cp config/homes/example.yaml config/homes/my-house.yaml
+#     DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server
+#
+# In an install it is /opt/dobby/config/home.yaml and needs no variable at all.
+# It and config/soul.md — what the house contains, and who is answering — are
+# the two files a household owns. Everything else is the application's business.
+#
+# Credentials are never written here. `env:NAME` names an environment variable
+# and Dobby reads it at boot, which is what keeps this file safe to share.
+
+house:
+  # A short name for this house, and the name Dobby answers to about it.
+  id: example
+  name: The Example House
+
+  # Everything Dobby says about clocks is said in this zone.
+  timezone: America/New_York
+
+  # Where Home Assistant is, and a long-lived access token for it. Make the
+  # token in HA under your profile → Security → Long-lived access tokens, then
+  # export it as DOBBY_HA_TOKEN.
+  home_assistant:
+    url: env:DOBBY_HA_URL
+    token: env:DOBBY_HA_TOKEN
+
+  # The networks devices sit on. Optional, and only useful as a label a device
+  # can point at — Dobby reads reachability from Home Assistant, never from here.
+  networks:
+    - id: home_wifi
+      name: Home Wi-Fi
+
+  # One entry per device Dobby manages.
+  #
+  #   id        how Dobby refers to it, forever. Convention is type:place.
+  #   type      one of: thermostat, light, vacuum, wifi_endpoint.
+  #   name      what the household calls it, in the words they actually use.
+  #   aliases   the other words they use for the same thing.
+  #   bindings  which Home Assistant entity is which part of this device.
+  #   settings  household policy, narrowing what the device already allows.
+  #
+  # The entity ids below are made up. Yours are in Home Assistant under
+  # Settings → Devices & services → Entities.
+  devices:
+    # A thermostat Dobby can read and set. The temperature range the hardware
+    # allows is discovered from the device itself; `settings` only narrows that
+    # to what this household is willing to have asked for, and can never widen
+    # it — so nobody, including Dobby, can set the house to 90.
+    - id: thermostat:hall
+      type: thermostat
+      name: hall thermostat
+      aliases: [the thermostat, downstairs thermostat]
+      bindings:
+        climate: climate.hall
+      settings:
+        min_temperature_f: 60
+        max_temperature_f: 78
+
+    # A light Dobby can switch, and dim if the bulb says it dims. Whether it
+    # dims is the bulb's word (its supported colour modes), never a setting.
+    - id: light:living_room
+      type: light
+      name: living room light
+      aliases: [living room lamp]
+      bindings:
+        light: light.living_room
+
+    # A robot vacuum Dobby can start and send home.
+    - id: vacuum:downstairs
+      type: vacuum
+      name: robot vacuum
+      aliases: [the vacuum]
+      bindings:
+        vacuum: vacuum.downstairs
+
+    # Something on the network Dobby can tell you the reachability of, and only
+    # that: a printer, a television, a speaker. Read-only on purpose. The usual
+    # source is Home Assistant's ping integration, which is what `ha_integration`
+    # records — a note for whoever reads this file, not a switch.
+    - id: wifi:office_printer
+      type: wifi_endpoint
+      name: office printer
+      aliases: [the printer]
+      network: home_wifi
+      ha_integration: ping
+      bindings:
+        connectivity: binary_sensor.office_printer
+
+# The box Dobby runs on, rather than the house it looks after. Everything here
+# is optional. Anything exported in the environment wins over what is written
+# here, so a one-off experiment does not mean editing a file.
+system:
+  # Which model answers. Unset means the committed default, which needs an
+  # Anthropic key. Any provider ReqLLM speaks, as `provider:model`.
+  # model: openai:gpt-5.6-luna
+
+  # The port the surface is served on.
+  port: 4000
+
+  # Answer to the whole household rather than to this machine only: bind every
+  # interface and advertise the name below, so anyone at home can open
+  # http://dobby.local/. Both of these take effect when Dobby restarts.
+  lan: false
+  hostname: dobby.local

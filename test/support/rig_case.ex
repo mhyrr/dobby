@@ -250,14 +250,11 @@ defmodule Dobby.RigCase do
     server_state.agent.state
   end
 
-  # `terminate_child` returns when Dobby.Home is gone, but the agents it
-  # stopped bring down plugin children of their own — Jido AI gives every
-  # agent a Task.Supervisor. Restarting before those have actually exited
-  # collides on registered names, which surfaces as `:already_registered` and
-  # then a request that never completes. Wait for the processes, not the call.
+  # The move itself lives in `Dobby.Home` now: production restarts the house
+  # for the same reason a scenario does, and waits for the agents for the same
+  # reason too (`Dobby.HomeConfig.Writer`).
   defp restart_home! do
-    stop_home!()
-    {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Dobby.Home)
+    {:ok, _pid} = Dobby.Home.restart()
     :ok
   end
 
@@ -306,21 +303,5 @@ defmodule Dobby.RigCase do
   end
 
   @doc false
-  def stop_home! do
-    pids = Enum.map(Dobby.Jido.list_agents(), fn {_id, pid} -> pid end)
-    refs = Enum.map(pids, &Process.monitor/1)
-
-    :ok = Supervisor.terminate_child(Dobby.Supervisor, Dobby.Home)
-    Enum.each(refs, &await_down/1)
-
-    :ok
-  end
-
-  defp await_down(ref) do
-    receive do
-      {:DOWN, ^ref, :process, _pid, _reason} -> :ok
-    after
-      5_000 -> raise "timed out waiting for a rig agent to shut down"
-    end
-  end
+  defdelegate stop_home!, to: Dobby.Home, as: :stop
 end

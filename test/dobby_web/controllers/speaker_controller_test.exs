@@ -42,6 +42,19 @@ defmodule DobbyWeb.SpeakerControllerTest do
       assert Conversation.list_speakers() == []
     end
 
+    # Observed in the wild: the placeholder question vanished under the
+    # typing, and a whole request went in as a name. The schema refuses
+    # anything over 40 letters, and no speaker or cookie comes of it.
+    test "a sentence typed as a name is not a name", %{conn: conn} do
+      sentence = "Hey Dobby, can you set the thermostat to seventy three?"
+
+      conn = post(conn, ~p"/speaker", %{"name" => sentence})
+
+      assert redirected_to(conn) == "/"
+      assert conn.resp_cookies[Speaker.cookie()] == nil
+      assert Conversation.list_speakers() == []
+    end
+
     # A redirect target taken from a parameter is an open redirect unless it is
     # pinned to this host, and "it is only on the LAN" is not a reason to leave
     # one lying about.

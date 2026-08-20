@@ -849,6 +849,71 @@ body {
 .new-sched input::placeholder { color: var(--ink-faint); }
 .new-sched .why { font-size: .86rem; color: var(--st-refused); }
 
+/* ── the topology ─────────────────────────────────────────────────────────
+   The command hierarchy, drawn: two directors, the devices, the one client
+   underneath them. It is a board and not a chart — the nodes are board rows
+   that lost their middle column, and the only thing here that was invented for
+   it is the wire.
+
+   The wires are SVG bands with a `0 0 100 10` viewBox stretched over whatever
+   width the panel got, so a line's ends are the two tiers' own column centres
+   and nothing has to be measured in a browser. `non-scaling-stroke` on each
+   line is what keeps that stretch from drawing a hairline at one weight across
+   and another down. */
+.topo { display: grid; gap: 0; min-width: 0; }
+.topo .tier {
+  display: grid;
+  gap: .5rem 1.05rem;
+  align-items: start;
+  min-width: 0;
+}
+/* A phone gets the tiers as a list and no wires. Five nodes across 24rem is
+   four characters of device name each, and a diagram that has to be scrolled
+   sideways to be read is not one — so the drawing gives up being a drawing at
+   the width where it stops being legible, and stays a labelled list of what
+   this house is made of. The page never scrolls sideways for it. */
+.topo .tier { grid-template-columns: minmax(0, 1fr); }
+.topo .wires { display: none; width: 100%; height: 1.6rem; }
+
+.topo-node { display: grid; gap: .2rem; justify-items: center; min-width: 0; text-align: center; }
+.topo-node .name {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .86rem;
+  color: var(--ink-quiet);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topo-node .read { display: flex; align-items: center; gap: .4rem; }
+.topo-node .read .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+.topo-node .read .val {
+  font-family: var(--board-type);
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.topo-node .note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-node .wrong { color: var(--st-refused); }
+
+/* Brass, because a wire is structure and structure is what brass marks here.
+   A state colour on it would be a reserved colour doing decoration, which is
+   the one thing palette law forbids. */
+.topo .wires .wire {
+  stroke: var(--brass-dim);
+  stroke-width: 1;
+  fill: none;
+  /* The decay half of a pulse: the flash below is quick, and this is the
+     wire cooling back down after the class drops. */
+  transition: stroke .45s ease-out;
+}
+/* Traffic on the line (TK-016 step two). Brass-lit, never a state colour —
+   a pulse is the light catching a wire that just carried something, and the
+   palette law holds: the words on the flaps stay the only saturation here. */
+.topo .wires .wire.pulse { stroke: var(--brass-lit); transition: stroke .06s; }
+
 .feed { min-width: 0; }
 .feed .entry {
   display: grid;
@@ -916,6 +981,91 @@ body {
 }
 .set-line button svg { width: 17px; height: 17px; }
 
+/* ── a narrow board ───────────────────────────────────────────────────────
+   A phone held in one hand, and a window somebody has squashed down to one.
+   Phone is the primary viewport and the board is drawn for it first — but
+   `/house` and `/admin` shipped laptop-shaped, and three things on them had
+   quietly stopped fitting in a hand.
+
+   The number is the feed's, because the feed is the widest thing here. Its
+   entry is five tracks — 22.5rem of fixed column and a flexible one — which
+   with four gaps needs 392px before `what`, the column saying which device and
+   which action, gets a single pixel. At 390px it got none: the column vanished
+   and the row ran 31px into a sideways scroll nobody goes looking for. Five
+   columns only start telling the truth once `what` can hold a device and its
+   action in the record voice, which measures 168px — 392 + 168 + the two edges
+   is 589. So 600, and below it the entry is two lines rather than a squeezed
+   table.
+
+   That is the system's third width, and like 820 and 980 it is a content
+   breakpoint rather than a device: it is the width at which this content stops
+   fitting, and it happens to be a phone. */
+@media (max-width: 599px) {
+  /* The metadata on one line in faint ink — when, what sort of record, who,
+     how long — and the substance on its own full-width line beneath it in
+     --ink. Nothing is dropped and nothing is shortened; what changes is that
+     the log stops being a table and becomes a stack of small records. The
+     lettering, the vocabulary and the record voice are untouched: this is
+     layout, and the Legibility Floor is not a thing to route around.
+
+     Placed by hand rather than reordered, so the DOM order stands and a
+     screen reader hears the line in the order the eye reads it. */
+  .feed .entry {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    row-gap: .1rem;
+    /* Twice the room between two entries as between the two lines of one, or
+       the pairing reads the wrong way round and every entry looks like two. */
+    padding: .3rem 0;
+    color: var(--ink-faint);
+  }
+  .feed .entry .t { grid-area: 1 / 1; }
+  .feed .entry .kind { grid-area: 1 / 2; }
+  .feed .entry .who { grid-area: 1 / 3; }
+  .feed .entry .took { grid-area: 1 / 4; }
+  /* The one string on this board allowed to wrap. It is the substance of the
+     entry and it has the width to spell itself out, so it does — and it breaks
+     anywhere, because an identifier is the one thing written here with no
+     space in it to break at and a panel that scrolls sideways is what this
+     whole block is for. */
+  .feed .entry .what {
+    grid-area: 2 / 1 / 3 / -1;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+
+  /* The state column is a fixed field so the words line up down the board, and
+     9.5rem is that field on a row at its full 34rem pitch. Below this width the
+     row is narrower than its own pitch and the field stops being a share of it
+     the row can afford: 152px of a 331px line, most of it empty air, while the
+     device name beside it was cut to "MAIN THERMOS…". 6rem holds the longest
+     word in the vocabulary — NOT KNOWN, at 5.5rem — with room to sit in. The
+     words still line up; the column they line up in is a phone's. */
+  .row { grid-template-columns: 1fr auto 6rem; }
+
+  /* The nameplate keeps every letter it has and the plate wraps instead. At
+     360px "The House · Devices" and a name, a mark and a state word come to
+     350px of a 331px line, and the plate's own answer was to break "The House"
+     across two lines — a name is one thing and it is not read in halves. So
+     the name is unbreakable, and the who drops beneath it when there is no
+     room, still at the board's right-hand end because that is which end it is.
+     The switch, the mark and the word are all still there. */
+  .plate { flex-wrap: wrap; row-gap: .35rem; }
+  .plate h1 { white-space: nowrap; }
+  .plate .who { margin-left: auto; }
+  /* A name is forty characters at the outside, and at this width a long one
+     used to push the mark and the state word off the plate, where `overflow:
+     hidden` ate them without a mark. The name gives way first — content
+     truncates, which is the system's answer, and it is the one thing here the
+     reader can already see. */
+  .plate .speaking-as { min-width: 0; }
+  .plate .speaking-as .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 /* ── wide ─────────────────────────────────────────────────────────────────
    The speaker becomes a fixed column once there is width for one. Never
    aligned by author: the thread is a shared household record, and two people
@@ -939,6 +1089,15 @@ body {
   .msg .attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; }
   .msg .steps, .msg .collapsed, .msg .note { grid-column: 2; }
   .sys { padding-left: 8.6rem; }
+
+  /* Wide enough for the drawing to be one, so the tiers become tiers and the
+     wires come out. The device count is inlined by the panel and the same
+     arithmetic runs in Elixir for the line ends: node i of n sits at the
+     centre of its own column. */
+  .topo .tier.directors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topo .tier.devices { grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); }
+  .topo .tier.house .topo-node { justify-self: center; }
+  .topo .wires { display: block; }
 }
 
 /* ── a finger ─────────────────────────────────────────────────────────────
@@ -1055,10 +1214,14 @@ body {
   .board-admin {
     padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
   }
-  /* Two items and two tracks, so nothing here needs placing by hand. */
+  /* Two tracks, and the only thing placed by hand is the drawing above them. */
   .admin {
     grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
     align-items: start;
     justify-content: center;
   }
+  /* The topology is the one panel whose subject is the whole house rather than
+     one aspect of it, so it takes the whole board: three tiers of nodes in the
+     22rem column would be a list with wires drawn down it. */
+  .topology { grid-column: 1 / -1; }
 }

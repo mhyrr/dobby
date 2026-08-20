@@ -76,14 +76,6 @@ config :phoenix_live_view,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
 
-# `mix phx.server` boots the whole application against FakeHA, and the one
-# thing the fake cannot stand in for is the model. Point `:capable` at whatever
-# provider this machine has a key for and the surface streams for real:
-#
-#     DOBBY_MODEL=openai:gpt-5.6-luna mix phx.server
-#
-# Which is the swap design §2.1 says the alias exists to make — the agent names
-# the alias, never the provider.
-if model = System.get_env("DOBBY_MODEL") do
-  config :jido_ai, :model_aliases, %{capable: model}
-end
+# The DOBBY_MODEL override lives in config/runtime.exs, not here: this file
+# is evaluated before runtime.exs loads .env, so a model named there would
+# be invisible to it.

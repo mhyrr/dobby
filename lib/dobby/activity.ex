@@ -94,6 +94,29 @@ defmodule Dobby.Activity do
   end
 
   @doc """
+  When each device was last recorded moving, keyed by device.
+
+  One query for the whole house, because the caller is a diagram with a line
+  per device and N queries for N devices is a page that gets slower as the
+  house grows.
+
+  It answers from `device_changed` entries, which the watcher writes only when
+  something went from one known value to another — so "last change" here means
+  the same thing it means in the feed underneath it, and a device reporting for
+  the first time does not read as one that just moved.
+  """
+  @spec last_changes() :: %{String.t() => DateTime.t()}
+  def last_changes do
+    Repo.all(
+      from e in Entry,
+        where: e.kind == "device_changed" and not is_nil(e.device),
+        group_by: e.device,
+        select: {e.device, max(e.inserted_at)}
+    )
+    |> Map.new()
+  end
+
+  @doc """
   Recent entries for one device, newest first.
 
   The shape `TK-004` needs: has this device been refusing all week.

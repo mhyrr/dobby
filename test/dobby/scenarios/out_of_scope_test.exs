@@ -61,12 +61,23 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
     test "rooms appear nowhere in what the model is told exists" do
       # Dobby has devices, not places. Design §11 defers room and space agents
       # deliberately, so "the family room" resolves to nothing — and the model
-      # is never given a reason to believe otherwise.
+      # is never given a reason to believe otherwise. A device may be *named*
+      # after a room ("living room light"); a name is opaque, and the
+      # structural assertion is that every line of the house is a device off
+      # the manifest, with nothing else to hang a place on.
       house = RequestTransformer.render(world_model())
 
       refute house =~ "family room"
-      refute house =~ "room"
       assert house =~ "main thermostat"
+
+      device_ids = Enum.map(Dobby.Home.devices(), & &1.id)
+
+      house
+      |> String.split("\n", trim: true)
+      |> Enum.filter(&String.starts_with?(&1, "- "))
+      |> Enum.each(fn line ->
+        assert Enum.any?(device_ids, &String.starts_with?(line, "- #{&1}"))
+      end)
     end
   end
 
@@ -98,6 +109,13 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
       assert tool_names == [
                "thermostat_get_status",
                "thermostat_set_temperature",
+               "light_get_status",
+               "light_turn_on",
+               "light_turn_off",
+               "light_set_brightness",
+               "vacuum_get_status",
+               "vacuum_start",
+               "vacuum_dock",
                "wifi_get_status",
                "create_schedule",
                "list_schedules",

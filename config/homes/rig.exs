@@ -30,7 +30,12 @@ config :dobby, Dobby.Home,
         }
       },
       "binary_sensor.kitchen_tv" => %{state: "on", attributes: %{}},
-      "binary_sensor.office_printer" => %{state: "off", attributes: %{}}
+      "binary_sensor.office_printer" => %{state: "off", attributes: %{}},
+      "light.living_room" => %{
+        state: "on",
+        attributes: %{brightness: 128, supported_color_modes: ["color_temp", "hs"]}
+      },
+      "vacuum.robo" => %{state: "docked", attributes: %{battery_level: 100}}
     }
   ],
   networks: [
@@ -44,6 +49,22 @@ config :dobby, Dobby.Home,
       agent_module: Dobby.DeviceAgents.Thermostat,
       bindings: %{climate: "climate.main_floor"},
       settings: %{min_temperature_f: 60, max_temperature_f: 76}
+    },
+    %{
+      id: "light:living_room",
+      name: "living room light",
+      aliases: ["living room lamp"],
+      agent_module: Dobby.DeviceAgents.Light,
+      bindings: %{light: "light.living_room"},
+      settings: %{}
+    },
+    %{
+      id: "vacuum:robo",
+      name: "robot vacuum",
+      aliases: ["the vacuum"],
+      agent_module: Dobby.DeviceAgents.Vacuum,
+      bindings: %{vacuum: "vacuum.robo"},
+      settings: %{}
     },
     %{
       id: "wifi:kitchen_tv",

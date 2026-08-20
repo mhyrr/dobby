@@ -25,6 +25,7 @@ defmodule Dobby.HomeAssistant.Fake do
   use GenServer
 
   alias Dobby.Directive.HACall
+  alias Dobby.HomeAssistant.Connection
 
   @behaviour Dobby.HomeAssistant
 
@@ -93,10 +94,26 @@ defmodule Dobby.HomeAssistant.Fake do
   @spec reset() :: :ok
   def reset, do: GenServer.call(__MODULE__, :reset)
 
+  @doc """
+  Walks the rig's connection through a transition, as the real client would.
+
+  From inside the fake's own process, because `Connection` only takes a
+  transition from the process holding the client's name — a test announcing on
+  the fake's behalf would be exactly the impersonation that rule exists for.
+  """
+  @spec set_connection(Dobby.HomeAssistant.Connection.status()) :: :ok
+  def set_connection(status), do: GenServer.call(__MODULE__, {:set_connection, status})
+
   # -- server ----------------------------------------------------------------
 
   @impl GenServer
   def init(opts) do
+    # A rig with nothing to lose is connected, and says so through the same
+    # seam the real client does — otherwise the panel that reports the
+    # connection is honest in production and blank in dev and test, which is
+    # the wrong way round for a surface nobody looks at until something breaks.
+    connected()
+
     {:ok, %__MODULE__{entities: Keyword.get(opts, :entities, %{})}}
   end
 
@@ -145,11 +162,23 @@ defmodule Dobby.HomeAssistant.Fake do
     {:reply, :ok, %{state | subscribers: [pid | state.subscribers]}}
   end
 
+  def handle_call({:set_connection, status}, _from, state) do
+    Connection.publish(__MODULE__, status)
+    {:reply, :ok, state}
+  end
+
   def handle_call(:trace, _from, state), do: {:reply, state.trace, state}
 
   def handle_call(:reset, _from, state) do
+    # The world as it stands before a scenario begins, and that includes the
+    # connection: a test that walked the fake through a disconnection must not
+    # leave the next one starting from it.
+    connected()
+
     {:reply, :ok, %{state | trace: [], entities: %{}, failures: %{}, subscribers: []}}
   end
+
+  defp connected, do: Connection.publish(__MODULE__, :connected)
 
   # -- the physical confirm loop --------------------------------------------
 
@@ -182,22 +211,40 @@ defmodule Dobby.HomeAssistant.Fake do
     end
   end
 
+  # Real HA's light semantics, kept faithfully: turn_on with brightness_pct
+  # lights the bulb at that level, turn_off nulls the brightness attribute —
+  # an off light has no brightness to report.
+  defp apply_service(%HACall{domain: "light", service: "turn_on", data: data}, entity) do
+    entity = %{entity | state: "on"}
+
+    case fetch_any(data, [:brightness_pct, "brightness_pct"]) do
+      {:ok, percent} -> put_in(entity.attributes[:brightness], round(percent * 255 / 100))
+      :error -> entity
+    end
+  end
+
+  defp apply_service(%HACall{domain: "light", service: "turn_off"}, entity) do
+    put_in(%{entity | state: "off"}.attributes[:brightness], nil)
+  end
+
+  # The vacuum acknowledges by moving: start reports cleaning, return_to_base
+  # reports returning — reaching the dock is a later, separate event, which
+  # tests inject when the scenario needs the robot home.
+  defp apply_service(%HACall{domain: "vacuum", service: "start"}, entity),
+    do: %{entity | state: "cleaning"}
+
+  defp apply_service(%HACall{domain: "vacuum", service: "return_to_base"}, entity),
+    do: %{entity | state: "returning"}
+
   defp apply_service(_call, entity), do: entity
 
   defp dispatch_state_changed(state, entity_id, entity) do
-    with agent_id when is_binary(agent_id) <- Map.get(state.routing, entity_id),
-         pid when is_pid(pid) <- Dobby.Jido.whereis(agent_id) do
-      signal =
-        Jido.Signal.new!("ha.state_changed", %{
-          entity_id: entity_id,
-          state: entity.state,
-          attributes: entity.attributes
-        })
-
-      Jido.AgentServer.cast(pid, signal)
-    else
-      _ -> :ok
-    end
+    Dobby.HomeAssistant.dispatch_state_changed(
+      state.routing,
+      entity_id,
+      entity.state,
+      entity.attributes
+    )
   end
 
   defp fetch_any(data, keys) do

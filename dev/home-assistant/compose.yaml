@@ -1,0 +1,27 @@
+# The local Home Assistant rig (docs/local-ha.md).
+#
+# A disposable dev instance, not a smart home: the demo integration supplies
+# virtual climate and light entities, so the whole Dobby round trip runs on a
+# laptop with no hardware anywhere.
+#
+# Two mounts, on purpose. `./config` is HA's writable state — onboarding,
+# accounts, tokens — and is gitignored. `configuration.seed.yaml` is mounted
+# over the configuration file read-only, so what this instance runs is always
+# what the repo says it runs.
+#
+# Port-mapped rather than host networking, which Docker on macOS cannot do.
+# Discovery integrations won't find devices this way; the rig has none to find.
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: dobby-ha
+    ports:
+      # Loopback only, for the same reason dev.exs binds loopback: a dev rig
+      # has no business on the network.
+      - "127.0.0.1:8123:8123"
+    volumes:
+      - ./config:/config
+      - ./configuration.seed.yaml:/config/configuration.yaml:ro
+    environment:
+      - TZ=America/New_York
+    restart: unless-stopped

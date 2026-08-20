@@ -13,6 +13,27 @@ defmodule DobbyWeb.AdminLive do
   the only thing on this page you can change. The feed last because it is the
   long one, and because you scroll to a log rather than being handed it.
 
+  Above all three, the topology (TK-016): the diagram is not one of the
+  maintainer's three questions, it is the map they are asked about, and it is
+  the one thing here that has to be looked at before it can be read.
+
+  ## The topology's reads are the load-bearing part
+
+  Nothing on this page asks a running agent anything on a timer.
+  `Jido.AgentServer.state/1` is a synchronous call that queues in the agent's
+  mailbox, and for `DobbyAgent` that is behind an in-flight ReAct turn — the
+  same queuing `Dobby.Home.await_ready/1` uses deliberately as a boot barrier.
+  A polling panel would inherit the model's latency and give every open browser
+  a place in that queue.
+
+  So: state once, at mount, through `Dobby.Home.snapshots/0`, which answers
+  from the manifest for anything that is not running. Liveness by
+  `Process.monitor` on each agent's pid, since `Dobby.Jido.whereis/1` is an ETS
+  read and a `:DOWN` costs nothing until it happens. Currency from
+  `dobby:devices` and `dobby:home_assistant`. The only timer in the file is the
+  re-lookup after a `:DOWN`, which is how the supervisor's restart is noticed —
+  a Registry read, never an agent call.
+
   ## The feed is the full record
 
   Everything: requests, tool calls, controls somebody touched, schedules
@@ -24,24 +45,38 @@ defmodule DobbyWeb.AdminLive do
 
   use DobbyWeb, :live_view
 
+  import DobbyWeb.AdminLive.Topology
   import DobbyWeb.Board
   import DobbyWeb.Flap
 
   alias Dobby.Activity
   alias Dobby.ActivityEvents
+  alias Dobby.DeviceEvents
   alias Dobby.Health
   alias Dobby.Home
+  alias Dobby.HomeAssistant.Connection
   alias Dobby.ScheduleEvents
+  alias Dobby.SchedulerAgent
   alias Dobby.Schedules
+  alias Dobby.Topology
 
   @feed 100
   @undo_window 8_000
+
+  # How long to wait before looking for an agent again after its `:DOWN`. The
+  # supervisor is usually finished inside a millisecond; the doubling is for
+  # the case it never will be, so a device that has left for good costs one
+  # registry read every five seconds instead of one every fifth of one.
+  @relook 200
+  @relook_max 5_000
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       ActivityEvents.subscribe()
       ScheduleEvents.subscribe()
+      DeviceEvents.subscribe()
+      Connection.subscribe()
     end
 
     devices = Schedules.schedulable_devices()
@@ -62,6 +97,7 @@ defmodule DobbyWeb.AdminLive do
      |> load_arguments()
      |> load_health()
      |> load_schedules()
+     |> watch_house()
      |> stream(:activity, feed)}
   end
 
@@ -76,6 +112,21 @@ defmodule DobbyWeb.AdminLive do
     </header>
 
     <main class="admin">
+      <%!-- The map, above the three questions asked about it. It spans both
+            columns where there are two: it is the one panel here whose subject
+            is the whole house rather than one aspect of it, and a diagram of
+            three tiers wedged into the 22rem column would be a list. --%>
+      <.topology
+        topology={@topology}
+        snapshots={@snapshots}
+        live={@live}
+        ha_status={@ha_status}
+        changed_at={@changed_at}
+        timers={@timers}
+        unregistered={@unregistered}
+        pulses={@pulses}
+      />
+
       <%!-- Health and schedules are one column and not two grid rows. As rows
             they were sized by the feed beside them: a grid row grows to hold an
             item spanning it, so a hundred entries of log pushed the schedules
@@ -366,7 +417,20 @@ defmodule DobbyWeb.AdminLive do
     {:noreply,
      socket
      |> assign(:blank_feed, false)
+     |> pulse(entry)
      |> stream_insert(:activity, entry, at: 0, limit: @feed)}
+  end
+
+  # Only the newest pulse's own timer may darken its wire — an older timer
+  # firing under fresh traffic would flicker a line that is honestly busy.
+  def handle_info({:pulse_fade, wire, count}, socket) do
+    case socket.assigns.pulses do
+      %{^wire => ^count} ->
+        {:noreply, assign(socket, :pulses, Map.delete(socket.assigns.pulses, wire))}
+
+      _newer_pulse ->
+        {:noreply, socket}
+    end
   end
 
   # A firing changes what `next_fire` and `status` say, and both are computed
@@ -375,7 +439,63 @@ defmodule DobbyWeb.AdminLive do
     {:noreply, socket |> load_schedules() |> load_health()}
   end
 
+  # The event carries the snapshot, so the node is updated from what arrived
+  # rather than by asking the agent that just told us. The stamp follows the
+  # log's own rule — `moved` and not `changed` — so "since" on a node means
+  # what "device changed" means in the feed underneath it, and a device
+  # reporting for the first time does not read as one that just moved.
+  def handle_info(%Jido.Signal{type: "dobby.device.state_changed", data: data}, socket) do
+    {:noreply,
+     socket
+     |> put_snapshot(data[:device], data[:snapshot])
+     |> stamp(data)
+     |> assign(:listening, listening?())}
+  end
+
   def handle_info(%Jido.Signal{}, socket), do: {:noreply, socket}
+
+  # Re-read rather than taken from the message: a client that has *died* cannot
+  # send anything, and the read covers that case as well as the one that just
+  # arrived.
+  def handle_info({:home_assistant, _status}, socket) do
+    {:noreply, assign(socket, :ha_status, Connection.status())}
+  end
+
+  # An agent went down. The node says so immediately — a restart should be
+  # visibly a restart — and a re-lookup goes on the clock to catch the
+  # supervisor putting it back.
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, socket) do
+    case Map.pop(socket.assigns.watching, ref) do
+      {nil, _watching} ->
+        {:noreply, socket}
+
+      {id, watching} ->
+        {:noreply,
+         socket
+         |> assign(:watching, watching)
+         |> put_live(id, false)
+         |> look_again(id, @relook)}
+    end
+  end
+
+  # The restarted agent is a new process and knows nothing: it came back with
+  # the state it was built with, so its snapshot is dropped rather than
+  # re-read. NOT KNOWN is what it has been told, and the first thing Home
+  # Assistant says about the device fills it in.
+  def handle_info({:look_for, id, delay}, socket) do
+    case Dobby.Jido.whereis(id) do
+      pid when is_pid(pid) ->
+        {:noreply,
+         socket
+         |> monitor(id, pid)
+         |> put_live(id, true)
+         |> put_snapshot(id, nil)
+         |> assign(:listening, listening?())}
+
+      nil ->
+        {:noreply, look_again(socket, id, min(delay * 2, @relook_max))}
+    end
+  end
 
   def handle_info({:undo_expired, token}, socket) do
     case socket.assigns.deleted do
@@ -386,10 +506,132 @@ defmodule DobbyWeb.AdminLive do
 
   # -- reads -----------------------------------------------------------------
 
+  # One read, because it is one fact seen from three sides: the health rows,
+  # the scheduler node's badge and the scheduler's own wires all come out of
+  # the schedule rows, so a write that changes any of them changes all three.
   defp load_health(socket) do
     socket
     |> assign(:health, Health.rows())
     |> assign(:unregistered, Health.unregistered())
+    |> assign(:timers, SchedulerAgent.timers())
+    |> assign(:ha_status, Connection.status())
+    |> load_topology()
+  end
+
+  # Nodes and edges only — configuration, and cheap enough to take again
+  # whenever a schedule moves. Nothing here asks a running process anything.
+  defp load_topology(socket), do: assign(socket, :topology, Topology.read())
+
+  # Everything the diagram needs that is not configuration, taken once. The
+  # snapshots are the only synchronous agent reads on this page, and
+  # `Dobby.Home.snapshots/0` answers from the manifest for anything that is not
+  # running rather than leaving a hole in the drawing.
+  defp watch_house(socket) do
+    socket
+    |> assign(:snapshots, snapshots())
+    |> assign(:changed_at, Activity.last_changes())
+    |> assign(:live, %{})
+    |> assign(:watching, %{})
+    |> assign(:pulses, %{})
+    |> assign(:pulse_count, 0)
+    |> then(fn socket -> Enum.reduce(Topology.agent_ids(), socket, &watch(&2, &1)) end)
+  end
+
+  # A registry lookup and a monitor, and that is the whole liveness mechanism.
+  # `Dobby.Jido.whereis/1` is an ETS read, so this costs nothing per agent and
+  # nothing at all until something dies.
+  defp watch(socket, id) do
+    case Dobby.Jido.whereis(id) do
+      pid when is_pid(pid) -> socket |> monitor(id, pid) |> put_live(id, true)
+      nil -> socket |> put_live(id, false) |> look_again(id, @relook)
+    end
+  end
+
+  # Only a connected browser is watching. A dead render monitors nothing and
+  # arms no timer — it is thrown away as soon as the socket connects.
+  defp monitor(socket, id, pid) do
+    if connected?(socket) do
+      ref = Process.monitor(pid)
+      assign(socket, :watching, Map.put(socket.assigns.watching, ref, id))
+    else
+      socket
+    end
+  end
+
+  defp look_again(socket, id, delay) do
+    if connected?(socket), do: Process.send_after(self(), {:look_for, id, delay}, delay)
+    socket
+  end
+
+  defp put_live(socket, id, alive?),
+    do: assign(socket, :live, Map.put(socket.assigns.live, id, alive?))
+
+  # The feed entry, said on the drawing (TK-016 step two): each recorded entry
+  # names an edge, and the edge it names lights for a moment. Pure ornament on
+  # a topic this page already subscribes to — the map of what the entry means
+  # is the same one the wires were drawn from, so a pulse can only travel a
+  # wire that exists.
+  #
+  # A `request` pulses nothing: it is a person speaking to Dobby, and people
+  # are deliberately not on this drawing.
+  @pulse_for %{
+    "tool_call" => :command,
+    "schedule_fired" => :command,
+    "control" => :house,
+    "device_changed" => :house
+  }
+
+  defp pulse(socket, %{kind: kind, device: device}) when is_binary(device) do
+    case Map.get(@pulse_for, kind) do
+      # The commanded wire's far end is the director the entry attributes it
+      # to; the house wire always runs from the device to the client.
+      :command -> light(socket, {director(kind), device})
+      :house -> light(socket, {device, Topology.house_id()})
+      nil -> socket
+    end
+  end
+
+  defp pulse(socket, _entry), do: socket
+
+  defp director("schedule_fired"), do: Dobby.SchedulerAgent.id()
+  defp director(_tool_call), do: Dobby.DobbyAgent.id()
+
+  # A busy wire stays lit rather than flickering: each pulse takes a fresh
+  # count, and only the fade carrying the current count darkens the wire.
+  @pulse_ms 700
+
+  defp light(socket, wire) do
+    count = socket.assigns.pulse_count + 1
+
+    if connected?(socket), do: Process.send_after(self(), {:pulse_fade, wire, count}, @pulse_ms)
+
+    socket
+    |> assign(:pulse_count, count)
+    |> assign(:pulses, Map.put(socket.assigns.pulses, wire, count))
+  end
+
+  defp put_snapshot(socket, nil, _snapshot), do: socket
+
+  defp put_snapshot(socket, id, nil),
+    do: assign(socket, :snapshots, Map.delete(socket.assigns.snapshots, id))
+
+  defp put_snapshot(socket, id, snapshot),
+    do: assign(socket, :snapshots, Map.put(socket.assigns.snapshots, id, snapshot))
+
+  # `moved` and not `changed`, which is the rule the activity log is written by
+  # — a device reporting a value for the first time is the house learning what
+  # it has, not something that happened in it.
+  defp stamp(socket, %{device: device, moved: [_something | _]}) when is_binary(device) do
+    assign(socket, :changed_at, Map.put(socket.assigns.changed_at, device, DateTime.utc_now()))
+  end
+
+  defp stamp(socket, _data), do: socket
+
+  defp snapshots do
+    Home.snapshots()
+  rescue
+    # No manifest, or the house is restarting under a page somebody left open.
+    ArgumentError -> %{}
   end
 
   defp load_schedules(socket) do

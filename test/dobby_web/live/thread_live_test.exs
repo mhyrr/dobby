@@ -83,11 +83,15 @@ defmodule DobbyWeb.ThreadLiveTest do
 
       Fake.inject_state_changed("binary_sensor.kitchen_tv", %{state: "off", attributes: %{}})
 
-      assert eventually(fn -> has_element?(view, ".row .flap[data-st=silent]", "Quiet") end)
-
       # Most-recently-changed leads the band, which is the rule for deciding
-      # which two or three devices are worth standing watch over.
-      assert view |> element(".rows .row:first-child .name") |> render() =~ "kitchen TV"
+      # which two or three devices are worth standing watch over. Waited on
+      # directly: the band has other Quiet flaps (a light nobody seeded), so
+      # "some Quiet exists" passes before this event has even landed.
+      assert eventually(fn ->
+               view |> element(".rows .row:first-child .name") |> render() =~ "kitchen TV"
+             end)
+
+      assert has_element?(view, ".rows .row:first-child .flap[data-st=silent]", "Quiet")
     end
   end
 
@@ -190,6 +194,7 @@ defmodule DobbyWeb.ThreadLiveTest do
 
       refute has_element?(view, "a.rows")
     end
+
   end
 
   describe "a turn" do

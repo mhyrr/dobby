@@ -430,11 +430,45 @@ first character and not the box around it.
 Phone is the primary viewport and everything adapts up from it. At 820px the
 thread becomes a two-column grid — a 7.5rem speaker column and the body — and
 system lines indent to the body column so the record aligns with what it is
-describing. Edge padding goes from 0.9rem to 1.4rem. Nothing else changes;
-there is one composition, not two, and below the span nothing moves at all.
+describing. Edge padding goes from 0.9rem to 1.4rem. Nothing else changes
+there; there is one composition, not two. Three things do move below 600px,
+and all three are the same composition fitting a hand — see A narrow board.
 
 Rhythm comes from the content, not from an abstract scale: 0.28rem between
 steps, 0.5rem across a row, 1.05rem between messages.
+
+### A narrow board
+
+Phone is the primary viewport, and `/house` and `/admin` shipped laptop-shaped
+anyway. Three things on them had stopped fitting in a hand, and 600px is where
+all three give.
+
+The number is the feed's, because the feed is the widest thing in the system.
+Its entry is five tracks, 22.5rem of them fixed, which with four gaps needs
+392px before `what` — the column saying which device and which action — gets a
+pixel. At 390px it got none: the column vanished and the row ran 31px into a
+sideways scroll nobody goes looking for. Five columns only start telling the
+truth once `what` can hold `device · action` in the record voice, which
+measures 168px; 392 plus 168 plus the two edges is 589. So 600, and below it
+the entry is two lines — the metadata in faint ink, the substance full-width in
+`ink` — rather than a squeezed table. Nothing is dropped and nothing is
+shortened; `what` is the one string on this board allowed to wrap, and it
+breaks anywhere, because an identifier has no space in it to break at.
+
+The other two ride the same number. The row's state column drops from 9.5rem to
+6rem, because below this width the row is narrower than its own 34rem pitch and
+a fixed 152px field is a share of it the row can no longer afford — 152 of a
+331px line, most of it empty, while the device name beside it was cut to `MAIN
+THERMOS…`. 6rem holds `NOT KNOWN`, the longest of the eight words, at 5.5rem.
+The words still line up; the column they line up in is a phone's. And the plate
+wraps rather than breaking its own name: at 360px `The House · Devices` plus a
+name, a mark and a state word come to 350px of a 331px line, and the plate's
+own answer had been to break `The House` across two lines. The name is
+unbreakable, the who drops beneath it and stays at the board's right-hand end,
+and a long speaker name truncates before anything else is allowed to leave.
+
+The type is untouched, the vocabulary is untouched, and nothing vanishes. This
+is layout, and the Legibility Floor is not a thing to route around.
 
 ### A short screen
 
@@ -492,9 +526,9 @@ scrolls, and the main region is the only scrolling thing on it.
 Admin is the one page with enough on it to want columns. At 980px it becomes
 `minmax(0, 22rem) minmax(0, span)` — health and schedules on the left because
 they are short and they are where the changing happens, the feed on the right
-because it is the long one. That is the system's second breakpoint and its only
-two-column layout; 820px still does everything else, and both are content
-breakpoints rather than device sizes.
+because it is the long one. That is the system's only two-column layout; 820px
+still does everything else and 600px is where the board fits a hand, and all
+three are content breakpoints rather than device sizes.
 
 Admin is therefore the one page whose board is wider than the span — 22rem plus
 the gap plus the feed's own span, 66rem — and its header takes that number too.
@@ -925,7 +959,9 @@ rather than being handed it.
   `5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem` — time, kind, what, who, took —
   hairline-ruled between entries, in the record voice. Fixed pitch so a
   streaming log does not shift its columns under a reader; `what` and `who`
-  truncate rather than wrap, and `took` is right-aligned
+  truncate rather than wrap, and `took` is right-aligned. Below 600px it is two
+  lines rather than five columns, because five columns need 392px before `what`
+  gets a pixel — see A narrow board
 
 ### The Mark
 

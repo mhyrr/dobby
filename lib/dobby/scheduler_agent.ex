@@ -105,6 +105,21 @@ defmodule Dobby.SchedulerAgent do
     end
   end
 
+  @doc """
+  How many timers are actually running.
+
+  The live job table, not a count of rows: the whole reason `unregistered/0`
+  exists is that those two numbers can differ, and a panel reporting the rows
+  as timers would be reporting the thing that cannot be wrong.
+  """
+  @spec timers() :: non_neg_integer()
+  def timers do
+    case server() do
+      {:ok, pid} -> pid |> running_jobs() |> length()
+      {:error, _not_running} -> 0
+    end
+  end
+
   # The schedules that ought to have a timer right now: enabled, and still able
   # to reach the device they name.
   defp wanted, do: Enum.filter(Schedules.enabled(), &Schedules.runnable?/1)

@@ -57,7 +57,16 @@ defmodule Dobby.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:jido, "~> 2.3"},
-      {:jido_ai, "~> 2.3"}
+      {:jido_ai, "~> 2.3"},
+      # The real Home Assistant client's transport. Mint is already here via
+      # Finch; this is the WebSocket extension from the same family. WebSockex
+      # (already in the tree via req_llm) was considered and rejected: it has
+      # no synchronous call semantics for request correlation and no honest
+      # disconnected state — a GenServer over Mint.WebSocket gives both.
+      {:mint_web_socket, "~> 1.0"},
+      # .env loading for dev (config/runtime.exs). Already in the tree via
+      # req_llm; declared because we call it ourselves.
+      {:dotenvy, "~> 1.1"}
     ]
   end
 

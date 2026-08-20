@@ -99,6 +99,46 @@ defmodule DobbyWeb.Flap do
     end
   end
 
+  def read(%{type: :light} = snapshot) do
+    cond do
+      # `nil` before `false`, for the thermostat's reason: not reported yet
+      # is NOT KNOWN, stopped answering is QUIET.
+      is_nil(snapshot.available) -> unknown(light_value(snapshot))
+      not snapshot.available -> %{word: "Quiet", state: :silent, value: light_value(snapshot)}
+      is_nil(snapshot.power) -> unknown(nil)
+      true -> %{word: "Set", state: :set, value: light_value(snapshot)}
+    end
+  end
+
+  # In motion — cleaning, returning — is a commanded state, so it reads SET;
+  # a robot sitting home and answering reads AWAKE; error reads HELD, the
+  # nearest word this vocabulary has for "the device is refusing". If a
+  # vacuum earns its own word (WORKING?), that is a DESIGN.md decision, not
+  # a clause here.
+  def read(%{type: :vacuum} = snapshot) do
+    cond do
+      # `nil` before `false`, for the thermostat's reason: not reported yet
+      # is NOT KNOWN, stopped answering is QUIET.
+      is_nil(snapshot.available) ->
+        unknown(battery(snapshot))
+
+      not snapshot.available ->
+        %{word: "Quiet", state: :silent, value: battery(snapshot)}
+
+      is_nil(snapshot.activity) ->
+        unknown(battery(snapshot))
+
+      snapshot.activity in [:cleaning, :returning] ->
+        %{word: "Set", state: :set, value: battery(snapshot)}
+
+      snapshot.activity == :error ->
+        %{word: "Held", state: :refused, value: battery(snapshot)}
+
+      true ->
+        %{word: "Awake", state: :acting, value: battery(snapshot)}
+    end
+  end
+
   def read(%{type: :wifi_endpoint} = snapshot) do
     case {snapshot.available, snapshot.online} do
       {true, true} -> %{word: "Awake", state: :acting, value: nil}
@@ -111,6 +151,19 @@ defmodule DobbyWeb.Flap do
   def read(_snapshot), do: unknown(nil)
 
   defp unknown(value), do: %{word: "Not known", state: :silent, value: value}
+
+  # On or off is the reading; a dimmed light's percentage is the more exact
+  # form of "on". Either way the word is SET — it is a commanded state, which
+  # is the only thing this board is allowed to say.
+  defp light_value(%{power: :on, brightness_percent: percent}) when is_number(percent),
+    do: "#{percent}%"
+
+  defp light_value(%{power: :on}), do: "On"
+  defp light_value(%{power: :off}), do: "Off"
+  defp light_value(_snapshot), do: nil
+
+  defp battery(%{battery_percent: percent}) when is_number(percent), do: "#{percent}%"
+  defp battery(_snapshot), do: nil
 
   # Half a degree of slack: a thermostat sitting exactly on its setpoint
   # wobbles, and a board that flips between SET and WARMING every few minutes

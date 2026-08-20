@@ -316,8 +316,15 @@ defmodule DobbyWeb.ThreadLive do
   # answering is the exact failure this surface exists to refuse.
   defp listening?, do: is_pid(Dobby.Jido.whereis(Dobby.DobbyAgent.id()))
 
+  # At mount there is no recency to order by, so the band's rule degrades to
+  # its honest floor: devices that have said something outrank devices that
+  # never have. Untended, this was map-key order — and which devices a fresh
+  # page stood watch over changed when the manifest grew, which is nobody's
+  # decision at all.
   defp snapshots do
-    Home.snapshots() |> Map.values()
+    Home.snapshots()
+    |> Map.values()
+    |> Enum.sort_by(&{!&1.available, &1.id})
   rescue
     # No manifest yet, or the house is restarting. An empty band is honest and
     # the first state change fills it in.

@@ -19,7 +19,11 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
     schema: [
       entity_id: [type: :string, required: true],
       state: [type: {:or, [:string, nil]}, default: nil],
-      attributes: [type: :map, default: %{}]
+      # String keys, and it matters: bare `:map` means atom keys to
+      # NimbleOptions, and real HA's JSON attributes were rejected wholesale
+      # before run/2 was ever reached. The boundary dispatch guarantees the
+      # string shape for every environment.
+      attributes: [type: {:map, :string, :any}, default: %{}]
     ]
 
   alias Dobby.DeviceAgent
@@ -40,8 +44,8 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
     next = %{
       available: params.state not in [nil, "unavailable", "unknown"],
       hvac_mode: parse_mode(params.state),
-      current_temperature_f: attribute(attributes, [:current_temperature, "current_temperature"]),
-      target_temperature_f: attribute(attributes, [:temperature, "temperature"]),
+      current_temperature_f: attributes["current_temperature"],
+      target_temperature_f: attributes["temperature"],
       capabilities: discover_capabilities(previous.capabilities, attributes)
     }
 
@@ -123,16 +127,18 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
   end
 
   # Capability discovery is additive: an event that omits the envelope
-  # attributes must not erase what a previous event taught us.
+  # attributes must not erase what a previous event taught us. Absent and
+  # null read the same, deliberately — the demo integration reports
+  # `target_temp_step: null`, and null teaches nothing.
   defp discover_capabilities(previous, attributes) do
     [
-      {:min_temperature_f, [:min_temp, "min_temp"]},
-      {:max_temperature_f, [:max_temp, "max_temp"]},
-      {:step_f, [:target_temp_step, "target_temp_step"]},
-      {:hvac_modes, [:hvac_modes, "hvac_modes"]}
+      {:min_temperature_f, "min_temp"},
+      {:max_temperature_f, "max_temp"},
+      {:step_f, "target_temp_step"},
+      {:hvac_modes, "hvac_modes"}
     ]
-    |> Enum.reduce(previous || %{}, fn {key, aliases}, acc ->
-      case attribute(attributes, aliases) do
+    |> Enum.reduce(previous || %{}, fn {key, attribute}, acc ->
+      case attributes[attribute] do
         nil -> acc
         value -> Map.put(acc, key, value)
       end
@@ -153,8 +159,4 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
   }
 
   defp parse_mode(state), do: Map.get(@hvac_modes, state)
-
-  defp attribute(attributes, keys) do
-    Enum.find_value(keys, fn key -> Map.get(attributes, key) end)
-  end
 end

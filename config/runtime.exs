@@ -16,6 +16,16 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+# Development reads a gitignored .env first, so running against the local
+# Home Assistant does not mean re-exporting a token in every shell (see
+# .env.example). The real environment is sourced last, so anything actually
+# exported still wins. Dev only, deliberately: the test environment's
+# determinism — the replay tier's closed loopback ports above all — must not
+# be changeable by a file nobody passed to mix.
+if config_env() == :dev do
+  System.put_env(Dotenvy.source!([".env", System.get_env()]))
+end
+
 if System.get_env("PHX_SERVER") do
   config :dobby, DobbyWeb.Endpoint, server: true
 end
@@ -52,6 +62,28 @@ config :dobby, :soul_path, soul_path
 config :dobby, DobbyWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :dev do
+  # The dev server boots against FakeHA by default, and the one thing the
+  # fake cannot stand in for is the model. Point `:capable` at whatever
+  # provider this machine has a key for and the surface streams for real:
+  #
+  #     DOBBY_MODEL=openai:gpt-5.6-luna mix phx.server
+  #
+  # Which is the swap design §2.1 says the alias exists to make — the agent
+  # names the alias, never the provider. Here rather than dev.exs so a model
+  # named in .env is seen.
+  if model = System.get_env("DOBBY_MODEL") do
+    config :jido_ai, :model_aliases, %{capable: model}
+  end
+
+  # DOBBY_LAN opens the dev server to the household: bind every interface and
+  # advertise this machine as dobby.local for as long as the server runs
+  # (Dobby.LanBeacon). Off by default — dev.exs binds loopback, and putting a
+  # laptop on the network is a choice, not a side effect.
+  if System.get_env("DOBBY_LAN") in ~w(1 true) do
+    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
+    config :dobby, :lan_beacon, hostname: "dobby.local"
+  end
+
   # Reload browser tabs when matching files change.
   config :dobby, DobbyWeb.Endpoint,
     live_reload: [

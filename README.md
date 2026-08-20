@@ -9,6 +9,12 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://phoenix.hexdocs.pm/deployment.html).
 
+## Real Home Assistant, locally
+
+By default everything — dev server and tests — runs against FakeHA, with no
+Home Assistant anywhere. To run against a real local Home Assistant with
+virtual demo entities (no hardware), see [docs/local-ha.md](docs/local-ha.md).
+
 ## Learn more
 
 * Official website: https://www.phoenixframework.org/

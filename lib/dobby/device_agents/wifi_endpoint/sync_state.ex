@@ -15,7 +15,9 @@ defmodule Dobby.DeviceAgents.WifiEndpoint.SyncState do
     schema: [
       entity_id: [type: :string, required: true],
       state: [type: {:or, [:string, nil]}, default: nil],
-      attributes: [type: :map, default: %{}]
+      # String keys — see Thermostat.SyncState: bare `:map` means atom keys,
+      # which real HA's JSON attributes are not.
+      attributes: [type: {:map, :string, :any}, default: %{}]
     ]
 
   alias Dobby.DeviceAgent

@@ -411,6 +411,11 @@
     ],
     "breakpoints": [
       {
+        "name": "narrow",
+        "value": "(max-width: 599px)",
+        "purpose": "The width at which the board fits a hand, and the system's third. The number is the feed's: its entry is five tracks, 22.5rem of them fixed, which with four gaps needs 392px before `what` — the column saying which device and which action — gets a pixel, so at 390px the column vanished and the row ran 31px into a sideways scroll. Five columns only tell the truth once `what` can hold `device · action` in the record voice, which measures 168px; 392 + 168 + the two edges is 589. Below it the entry is two lines — metadata in faint ink, substance full-width in --ink and allowed to wrap anywhere. Two other things ride the same number: the row's state column drops 9.5rem → 6rem, since below this the row is narrower than its own 34rem pitch and a 152px field is a share of a 331px line it cannot afford (6rem holds NOT KNOWN, the longest word, at 5.5rem); and the plate wraps rather than breaking `The House` across two lines, the who dropping beneath it at the board's right-hand end with a long speaker name truncating first. Nothing painted shrinks — this is layout, and the Legibility Floor holds."
+      },
+      {
         "name": "wide",
         "value": "820px",
         "purpose": "The board's one width breakpoint, and the only one that touches every route. The thread becomes a two-column grid — a 7.5rem speaker column and the body — system lines indent 8.6rem to the body column, and the edge token goes from .9rem to 1.4rem. Nothing else changes; there is one composition, not two, and below the span nothing moves at all. A content breakpoint, not a device size."

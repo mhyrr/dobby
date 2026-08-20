@@ -897,6 +897,17 @@ body {
   letter-spacing: 0;
   color: var(--ink-faint);
 }
+/* The add form's nameplate: a rule and a label, so fields opening beneath
+   another device's card read as their own thing and not as its fine print. */
+.fields .fields-head {
+  padding-top: .7rem;
+  border-top: var(--rule);
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
 .new-sched input, .new-sched select, .fields input, .fields select, .settings input, .settings select {
   width: 100%;
   background: var(--flap);

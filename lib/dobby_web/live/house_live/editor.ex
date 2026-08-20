@@ -43,6 +43,10 @@ defmodule DobbyWeb.HouseLive.Editor do
   def editor(assigns) do
     ~H"""
     <form id="device-form" class="fields device-form" phx-change="form" phx-submit="save">
+      <%!-- The add form opens at the foot of the list, under another device's
+            card — without its own nameplate it reads as that card's fields.
+            An edit form needs none: it opens inside the card it is about. --%>
+      <span :if={@new} class="fields-head">A new device</span>
       <%!-- Added once and then only ever read. See the moduledoc: the id is what
             a schedule stores and the type is where its actions come from. --%>
       <label :if={@new}>

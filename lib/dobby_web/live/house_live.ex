@@ -335,7 +335,7 @@ defmodule DobbyWeb.HouseLive do
   defp write(socket, devices) do
     config = socket.assigns.config
 
-    Writer.save(%{config | house: Keyword.put(config.house, :devices, devices)})
+    Writer.save(Writer.server(), %{config | house: Keyword.put(config.house, :devices, devices)})
   end
 
   defp devices(config, :new, entry), do: config_devices(config) ++ [entry]
@@ -439,7 +439,7 @@ defmodule DobbyWeb.HouseLive do
   # live surface in this application takes, and the reason the pages need no
   # file watcher.
   defp config do
-    Writer.current()
+    Writer.current(Writer.server())
   catch
     # The writer is restarting, or this is a boot that never had a house. Read
     # only is the honest answer either way: nothing is going to be written
@@ -447,10 +447,12 @@ defmodule DobbyWeb.HouseLive do
     :exit, _reason -> nil
   end
 
+  # `Writer.writable?/1` and not a local format match: the rule of who may be
+  # written lives in one module, and /admin asks it the same way.
   defp put_config(socket, config) do
     socket
     |> assign(:config, config)
-    |> assign(:editable, match?(%HomeConfig{format: :yaml}, config))
+    |> assign(:editable, match?(%HomeConfig{}, config) and Writer.writable?(config))
   end
 
   defp config_devices(%HomeConfig{house: house}), do: Keyword.get(house, :devices, [])

@@ -700,6 +700,24 @@ body {
 .held .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
 .held .why { color: var(--st-refused); text-transform: none; letter-spacing: 0; }
 
+/* editing the house, where the house lives (TK-018). The form opens inside the
+   card it is about — no dialog, no page of its own — and everything below is
+   spacing, because the fields themselves are the system's one form treatment
+   and the words are the board's own. */
+.card .fields { margin-top: .3rem; }
+/* A row's measure, like everything else on this page. The card carries its own
+   cap and the form inside it inherits that; the two things that sit loose in
+   the column — the form for a device that does not exist yet, and the line
+   offering it — have to be told. The One Width Rule is not a card rule. */
+.cards .note, .cards .acts, .cards .fields { max-width: var(--pitch); }
+/* The question before a removal. Full ink and not the note's faint: it is the
+   content of the line rather than the board murmuring about itself, and it is
+   the one moment somebody can still decide otherwise. */
+.note.confirm { color: var(--ink); }
+/* A refusal about this device, on this device's card — the same place a held
+   setpoint lands, and sentence case for the same reason. */
+.card .why { font-size: .74rem; color: var(--st-refused); }
+
 .to-admin {
   margin-top: .6rem;
   font-family: var(--board-type);
@@ -767,6 +785,17 @@ body {
   color: var(--ink-faint);
 }
 .note .wrong { color: var(--st-refused); }
+/* The sentence under a line: what a field is for, in the words the device type
+   wrote for whoever is editing the file, or what an action would cost. Sentence
+   case, and that is the whole difference from the note above it — a clause set
+   in condensed capitals is the record voice doing a job it is not for, and a
+   removal's consequence is a sentence rather than a reading. */
+.hint {
+  font-family: var(--board-type);
+  font-size: .74rem;
+  letter-spacing: 0;
+  color: var(--ink-faint);
+}
 /* An identifier is not a label, so it is not shouted. The same exception the
    plate's `switch` takes, and for the same reason: capitals on this board mean
    a state, a name or a time, and an entity id, an action name, a schema key or
@@ -804,8 +833,19 @@ body {
    switched this off", and bending one to fit would put a word on the board
    that means two things. The row going quiet says it instead. */
 .sched.paused .name, .sched.paused .val, .sched.paused .detail { color: var(--ink-faint); }
-.sched .acts { display: flex; gap: .9rem; }
-.sched .acts button, .new-sched button, .settings button, .admin .undo button {
+/* A row of quiet controls: the schedule's two, a card's `edit` and `remove`,
+   a form's `save` and `cancel`, and the one at the foot of the house. Lower
+   case, because each of them is a verb. */
+.acts, .sched .acts {
+  display: flex;
+  gap: .9rem;
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+.acts button, .sched .acts button, .new-sched button, .fields button, .settings button, .admin .undo button {
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--brass-dim);
@@ -816,27 +856,48 @@ body {
   cursor: pointer;
   color: var(--brass);
 }
-.new-sched {
+/* The system's one form treatment, shared by the two surfaces that have one:
+   the schedule on admin and the device on /house. A new device type brings its
+   own fields and no CSS — see `DobbyWeb.HouseLive.Editor`. Two selectors and
+   not one class on both forms, so that adding the second form changed nothing
+   about the page that had the first. */
+.new-sched, .fields {
   display: grid;
   gap: .6rem;
+  justify-items: start;
+}
+/* What separates the new-schedule form from the schedules above it. The device
+   form needs none: it opens inside the card it is about, which is already
+   ruled off from the cards either side. */
+.new-sched {
   padding-top: .7rem;
   margin-top: .3rem;
   border-top: 2px solid var(--brass-dim);
-  justify-items: start;
 }
-.new-sched label { display: grid; gap: .2rem; width: 100%; }
-/* The four written labels. The fifth is a key out of an action's own schema
-   and takes `.arg` instead. */
-.new-sched label span:not(.arg) {
+.new-sched label, .fields label { display: grid; gap: .2rem; width: 100%; }
+/* The written labels. A key out of a schema — an action's argument, a device's
+   binding or setting — takes `.arg` instead, because it is a thing you go and
+   open rather than a word somebody chose. */
+.new-sched label span:not(.arg),
+.fields label span:not(.arg) {
   text-transform: uppercase;
   letter-spacing: .07em;
 }
-.new-sched label span {
+.new-sched label span,
+.fields label span {
   font-family: var(--board-type);
   font-size: .74rem;
   color: var(--ink-faint);
 }
-.new-sched input, .new-sched select, .settings input, .settings select {
+/* `.hint` is defined with the notes, since it is one — the sentence under a
+   line rather than the line. This is the same treatment at a specificity that
+   beats the form's own label rule. */
+.fields label span.hint {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-faint);
+}
+.new-sched input, .new-sched select, .fields input, .fields select, .settings input, .settings select {
   width: 100%;
   background: var(--flap);
   border: 0;
@@ -847,8 +908,8 @@ body {
   padding: .4rem .5rem;
   caret-color: var(--st-set);
 }
-.new-sched input::placeholder { color: var(--ink-faint); }
-.new-sched .why, .settings .why { font-size: .86rem; color: var(--st-refused); }
+.new-sched input::placeholder, .fields input::placeholder { color: var(--ink-faint); }
+.new-sched .why, .fields .why, .settings .why { font-size: .86rem; color: var(--st-refused); }
 
 /* ── the system panel ─────────────────────────────────────────────────────
    The box rather than the house: the model behind the `:capable` alias, the
@@ -1197,8 +1258,10 @@ body {
      second reason — it is baseline-aligned, so anything taller in it takes the
      nameplate off the line it shares with the mark. */
   .undo button,
+  .acts button,
   .sched .acts button,
   .new-sched button,
+  .fields button,
   .settings button,
   .to-admin,
   .collapsed summary,
@@ -1206,8 +1269,10 @@ body {
   .plate .speaking-as button { position: relative; }
 
   .undo button::after,
+  .acts button::after,
   .sched .acts button::after,
   .new-sched button::after,
+  .fields button::after,
   .settings button::after,
   .to-admin::after,
   .collapsed summary::after,
@@ -1220,9 +1285,10 @@ body {
 
   /* Both gaps are now wider than the reach on either side of them, so no two
      of these areas overlap — a tap meant for `delete` cannot land on `pause`,
-     and one meant for the temperature field cannot land on `Add`. */
-  .sched .acts { gap: 1.4rem; }
-  .new-sched, .settings { gap: 1.1rem; }
+     one meant for the temperature field cannot land on `add`, and one meant
+     for `remove` cannot land on `edit`. */
+  .acts, .sched .acts { gap: 1.4rem; }
+  .new-sched, .fields, .settings { gap: 1.1rem; }
 }
 
 /* ── a short screen ───────────────────────────────────────────────────────
@@ -1256,8 +1322,10 @@ body {
   /* Ink and not commanded amber. Amber means a value somebody asked for;
      spending it on a hover would be a reserved state colour doing decoration,
      which is the one thing palette law forbids. */
+  .acts button:hover,
   .sched .acts button:hover,
   .new-sched button:hover,
+  .fields button:hover,
   .settings button:hover,
   .admin .undo button:hover { color: var(--ink); }
 }

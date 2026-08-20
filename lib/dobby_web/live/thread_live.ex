@@ -1,6 +1,6 @@
 defmodule DobbyWeb.ThreadLive do
   @moduledoc """
-  The household thread (surface design §2, §5, §6).
+  The household thread (design §10.1, §10.2, §10.7).
 
   One shared, persistent conversation with a board header above it and the
   composer as the board's set line at the foot. Everyone in the house reads
@@ -19,16 +19,17 @@ defmodule DobbyWeb.ThreadLive do
   `receive`, so a LiveView iterating one would stop handling messages for the
   length of the request.
 
-  ## The speaker, for now
+  ## The speaker
 
-  A name typed here lasts as long as this connection. Making it stick to the
-  browser is the identity commit; the rest of the surface does not change when
-  it lands, because the only thing that gets better is where the id is kept.
+  Assigned by `DobbyWeb.Plugs.Speaker` before this mounts, read from a signed
+  cookie the browser has been carrying since somebody typed a name into the set
+  line. When nobody has, the set line asks — and that one form leaves the
+  socket for a controller, because a LiveView cannot set a cookie.
   """
 
   use DobbyWeb, :live_view
 
-  import DobbyWeb.ThreadLive.Board
+  import DobbyWeb.Board
   import DobbyWeb.ThreadLive.Message
 
   alias Dobby.Conversation
@@ -37,6 +38,7 @@ defmodule DobbyWeb.ThreadLive do
   alias Dobby.Home
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
+  alias DobbyWeb.HouseLive.Card
 
   @history 50
 
@@ -47,20 +49,27 @@ defmodule DobbyWeb.ThreadLive do
       DeviceEvents.subscribe()
     end
 
+    history = Conversation.recent(@history)
+
     {:ok,
      socket
      |> assign(:page_title, "Dobby")
-     |> assign(:speaker, nil)
      |> assign(:pending, %{})
      |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
-     |> stream(:messages, Conversation.recent(@history))}
+     # A stream does not know how many rows it has, and this is the one thing
+     # about the thread the page needs to know that it cannot ask the stream.
+     |> assign(:blank, history == [])
+     |> stream(:messages, history)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <.board snapshots={@snapshots} speaker={@speaker} listening={@listening} />
+    <header class="board">
+      <.plate speaker={@speaker} listening={@listening} return_to={~p"/"} />
+      <.band snapshots={@snapshots} />
+    </header>
 
     <main class="thread" id="thread" phx-hook=".StickToBottom" phx-update="stream">
       <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
@@ -68,33 +77,50 @@ defmodule DobbyWeb.ThreadLive do
       </div>
     </main>
 
+    <.blank :if={@blank && @pending == %{}} speaker={@speaker} example={example(@snapshots)} />
+
     <div class="thread-pending">
       <.pending :for={pending <- ordered(@pending)} pending={pending} />
     </div>
 
-    <form class="set-line" phx-submit={if @speaker, do: "say", else: "name"}>
+    <%!-- Two set lines, and only ever one of them on the page. Saying
+          something is an event; naming yourself is a POST, because the cookie
+          it writes can only be written by a controller. --%>
+    <%!-- Deliberately not focused on mount. A browser matches :focus-visible on
+          any focused text input however it was focused, so a composer that
+          focused itself made a 2px commanded-amber ring the board's resting
+          state — the loudest thing on a screen that hangs in a kitchen, lit all
+          night, on a page you look at as often as you type into. The name form
+          below keeps its focus, because naming yourself is the only thing that
+          page can do; this one is also a page you read. --%>
+    <form :if={@speaker} class="set-line" phx-submit="say">
       <input
         type="text"
         id="composer"
-        name={if @speaker, do: "text", else: "name"}
+        name="text"
         value=""
         autocomplete="off"
-        placeholder={if @speaker, do: "say something", else: "who's this?"}
-        aria-label={if @speaker, do: "Say something to Dobby", else: "Your name"}
+        placeholder="say something"
+        aria-label="Say something to Dobby"
         phx-hook=".Composer"
+      />
+      <.send_arrow />
+    </form>
+
+    <.form :if={!@speaker} for={%{}} action={~p"/speaker"} method="post" class="set-line">
+      <input type="hidden" name="return_to" value={~p"/"} />
+      <input
+        type="text"
+        id="composer"
+        name="name"
+        value=""
+        autocomplete="off"
+        placeholder="who's this?"
+        aria-label="Your name"
         phx-mounted={JS.focus()}
       />
-      <button type="submit" aria-label="Send">
-        <svg viewBox="0 0 17 17" fill="none" aria-hidden="true">
-          <path
-            d="M2 8.5h12M9.5 4l4.5 4.5L9.5 13"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="square"
-          />
-        </svg>
-      </button>
-    </form>
+      <.send_arrow />
+    </.form>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".StickToBottom">
       export default {
@@ -117,22 +143,24 @@ defmodule DobbyWeb.ThreadLive do
     """
   end
 
+  defp send_arrow(assigns) do
+    ~H"""
+    <button type="submit" aria-label="Send">
+      <svg viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path
+          d="M2 8.5h12M9.5 4l4.5 4.5L9.5 13"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="square"
+        />
+      </svg>
+    </button>
+    """
+  end
+
   # -- what a person does ----------------------------------------------------
 
   @impl true
-  def handle_event("name", %{"name" => name}, socket) do
-    case String.trim(name) do
-      "" ->
-        {:noreply, socket}
-
-      name ->
-        case Conversation.name_speaker(name) do
-          {:ok, speaker} -> {:noreply, socket |> assign(:speaker, speaker) |> clear_composer()}
-          {:error, _changeset} -> {:noreply, socket}
-        end
-    end
-  end
-
   def handle_event("say", %{"text" => text}, socket) do
     with %{} = speaker <- socket.assigns.speaker,
          trimmed when trimmed != "" <- String.trim(text) do
@@ -150,20 +178,29 @@ defmodule DobbyWeb.ThreadLive do
 
   @impl true
   def handle_info({:said, message}, socket) do
-    {:noreply, stream_insert(socket, :messages, message)}
+    {:noreply, socket |> filled() |> stream_insert(:messages, message)}
   end
 
+  # A system line closes the pending row only when it *is* the end of the turn.
+  # Every other line — the thermostat going to 70, a schedule at eight o'clock —
+  # can land in the middle of a request, and closing the pending row on those
+  # would take Dobby's half-written reply off the board while he was still
+  # writing it.
   def handle_info({:system_line, message}, socket) do
-    {:noreply,
-     socket
-     |> stream_insert(:messages, message)
-     |> close_pending(message.request_id)
-     |> assign(:listening, listening?())}
+    socket =
+      socket |> filled() |> stream_insert(:messages, message) |> assign(:listening, listening?())
+
+    if message.meta["kind"] == "request_failed" do
+      {:noreply, close_pending(socket, message.request_id)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:replied, message}, socket) do
     {:noreply,
      socket
+     |> filled()
      |> stream_insert(:messages, message)
      |> close_pending(message.request_id)
      |> assign(:listening, listening?())}
@@ -241,7 +278,37 @@ defmodule DobbyWeb.ThreadLive do
     pending |> Map.values() |> Enum.sort_by(& &1.started_at)
   end
 
+  # The thread stops being blank at the first row of any kind, including a
+  # system line — a house that changed while nobody was talking has a record,
+  # and a board still offering an example beneath it would be describing an
+  # empty page it is no longer on.
+  defp filled(socket), do: assign(socket, :blank, false)
+
   # -- the house -------------------------------------------------------------
+
+  # One sentence of the kind that works here, built from a device that has
+  # actually reported. `settable?/1` is the same question the card asks before
+  # it draws a fader — has this device told us what it will accept — and it is
+  # the right one twice over: a specimen naming a device this house does not
+  # have would be an invented device, and one naming a temperature outside its
+  # range would be a sentence the house is going to refuse.
+  #
+  # Nothing settable means no specimen, and that is the honest answer rather
+  # than a gap to be filled: before Home Assistant has said anything, the board
+  # does not yet know what this house takes.
+  defp example(snapshots) do
+    case Enum.find(snapshots, &Card.settable?/1) do
+      %{name: name} = snapshot -> "put the #{name} to #{comfortable(snapshot)}"
+      nil -> nil
+    end
+  end
+
+  # Inside the device's own range and off both ends of it, so the example is
+  # neither a value the house would decline nor the setpoint it is already on —
+  # a specimen that asks for what is already true teaches nothing.
+  defp comfortable(%{min_temperature_f: min, max_temperature_f: max}) do
+    round(min + (max - min) * 0.6)
+  end
 
   # Whether there is anything there to hear it. The board says LISTENING beside
   # Dobby's own face, so the one thing it must not do is say it when DobbyAgent

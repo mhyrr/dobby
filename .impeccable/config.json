@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, .45)",
+        "createdAt": "2026-08-15T16:52:52.185Z",
+        "reason": "The One Shadow Rule: DESIGN.md documents this as the single box-shadow in the system (Elevation & Depth). Lives in the sidecar because the frontmatter schema has no shadow group."
+      }
+    ]
+  }
+}

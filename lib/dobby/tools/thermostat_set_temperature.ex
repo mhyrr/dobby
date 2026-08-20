@@ -67,13 +67,9 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
 
   @impl true
   def run(%{device: device_id, temperature_f: temperature}, _context) do
-    with {:ok, device, pid} <- Dobby.Home.resolve(device_id, Thermostat),
-         ref = Jido.Util.generate_id(),
-         signal =
-           Jido.Signal.new!("thermostat.set_temperature", %{temperature_f: temperature, ref: ref}),
-         {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
-      agent.state
-      |> Dobby.DeviceAgent.command_outcome(ref)
+    with {:ok, device, pid} <- Dobby.Home.resolve(device_id, Thermostat) do
+      pid
+      |> Dobby.DeviceAgent.command("thermostat.set_temperature", %{temperature_f: temperature})
       |> interpret(device, temperature)
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
@@ -81,10 +77,11 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
     end
   end
 
-  # `command_outcome/2` is the shared read of the device-agent write protocol —
-  # a schedule firing reads its result the same way, so "the thermostat
-  # refused" means one thing whoever asked. This function is only the
-  # translation of that outcome into something a model can act on.
+  # `DeviceAgent.command/3` is the shared write protocol — a schedule firing and
+  # a card someone tapped reach the thermostat the same way and read the answer
+  # the same way, so "the thermostat refused" means one thing whoever asked.
+  # This function is only the translation of that outcome into something a
+  # model can act on.
   defp interpret(outcome, device, temperature) do
     case outcome do
       :accepted ->
@@ -101,6 +98,9 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
 
       :unknown ->
         {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

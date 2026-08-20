@@ -2,9 +2,9 @@ defmodule Dobby.Repo.Migrations.CreateActivityEntries do
   use Ecto.Migration
 
   @moduledoc """
-  Everything that happened (design §10.4).
+  Everything that happened (design §10.6).
 
-  The rule from §10.1 is that the thread records interventions and the admin
+  The rule from §10.3 is that the thread records interventions and the admin
   records everything. This is the everything: every request, tool call, result,
   state change, and schedule firing, whether or not a person would want to read
   about it.

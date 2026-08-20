@@ -1,6 +1,6 @@
 defmodule DobbyWeb.Mark do
   @moduledoc """
-  Dobby, drawn (surface design §16).
+  Dobby, drawn (`DESIGN.md` — Components → The Mark).
 
   Greg's line drawing: a round head, two swept ears, closed smiling eyes. The
   original is kept at `priv/static/images/elf.svg`; the paths below are it,
@@ -14,7 +14,8 @@ defmodule DobbyWeb.Mark do
 
   ## Where it goes, and why it is not beside every reply
 
-  §16 said the mark sits beside every reply at ~26px. Rendered at that size
+  The surface design said the mark sits beside every reply at ~26px.
+  Rendered at that size
   this drawing collapses: the eyes, nose and mouth merge into a smear and the
   ears turn to fuzz. It needs about 40px to stay a face. The ears alone were
   the fallback and they are worse — without the head they read as leaves.

@@ -23,7 +23,9 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
       dobby_id: [type: :string, required: true],
       name: [type: :string, required: true],
       entity_id: [type: :string, required: true],
-      available: [type: :boolean, default: false],
+      # `nil` for the same reason `online` is: "we cannot tell" is not "it is
+      # offline", and Dobby should not round one into the other.
+      available: [type: {:or, [:boolean, nil]}, default: nil],
       online: [type: {:or, [:boolean, nil]}, default: nil],
       last_changed_at: [type: {:or, [:any, nil]}, default: nil],
       settings: [type: :map, default: %{}]
@@ -63,6 +65,12 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
 
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.WifiEndpoint.SyncState
+
+  # Nothing here is commanded. An endpoint going quiet at 3am is weather: it
+  # belongs on the card and in the log, and not in a thread somebody reads in
+  # the morning looking for what was said.
+  @impl Dobby.DeviceAgent
+  def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do

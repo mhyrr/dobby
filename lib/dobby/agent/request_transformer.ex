@@ -24,7 +24,61 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   @impl true
   def transform_request(request, state, _config, _extra) do
     context = render(Map.get(state, :world_model) || %{})
-    {:ok, %{messages: inject(request.messages, context)}}
+    {:ok, %{messages: request.messages |> window() |> inject(context)}}
+  end
+
+  @doc """
+  Caps the conversation this request carries (`TK-007`).
+
+  `Jido.AI.Context` says of itself "no policies, no windowing, just data", and
+  both callers inside jido_ai project it with no limit. So without this a
+  DobbyAgent that has been up for a week sends a week of conversation every
+  time anybody speaks, and input tokens grow without bound between restarts.
+  The window is `Dobby.Conversation.window/0` — the same number the boot-time
+  rehydration reads, because it is the same policy at two moments.
+
+  ## Why it cannot just keep the last N
+
+  The projection contains tool traffic: an assistant message carrying
+  `tool_calls`, then a `%{role: :tool, tool_call_id: ...}` answering it. Cut
+  between those two and the request opens with a tool result whose call is not
+  there, which OpenAI and Anthropic both reject outright — an error that would
+  appear only after a house had been talking long enough to need trimming,
+  which is the worst possible time to find out.
+
+  So the cut lands on the earliest `:user` message that fits. A window always
+  starts at somebody speaking, which is both unambiguously legal and the
+  natural boundary of a turn.
+
+  When no `:user` message is available to cut at, the messages go through
+  untrimmed. That means one request carrying more than forty messages of its
+  own tool traffic, which is a real request that must not be corrupted to save
+  tokens — and a single request cannot be trimmed from the middle anyway.
+  """
+  @spec window([map()]) :: [map()]
+  def window(messages) do
+    case messages do
+      [%{role: :system} = system | rest] -> [system | trim(rest, Dobby.Conversation.window())]
+      rest -> trim(rest, Dobby.Conversation.window())
+    end
+  end
+
+  defp trim(messages, limit) do
+    count = length(messages)
+
+    if count <= limit do
+      messages
+    else
+      earliest = count - limit
+
+      messages
+      |> Enum.with_index()
+      |> Enum.find(fn {message, index} -> index >= earliest and role(message) == :user end)
+      |> case do
+        {_message, index} -> Enum.drop(messages, index)
+        nil -> messages
+      end
+    end
   end
 
   @doc """
@@ -71,6 +125,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     do: ~s("#{name}", also called #{Enum.join(aliases, ", ")})
 
   defp state_phrase(%{available: false}), do: "currently unavailable"
+  defp state_phrase(%{available: nil}), do: "has not reported yet"
 
   defp state_phrase(%{type: :thermostat} = snapshot) do
     "thermostat, currently #{temp(snapshot.current_temperature_f)}, set to #{temp(snapshot.target_temperature_f)}, mode #{snapshot.hvac_mode || "unknown"}"
@@ -113,6 +168,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   end
 
   defp role(%{role: role}), do: role
+  defp role(%{"role" => role}) when is_binary(role), do: String.to_existing_atom(role)
   defp role(_message), do: nil
 
   defp content(%{content: content}), do: content

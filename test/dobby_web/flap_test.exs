@@ -46,6 +46,14 @@ defmodule DobbyWeb.FlapTest do
       assert %{word: "Not known", state: :silent} =
                read(thermostat(current: 68, target: nil))
     end
+
+    test "not yet heard from is NOT KNOWN, the same as an endpoint" do
+      # The distinction the endpoint has always drawn, now drawn here too:
+      # "nobody has told us" is not "it stopped answering". A thermostat that
+      # has only just come up said QUIET before `available` defaulted to nil,
+      # which was the board announcing a device down every time the box booted.
+      assert %{word: "Not known", state: :silent} = read(thermostat(available: nil))
+    end
   end
 
   describe "an endpoint" do

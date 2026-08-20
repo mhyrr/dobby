@@ -61,12 +61,44 @@
 }
 
 :root {
-  --board:        #0B1713;   /* enamel ground */
-  --board-raised: #101E19;
-  --flap:         #16241E;   /* the flap card */
+  /* THE PLATE — warm bronze-black. Every neutral here sits at hue 95, rotated
+     from the cool green-black this started as at identical lightness and
+     chroma, so every contrast ratio in the system moved by less than 0.04. */
+  --board:        #17140A;   /* bronze enamel ground */
+  --board-raised: #1E1B0F;
+  --rail:         rgba(30, 27, 15, .88);  /* --board-raised, letting the plate
+                                             surface read through the two fixed
+                                             bands. They are the same plate. */
+  --lit:          #241F12;   /* the light on it, from above */
+
+  /* THE CARDS — the cool green-black the ground used to be, kept as a
+     different material: enamel cards set into a bronze plate. This is why
+     every state word's contrast is unchanged — a word has always been read
+     against this colour and still is. */
+  --flap:         #16241E;
   --flap-edge:    #08110E;   /* the split — the signature material */
+
+  /* THE PATINA. Bronze that ages goes green, and it gathers where the light
+     does not reach. So the plate is lit warm from above and turns to this at
+     the foot: one material with a history, rather than a second colour
+     introduced beside the first. It is deliberately NOT a state colour and
+     never lands on anything readable. */
+  --patina:       rgba(11, 23, 19, .92);
+
+  /* A groove is cut INTO the plate, so it is plate material — which is the one
+     place the flap's construction and the fader's stopped being the same thing
+     when the cards went cool. */
+  --groove:       #242014;
+  --groove-edge:  #110F07;
+
   --brass:        #B08A46;
   --brass-dim:    #6E5A31;
+  /* The two faces of a machined brass part: the edge that catches the light
+     falling on this plate, and the underside that does not. Also the knurl —
+     a grip is grooves cut in the metal, so the grooves are the metal's own
+     shade rather than a shadow laid on top of it. */
+  --brass-lit:    #C9A568;
+  --brass-shade:  #8B6827;
   --ink:          #E8E2D2;   /* painted lettering */
   --ink-quiet:    #9AABA1;
   --ink-faint:    #8A9C92;   /* floor for small type: 4.5:1 on the board */
@@ -79,19 +111,81 @@
   --st-silent:   #7C8B85;   /* not answering, or not yet known */
   --st-expected: #E8E2D2;   /* set for later, not yet fired */
 
-  --rule: 1px solid #1C2E27;
+  --rule: 1px solid #2E2A1A;
+
+  /* The grain. Enamel is not a flat fill, and at this strength it is felt
+     rather than seen — which is the whole brief. Any stronger and it stops
+     reading as a surface and starts reading as a screen effect. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+  /* The lit side of a seam. The fold's highlight and the fader's groove are
+     the same material and had drifted to two values; one token, one edge. */
+  --seam-light: rgba(255, 255, 255, .045);
   --flap-h: 1.55rem;
+
+  /* The slug, in three layers: a witness line down the middle so you can see
+     exactly where it is pointing, the knurl a finger would grip, and the brass
+     itself falling from lit at the top edge to shade at the bottom.
+
+     Its width is a token because two other things have to know it. A range
+     input does not slide its thumb from 0% to 100% — it slides the thumb's
+     *centre* from half a slug in to half a slug from the end, so anything
+     meant to sit over the slug has to be placed on that shorter travel. */
+  --slug: 13px;
+  --thumb:
+    linear-gradient(to right, transparent 0 6px, var(--brass-shade) 6px 7px, transparent 7px),
+    repeating-linear-gradient(to bottom, var(--brass-shade) 0 1px, transparent 1px 3px),
+    linear-gradient(to bottom, var(--brass-lit) 0%, var(--brass) 42%, var(--brass-shade) 100%);
 
   --board-type: "Barlow Condensed", "Avenir Next Condensed", ui-sans-serif,
                 system-ui, sans-serif;
   --said-type:  "Barlow", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* THE BOARD'S TWO WIDTHS.
+
+     `pitch` is the column a row is: a device row, a card, a schedule, a
+     sentence somebody said. It was already here — the header band and the card
+     both carried 34rem literally — and it is a token now because the whole
+     board is measured against it.
+
+     `span` is the widest the board ever gets: the pitch plus the gutter the
+     speaker column takes at 820 and up. Everything on every route sits inside
+     it, so a rule and the content under it stop at the same place. Without
+     that the plate promised a board as wide as the screen and the rows
+     delivered 34rem, which past about 900px stops reading as restraint and
+     starts reading as a page that failed to load. */
+  --pitch:  34rem;
+  --gutter: 8.6rem;
+  --span:   calc(var(--pitch) + var(--gutter));
+
+  /* How far in from the edge of the screen the board starts: the edge padding
+     on a phone, and whatever it takes to centre the span once there is more
+     screen than board. One expression rather than a max-width on each block,
+     because a max-width sits inside the padding on some of these and outside
+     it on others, and 22px of that was already visible between the nameplate
+     and the cards under it. */
+  --edge:  .9rem;
+  --inset: max(var(--edge), calc((100% - var(--span)) / 2));
+
+  /* Admin is the one page whose content wants two columns, so it is the one
+     page whose board is wider than the span: the left column, the gap, and the
+     feed's own span. Its header takes the same number, or the nameplate
+     centres on one width while the panels under it centre on another. */
+  --span-admin: calc(22rem + 1.4rem + var(--span));
 }
 
 html { -webkit-text-size-adjust: 100%; }
 
 body {
-  background: var(--board);
-  background-image: radial-gradient(ellipse 120% 80% at 50% -10%, #12211B 0%, transparent 60%);
+  background-color: var(--board);
+  /* Three layers, in the order a surface has them: the grain of the enamel,
+     the patina gathering at the foot, and the light falling from above. The
+     body is exactly one viewport tall — the thread is what scrolls — so the
+     foot of this gradient is always the foot of the board. */
+  background-image:
+    var(--grain),
+    linear-gradient(to bottom, transparent 42%, var(--patina) 100%),
+    radial-gradient(ellipse 120% 80% at 50% -10%, var(--lit) 0%, transparent 60%);
+  background-repeat: repeat, no-repeat, no-repeat;
   color: var(--ink);
   font-family: var(--said-type);
   font-size: 16px;
@@ -133,6 +227,11 @@ body {
   white-space: nowrap;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .45);
   isolation: isolate;
+  /* The card turns about its fold, because that is the hinge a real one turns
+     about. The turn itself is in app.js — it has to know a word *changed*,
+     which CSS cannot see. */
+  transform-origin: center center;
+  backface-visibility: hidden;
 }
 .flap::before {
   content: "";
@@ -143,8 +242,8 @@ body {
   background: linear-gradient(
     to bottom,
     transparent calc(50% - 1px),
-    rgba(255, 255, 255, .045) calc(50% - 1px),
-    rgba(255, 255, 255, .045) 50%,
+    var(--seam-light) calc(50% - 1px),
+    var(--seam-light) 50%,
     var(--flap-edge) 50%,
     var(--flap-edge) calc(50% + 1px),
     transparent calc(50% + 1px)
@@ -162,11 +261,14 @@ body {
 .board {
   position: relative;
   overflow: hidden;
-  background: var(--board-raised);
+  background: var(--rail);
   border-bottom: 2px solid var(--brass-dim);
-  padding: .55rem .9rem .7rem;
+  padding: .55rem var(--inset) .7rem;
   flex: 0 0 auto;
 }
+/* The nameplate spans the board, not the screen. Its two ends — the name and
+   the mark — are the board's two ends, which is what puts them in the same
+   world as the rows beneath rather than at the far edges of a laptop. */
 .plate {
   position: relative;
   display: flex;
@@ -176,7 +278,21 @@ body {
   margin-bottom: .5rem;
   border-bottom: var(--rule);
 }
+/* The hairline rules the nameplate off from the band beneath it. On the two
+   routes that have no band it was ruling it off from nothing — a hairline and
+   then, 22px of empty plate later, the board's 2px brass edge. Two rules with
+   a void between them read as a header that lost its contents, which on
+   `/house` and `/admin` is exactly what it looked like. `:only-child` is the
+   condition itself, and it costs no route class. */
+.board > .plate:only-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
 .plate h1 {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .16em;
@@ -184,6 +300,11 @@ body {
   font-weight: 600;
   color: var(--brass);
 }
+/* The nameplate is the way back. There is no navigation bar: a shell of links
+   around this would be a second visual language arguing with the first. */
+.plate h1 a { color: inherit; text-decoration: none; }
+.plate h1 .sep { color: var(--brass-dim); letter-spacing: normal; }
+.plate h1 .section { color: var(--ink-quiet); }
 .plate .who {
   display: flex;
   align-items: center;
@@ -195,12 +316,48 @@ body {
   color: var(--ink-quiet);
 }
 .plate .who .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
-.rows { position: relative; display: grid; gap: .3rem; max-width: 34rem; }
+
+/* who is speaking, and how to stop being them. A real form: the cookie it
+   clears can only be cleared by a controller. */
+.plate .speaking-as { display: flex; align-items: stretch; }
+.plate .speaking-as .name { color: var(--ink-quiet); padding-right: .45rem; }
+/* A hairline between the name and the control, which is the same separator
+   the set line puts before its send arrow. Without it "GREG SWITCH" reads at
+   a glance as two words of one name. */
+.plate .speaking-as button {
+  background: transparent;
+  border: 0;
+  border-left: var(--rule);
+  padding: 0 0 0 .45rem;
+  font: inherit;
+  letter-spacing: inherit;
+  /* Lower case, stated rather than inherited by accident. Everything on this
+     board set in capitals is a label — a state, a name, a time. "switch" is a
+     verb, and the system already sets its one other verb-shaped string, a
+     refusal's reason, in lower case condensed. */
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass-dim);
+}
+/* The band is a link to /house, so the same rows are reachable with controls
+   on them. It carries no underline and no hover lift — it is a board, and a
+   board that behaved like a hyperlink would stop reading as one. */
+/* The band takes the board's span and its rows take the pitch, so a row's left
+   edge is the nameplate's left edge. Centring each of them on its own width
+   would have put the name 68px inboard of the rows on a laptop. */
+.rows {
+  position: relative;
+  display: grid;
+  gap: .3rem;
+  color: inherit;
+  text-decoration: none;
+}
 .row {
   display: grid;
   grid-template-columns: 1fr auto 9.5rem;
   align-items: center;
   gap: .5rem;
+  max-width: var(--pitch);
 }
 .row .flap { justify-self: start; }
 .row .name {
@@ -248,7 +405,7 @@ body {
      thread would push the set line off the bottom instead of scrolling. */
   min-height: 0;
   overflow-y: auto;
-  padding: .9rem .9rem .4rem;
+  padding: .9rem var(--inset) .4rem;
   display: flex;
   flex-direction: column;
   gap: 1.05rem;
@@ -258,7 +415,28 @@ body {
    `justify-content: flex-end`, which puts the top of an overflowing thread
    out of reach of the scrollbar. */
 .thread > :first-child { margin-top: auto; }
-.thread-pending { flex: 0 0 auto; padding: 0 .9rem .7rem; }
+.thread-pending { flex: 0 0 auto; padding: 0 var(--inset) .7rem; }
+
+/* A thread with nothing in it, said where the first line will land. Dobby does
+   not fill this space — proactive speech is a deferred decision (design §11)
+   and a greeting here would quietly take it. What fills it is the board naming
+   its own blank, and, when the house has told us enough to promise it, one
+   sentence in a person's voice: the specimen is a household utterance, which
+   is the one voice on this surface that is neither the instrument's nor his. */
+.blank { flex: 0 0 auto; padding: 0 var(--inset) .9rem; display: grid; gap: .3rem; }
+.blank .like {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .55rem;
+}
+.blank .like .said {
+  font-family: var(--said-type);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--ink-quiet);
+}
 
 .msg .attr { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .12rem; }
 .msg .attr .sp {
@@ -275,11 +453,17 @@ body {
   color: var(--ink-faint);
   letter-spacing: .05em;
 }
+/* One colour for what anybody said. Dobby's half used to take a hex four
+   percent lighter than the ink around it — invisible at this size on this
+   ground, outside the palette, and a message coloured by who said it, which
+   the shared-document rule forbids in as many words. */
 .msg .said { font-size: 1.12rem; line-height: 1.35; color: var(--ink); max-width: 62ch; }
-.msg.dobby .said { color: #F2EEE2; }
 
 /* steps — the board showing its work. Labels, never sentences. */
 .steps { margin-top: .4rem; display: grid; gap: .28rem; }
+/* The line the board says while it has nothing else to. It sits exactly where
+   the first step will, so the step lands in its place rather than under it. */
+.msg .note { margin-top: .4rem; }
 .step {
   display: flex;
   flex-wrap: wrap;
@@ -336,7 +520,11 @@ body {
 }
 .collapsed[open] summary svg { transform: rotate(90deg); }
 
-/* system line — the intervention record */
+/* system line — the intervention record.
+   Ruled top and bottom, so it is the one row where running to the edge of the
+   screen shows: six of them stacked on a laptop were six full-width hairlines
+   with a short line of text at the left of each. The rule stops where the
+   board does. */
 .sys {
   display: flex;
   align-items: center;
@@ -352,15 +540,351 @@ body {
   color: var(--ink-quiet);
 }
 .sys .dev { color: var(--ink); }
+.sys .val { color: var(--ink); font-size: .86rem; }
 .sys .via { color: var(--ink-faint); }
+.sys .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+/* A refusal's reason is a sentence, and a sentence set beside a label in board
+   type squeezes both — the same rule the steps follow. */
+.sys .why {
+  flex: 1 0 100%;
+  color: var(--st-refused);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── the cards ────────────────────────────────────────────────────────────
+   A card is a board row that grew a control. Same three columns, same
+   vocabulary, same 34rem pitch — what a card adds is the room underneath. */
+.cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: .9rem var(--inset) 1.4rem;
+  display: grid;
+  gap: .9rem;
+  align-content: start;
+}
+/* The card stays the pitch on every viewport and never becomes a tile in a
+   grid. What changed is where the column sits: it used to hug the left edge of
+   whatever screen it was on, so an iPad on a counter in landscape showed a
+   544px board with 650px of nothing beside it. */
+.card {
+  display: grid;
+  gap: .5rem;
+  padding: .7rem 0 .8rem;
+  border-top: var(--rule);
+  max-width: var(--pitch);
+}
+.card:first-child { border-top: 0; }
+.card .detail {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+
+/* the fader — a control on an instrument, not a chrome slider. Square
+   everywhere, brass where a hand goes. */
+.fader { position: relative; display: grid; gap: .35rem; margin-top: 1.1rem; }
+.fader input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.4rem;
+  background: transparent;
+  cursor: pointer;
+}
+/* A groove cut into the enamel, built the way the flap's fold is: the dark
+   edge on top and a highlight under it. Without the pair a 3px track is one
+   tonal step from the ground and disappears. */
+.fader input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  /* The travelled part of the groove is brass, so where the slug has been
+     reads at a glance. Brass and not a state colour: this is how far a control
+     has been pushed, which is structure, and the seam is under the slug where
+     nobody can see it land a pixel off. */
+  background:
+    linear-gradient(to right, var(--brass-dim) 0 var(--at, 0%), transparent var(--at, 0%)),
+    var(--groove);
+  border-top: 1px solid var(--groove-edge);
+  border-bottom: 1px solid var(--seam-light);
+}
+.fader input[type="range"]::-moz-range-track {
+  height: 4px;
+  background:
+    linear-gradient(to right, var(--brass-dim) 0 var(--at, 0%), transparent var(--at, 0%)),
+    var(--groove);
+  border-top: 1px solid var(--groove-edge);
+  border-bottom: 1px solid var(--seam-light);
+}
+/* What you are about to ask for, riding the thumb. Commanded amber, because
+   it is the same fact SET is painted in one moment earlier — and it is only
+   on the board while a finger is down, since a value nobody has commanded is
+   not a state this board is allowed to show. */
+.fader .asking {
+  position: absolute;
+  top: -1.05rem;
+  /* On the slug's travel and not on the track's. Placed at a flat percentage
+     of the width, the label was half a slug adrift at each end — 6.5px left of
+     the slug at the minimum and 6.5px right of it at the maximum, correct only
+     at the midpoint — and it hung ten pixels outside the fader's own measure.
+     The travelled brass keeps the flat percentage on purpose: that is an edge
+     and it lands under the slug, where nobody can see it miss. */
+  left: calc(var(--slug) / 2 + (100% - var(--slug)) * var(--f, 0));
+  transform: translateX(-50%);
+  font-family: var(--board-type);
+  font-size: .86rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: var(--st-set);
+  opacity: 0;
+  pointer-events: none;
+}
+.fader .asking.live { opacity: 1; }
+/* A machined slug with a grip and a witness line, lit from above like
+   everything else on this plate — not a brass rectangle. This is the one place
+   in the house where a hand touches anything, and it should look like the part
+   that was made to be held. */
+.fader input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--slug);
+  height: 1.5rem;
+  /* Centred on the groove: 6px of track (4px plus its two edges) against the
+     thumb. Webkit measures the thumb's margin from the track's top. */
+  margin-top: calc((6px - 1.5rem) / 2);
+  background: var(--thumb);
+  border: 0;
+  border-radius: 0;
+}
+.fader input[type="range"]::-moz-range-thumb {
+  width: var(--slug);
+  height: 1.5rem;
+  background: var(--thumb);
+  border: 0;
+  border-radius: 0;
+}
+.fader .ends {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--board-type);
+  font-size: .74rem;
+  letter-spacing: .05em;
+  color: var(--ink-faint);
+}
+
+/* what happened after the last release */
+.undo, .held {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .5rem;
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.undo button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass);
+}
+.held .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+.held .why { color: var(--st-refused); text-transform: none; letter-spacing: 0; }
+
+.to-admin {
+  margin-top: .6rem;
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .74rem;
+  color: var(--brass-dim);
+  text-decoration: none;
+  justify-self: start;
+}
+
+/* ── admin ────────────────────────────────────────────────────────────────
+   Laptop-shaped, and the one place with enough on it to need columns. Same
+   board, same words; what changes is that a maintainer is reading it. */
+.admin {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: .9rem var(--inset) 1.4rem;
+  display: grid;
+  gap: 1.4rem;
+  align-content: start;
+}
+/* A panel is a section of the board, so its heading rule is the board's width
+   and what changes underneath is the content. Rows, schedules and the form are
+   a row's measure; the feed is the one thing here with five columns and a
+   reason to be wider.
+
+   Between 820 and 980 admin is one column, and everything in it used to
+   stretch to the viewport: a health row's three parts scattered across 775px,
+   and a cron field the width of an iPad. */
+.panel { display: grid; gap: .5rem; align-content: start; min-width: 0; }
+/* Health and schedules, as one column rather than as two rows of the page's
+   grid. A row grows to hold an item spanning it, so the feed beside them was
+   setting their heights: at 1440×900 the health panel was 233px of content in
+   a 508px row, and the schedules — the only thing on this page you can change
+   — started 275px below the thing above them. */
+.side { display: grid; gap: 1.4rem; align-content: start; min-width: 0; }
+.panel .rows,
+.panel .note,
+.panel > .why,
+.panel > .undo,
+.new-sched,
+.sched { max-width: var(--pitch); }
+.panel h2 {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--brass);
+  padding-bottom: .35rem;
+  border-bottom: var(--rule);
+}
+/* An empty region on this board is a labelled blank, not an absence. The
+   record voice says what is not there, in the same lettering it uses to say
+   what is — because "nothing has happened here" is a reading like any other,
+   and a heading over a void is the board declining to answer. */
+.note {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.note .wrong { color: var(--st-refused); }
+/* An identifier is not a label, so it is not shouted. The same exception the
+   plate's `switch` takes, and for the same reason: capitals on this board mean
+   a state, a name or a time, and an entity id, an action name, a schema key or
+   a filename is a thing you go and open. Three panels on admin print one, and
+   the health rows were already setting theirs this way while the two beside
+   them shouted. */
+.arg { text-transform: none; letter-spacing: .04em; }
+.note .file { color: var(--ink-quiet); }
+/* The health rows are record-keeping, not readings: the middle column says
+   which process a row is about, so it takes the small voice rather than the
+   1.05rem a number on the board gets. */
+.panel .rows .row .val {
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: var(--ink-faint);
+}
+
+.sched { display: grid; gap: .3rem; padding: .5rem 0; border-top: var(--rule); }
+.sched:first-of-type { border-top: 0; }
+.sched .detail, .sched .acts {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+/* A reason, wherever it lands in this panel: on a schedule that cannot run, or
+   beside the schedules when an action on one of them failed. */
+.panel .why {
+  font-size: .74rem;
+  color: var(--st-refused);
+}
+/* A paused schedule has no state word — none of the eight means "somebody
+   switched this off", and bending one to fit would put a word on the board
+   that means two things. The row going quiet says it instead. */
+.sched.paused .name, .sched.paused .val, .sched.paused .detail { color: var(--ink-faint); }
+.sched .acts { display: flex; gap: .9rem; }
+.sched .acts button, .new-sched button, .admin .undo button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass);
+}
+.new-sched {
+  display: grid;
+  gap: .6rem;
+  padding-top: .7rem;
+  margin-top: .3rem;
+  border-top: 2px solid var(--brass-dim);
+  justify-items: start;
+}
+.new-sched label { display: grid; gap: .2rem; width: 100%; }
+/* The four written labels. The fifth is a key out of an action's own schema
+   and takes `.arg` instead. */
+.new-sched label span:not(.arg) {
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.new-sched label span {
+  font-family: var(--board-type);
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.new-sched input, .new-sched select {
+  width: 100%;
+  background: var(--flap);
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  color: var(--ink);
+  font-family: var(--said-type);
+  font-size: 1rem;
+  padding: .4rem .5rem;
+  caret-color: var(--st-set);
+}
+.new-sched input::placeholder { color: var(--ink-faint); }
+.new-sched .why { font-size: .86rem; color: var(--st-refused); }
+
+.feed { min-width: 0; }
+.feed .entry {
+  display: grid;
+  grid-template-columns: 5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem;
+  gap: .5rem;
+  align-items: baseline;
+  padding: .18rem 0;
+  border-top: var(--rule);
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+.feed .entry .t, .feed .entry .took { color: var(--ink-faint); }
+.feed .entry .what { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.feed .entry .kind, .feed .entry .who, .feed .entry .what { white-space: nowrap; }
+.feed .entry .who { overflow: hidden; text-overflow: ellipsis; }
+.feed .entry .took { text-align: right; }
 
 /* ── the set line ─────────────────────────────────────────────────────── */
+/* The rail runs the full width of the board — it is the board's bottom edge,
+   and a 2px brass rule that stopped short would read as a panel floating on
+   the plate. What moves inboard is what is written on it, so the composer
+   starts where every other line on this page starts. */
 .set-line {
   flex: 0 0 auto;
   display: flex;
   align-items: stretch;
   border-top: 2px solid var(--brass-dim);
-  background: var(--board-raised);
+  background: var(--rail);
+  /* Each side gives back the padding the thing sitting on it already has, so
+     what lines up with the board is the composer's first character and the
+     arrow — not the boxes around them. */
+  padding-left: max(0px, calc((100% - var(--span)) / 2 - .9rem));
+  padding-right: max(0px, calc((100% - var(--span)) / 2 - 1.05rem));
 }
 .set-line input {
   flex: 1;
@@ -397,9 +921,14 @@ body {
    aligned by author: the thread is a shared household record, and two people
    reading it must not see two different documents. */
 @media (min-width: 820px) {
-  .board { padding: .7rem 1.4rem .85rem; }
-  .thread { padding: 1.2rem 1.4rem .5rem; }
-  .thread-pending { padding: 0 1.4rem .9rem; }
+  :root { --edge: 1.4rem; }
+
+  .board { padding-block: .7rem .85rem; }
+  .thread { padding-block: 1.2rem .5rem; }
+  .thread-pending { padding-block: 0 .9rem; }
+  .blank { padding-block: 0 1.1rem; }
+  .cards { padding-block: 1.2rem 1.8rem; }
+  .admin { padding-block: 1.2rem 1.8rem; }
 
   .msg {
     display: grid;
@@ -408,6 +937,128 @@ body {
     align-items: baseline;
   }
   .msg .attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; }
-  .msg .steps, .msg .collapsed { grid-column: 2; }
+  .msg .steps, .msg .collapsed, .msg .note { grid-column: 2; }
   .sys { padding-left: 8.6rem; }
+}
+
+/* ── a finger ─────────────────────────────────────────────────────────────
+   The kitchen iPad is a touch device, and every control on this board was
+   drawn for a cursor: the fader is a 22px-tall strip, and `undo`, `pause`,
+   `delete`, `switch`, `Add`, the nameplate and the one link to admin are all
+   quiet lettering about 17px high. None of them is a target.
+
+   Nothing here changes a drawing. The slug keeps its 13px and the lettering
+   keeps its size — the Legibility Floor is not a thing to route around — and
+   what grows is the area that answers to a finger, which nobody can see. A
+   pointer query and not a width one: a laptop with a touchscreen wants this
+   and a 1180px browser window does not. */
+@media (pointer: coarse) {
+  /* The whole groove is the target, not the slug: a range input jumps its
+     thumb to wherever the track is touched. So the height is the whole
+     question, and 22px was half of what a finger needs.
+
+     The height is the only thing that changes, and that is this rule obeying
+     the one beside it. The block used to give 0.7rem of its top margin back so
+     the groove stayed about where the eye had found it, and the amber value
+     moved down into the taller box to follow — which put it inside the slug's
+     own 24px, amber lettering drawn across brass at about 1.2:1, on the one
+     control in this house a hand actually touches. Moving something painted is
+     what The Reach Rule forbids, and it forbade it here for a reason nobody
+     saw until the drag was watched. The label keeps the one position it has
+     and the block keeps the room to hold it. */
+  .fader input[type="range"] { height: 2.75rem; }
+
+  /* The quiet buttons — `undo`, `pause`, `delete`, `Add`, the link to admin,
+     the steps disclosure, and the plate's own two. Their lettering is 12px and
+     their line box is 14, which is a third of what a finger needs.
+
+     The area grows and the box does not. Growing the box was the first attempt
+     and it is wrong here: the system's quiet control is lettering with a 1px
+     brass underline under it, and a 44px-tall button leaves that underline
+     sitting fifteen pixels below the word it belongs to. The plate has a
+     second reason — it is baseline-aligned, so anything taller in it takes the
+     nameplate off the line it shares with the mark. */
+  .undo button,
+  .sched .acts button,
+  .new-sched button,
+  .to-admin,
+  .collapsed summary,
+  .plate h1 a,
+  .plate .speaking-as button { position: relative; }
+
+  .undo button::after,
+  .sched .acts button::after,
+  .new-sched button::after,
+  .to-admin::after,
+  .collapsed summary::after,
+  .plate h1 a::after,
+  .plate .speaking-as button::after {
+    content: "";
+    position: absolute;
+    inset: -0.95rem -0.45rem;
+  }
+
+  /* Both gaps are now wider than the reach on either side of them, so no two
+     of these areas overlap — a tap meant for `delete` cannot land on `pause`,
+     and one meant for the temperature field cannot land on `Add`. */
+  .sched .acts { gap: 1.4rem; }
+  .new-sched { gap: 1.1rem; }
+}
+
+/* ── a short screen ───────────────────────────────────────────────────────
+   A phone on its side, and a laptop window somebody has squashed. The page is
+   exactly one viewport tall by design, so the header is not competing for
+   space with the thread — it is taking it. At 390px the board was 168 of them,
+   43% of the screen, and the conversation got a sliver.
+
+   Nothing shrinks that is read: the type is untouched (the Legibility Floor
+   is not a thing to route around) and the mark stays at 44px, because below 40
+   the face collapses into a smear. What gives is the space between things, and
+   the third row of the band — which is a watch list of "two or three", and on
+   a screen this short it watches two. Every device is one tap away on /house,
+   which is what the band is a link to. */
+@media (max-height: 460px) {
+  .board { padding-block: .35rem .5rem; }
+  .plate { padding-bottom: .3rem; margin-bottom: .35rem; }
+  .board .rows { gap: .15rem; }
+  .board .rows .row:nth-child(n+3) { display: none; }
+  .thread { padding-block: .6rem .3rem; }
+  .set-line input { padding-block: .6rem; }
+}
+
+/* Hover belongs to a pointer that can hover. On a tablet these stick after a
+   tap and leave the board lit up as though something were still happening. */
+@media (hover: hover) {
+  .plate h1 a:hover { text-decoration: underline; text-underline-offset: .2rem; }
+  .plate .speaking-as button:hover { color: var(--brass); }
+  .rows:hover .name { color: var(--ink); }
+  .to-admin:hover { color: var(--brass); }
+  /* Ink and not commanded amber. Amber means a value somebody asked for;
+     spending it on a hover would be a reserved state colour doing decoration,
+     which is the one thing palette law forbids. */
+  .sched .acts button:hover,
+  .new-sched button:hover,
+  .admin .undo button:hover { color: var(--ink); }
+}
+
+/* Admin is the one page with enough on it to want columns, and the one that
+   is read on a laptop rather than glanced at from across a kitchen. Health
+   and schedules on the left because they are short and they are where the
+   changing happens; the feed on the right because it is the long one. */
+@media (min-width: 980px) {
+  /* Two tracks, so admin's board is wider than every other page's: the left
+     column plus the gap plus the feed's own span. It is the one page whose
+     content genuinely wants more than one column of width, and it centres on
+     that number rather than on the one-column span — which would otherwise
+     squeeze the two tracks into 42.6rem the moment the screen grew. */
+  .admin,
+  .board-admin {
+    padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
+  }
+  /* Two items and two tracks, so nothing here needs placing by hand. */
+  .admin {
+    grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
+    align-items: start;
+    justify-content: center;
+  }
 }

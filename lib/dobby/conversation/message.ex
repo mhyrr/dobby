@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.Message do
   @moduledoc """
-  One line of the household thread (design §10.1).
+  One line of the household thread (design §10.2).
 
   Three roles share this table:
 

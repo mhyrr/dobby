@@ -916,6 +916,91 @@ body {
 }
 .set-line button svg { width: 17px; height: 17px; }
 
+/* ── a narrow board ───────────────────────────────────────────────────────
+   A phone held in one hand, and a window somebody has squashed down to one.
+   Phone is the primary viewport and the board is drawn for it first — but
+   `/house` and `/admin` shipped laptop-shaped, and three things on them had
+   quietly stopped fitting in a hand.
+
+   The number is the feed's, because the feed is the widest thing here. Its
+   entry is five tracks — 22.5rem of fixed column and a flexible one — which
+   with four gaps needs 392px before `what`, the column saying which device and
+   which action, gets a single pixel. At 390px it got none: the column vanished
+   and the row ran 31px into a sideways scroll nobody goes looking for. Five
+   columns only start telling the truth once `what` can hold a device and its
+   action in the record voice, which measures 168px — 392 + 168 + the two edges
+   is 589. So 600, and below it the entry is two lines rather than a squeezed
+   table.
+
+   That is the system's third width, and like 820 and 980 it is a content
+   breakpoint rather than a device: it is the width at which this content stops
+   fitting, and it happens to be a phone. */
+@media (max-width: 599px) {
+  /* The metadata on one line in faint ink — when, what sort of record, who,
+     how long — and the substance on its own full-width line beneath it in
+     --ink. Nothing is dropped and nothing is shortened; what changes is that
+     the log stops being a table and becomes a stack of small records. The
+     lettering, the vocabulary and the record voice are untouched: this is
+     layout, and the Legibility Floor is not a thing to route around.
+
+     Placed by hand rather than reordered, so the DOM order stands and a
+     screen reader hears the line in the order the eye reads it. */
+  .feed .entry {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    row-gap: .1rem;
+    /* Twice the room between two entries as between the two lines of one, or
+       the pairing reads the wrong way round and every entry looks like two. */
+    padding: .3rem 0;
+    color: var(--ink-faint);
+  }
+  .feed .entry .t { grid-area: 1 / 1; }
+  .feed .entry .kind { grid-area: 1 / 2; }
+  .feed .entry .who { grid-area: 1 / 3; }
+  .feed .entry .took { grid-area: 1 / 4; }
+  /* The one string on this board allowed to wrap. It is the substance of the
+     entry and it has the width to spell itself out, so it does — and it breaks
+     anywhere, because an identifier is the one thing written here with no
+     space in it to break at and a panel that scrolls sideways is what this
+     whole block is for. */
+  .feed .entry .what {
+    grid-area: 2 / 1 / 3 / -1;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+
+  /* The state column is a fixed field so the words line up down the board, and
+     9.5rem is that field on a row at its full 34rem pitch. Below this width the
+     row is narrower than its own pitch and the field stops being a share of it
+     the row can afford: 152px of a 331px line, most of it empty air, while the
+     device name beside it was cut to "MAIN THERMOS…". 6rem holds the longest
+     word in the vocabulary — NOT KNOWN, at 5.5rem — with room to sit in. The
+     words still line up; the column they line up in is a phone's. */
+  .row { grid-template-columns: 1fr auto 6rem; }
+
+  /* The nameplate keeps every letter it has and the plate wraps instead. At
+     360px "The House · Devices" and a name, a mark and a state word come to
+     350px of a 331px line, and the plate's own answer was to break "The House"
+     across two lines — a name is one thing and it is not read in halves. So
+     the name is unbreakable, and the who drops beneath it when there is no
+     room, still at the board's right-hand end because that is which end it is.
+     The switch, the mark and the word are all still there. */
+  .plate { flex-wrap: wrap; row-gap: .35rem; }
+  .plate h1 { white-space: nowrap; }
+  .plate .who { margin-left: auto; }
+  /* A name is forty characters at the outside, and at this width a long one
+     used to push the mark and the state word off the plate, where `overflow:
+     hidden` ate them without a mark. The name gives way first — content
+     truncates, which is the system's answer, and it is the one thing here the
+     reader can already see. */
+  .plate .speaking-as { min-width: 0; }
+  .plate .speaking-as .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 /* ── wide ─────────────────────────────────────────────────────────────────
    The speaker becomes a fixed column once there is width for one. Never
    aligned by author: the thread is a shared household record, and two people

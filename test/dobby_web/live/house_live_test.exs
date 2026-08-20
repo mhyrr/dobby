@@ -15,13 +15,43 @@ defmodule DobbyWeb.HouseLiveTest do
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
 
+  alias Dobby.HomeConfig
+  alias Dobby.HomeConfig.Writer
+  alias Dobby.Schedules
   alias Dobby.ThreadEvents
 
   @endpoint DobbyWeb.Endpoint
 
   @thermostat "thermostat:main"
+  @light "light:living_room"
   @entity "climate.main_floor"
   @tv "binary_sensor.kitchen_tv"
+
+  # A house a machine can write, which the rig itself is not. Two devices on
+  # purpose: one type that declares settings and one that declares none, so the
+  # form is shown to be the type's rather than a form written for a thermostat.
+  @editable """
+  house:
+    id: rig
+    name: Rig Home
+    timezone: America/New_York
+    home_assistant:
+      url: http://fake.invalid:8123
+    devices:
+      - id: thermostat:main
+        type: thermostat
+        name: main thermostat
+        bindings:
+          climate: climate.main_floor
+        settings:
+          min_temperature_f: 60
+          max_temperature_f: 76
+      - id: light:living_room
+        type: light
+        name: living room light
+        bindings:
+          light: light.living_room
+  """
 
   setup do
     seed_house(%{
@@ -162,8 +192,14 @@ defmodule DobbyWeb.HouseLiveTest do
       {:ok, view, _html} = live(conn, "/house")
 
       assert has_element?(view, ".cards .note", "No devices")
-      assert has_element?(view, ".cards .note .file", "home.exs")
+      # The file this boot actually read, since that is the one to go and open.
+      assert has_element?(view, ".cards .note .file", "config/homes/rig.exs")
       refute has_element?(view, ".card")
+
+      # One line, and the strongest true one: an empty house Dobby cannot write
+      # says both things here rather than taking the read-only note as well.
+      assert has_element?(view, ".cards .note", "reads and does not write")
+      refute has_element?(view, ".cards .note", "Dobby writes YAML")
     end
 
     test "still offers the way in to admin", %{conn: conn} do
@@ -257,6 +293,308 @@ defmodule DobbyWeb.HouseLiveTest do
     end
   end
 
+  describe "a house Dobby cannot write" do
+    # The rig is an `.exs` home and the writer refuses those, so /house is
+    # read only here — which is the state the whole suite runs in unless a
+    # scenario goes to the trouble of pointing a writer at a YAML file.
+    test "offers nothing to edit, and says why in one line", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      refute has_element?(view, "#card-thermostat\\:main .acts")
+      refute has_element?(view, "form.device-form")
+      refute has_element?(view, ".cards .acts button")
+
+      assert has_element?(view, ".cards .note", "Dobby writes YAML")
+      assert has_element?(view, ".cards .note .file", "config/homes/rig.exs")
+    end
+
+    test "and an event nobody was offered changes nothing", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      render_click(view, "remove_confirm", %{"device" => @thermostat})
+
+      assert @thermostat in Enum.map(Dobby.Home.devices(), & &1.id)
+      assert has_element?(view, "#card-thermostat\\:main")
+    end
+  end
+
+  describe "the form on a card" do
+    setup [:editable_house]
+
+    test "is built from the type rather than written for it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      # The scaffolding every entry has, filled in from the file rather than
+      # from the card: a snapshot is what Home Assistant said, and what is
+      # being edited is what this household wrote down.
+      assert has_element?(view, "input[name='device[name]'][value='main thermostat']")
+
+      # The entity field is the type's own binding key, and the settings are
+      # its declared schema — including the sentence `config_schema/0` writes
+      # for whoever is editing the file.
+      assert has_element?(
+               view,
+               "input[name='device[bindings][climate]'][value='climate.main_floor']"
+             )
+
+      assert has_element?(view, "input[name='device[settings][min_temperature_f]'][value='60']")
+      assert has_element?(view, ".device-form .hint", "coolest this household")
+
+      # A type that declares no settings gets no settings fields, and nobody
+      # wrote a light form to make that true.
+      view |> element("#card-light\\:living_room .acts button", "edit") |> render_click()
+
+      assert has_element?(view, "input[name='device[bindings][light]']")
+      refute has_element?(view, "input[name='device[settings][min_temperature_f]']")
+    end
+
+    # The id is what a schedule stores and the type is where its actions come
+    # from. Both are shown as the identifiers they are; changing what a device
+    # *is* is a removal and an addition, and reads like one.
+    test "shows the id and the type without offering to change them", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      assert has_element?(view, ".device-form .note .arg", "thermostat:main")
+      assert has_element?(view, ".device-form .note .arg", "thermostat")
+      refute has_element?(view, "input[name='device[id]']")
+      refute has_element?(view, "select[name='device[type]']")
+    end
+
+    test "writes the file, restarts the house, and heals", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      view
+      |> form(".device-form",
+        device: %{
+          "name" => "hall thermostat",
+          "aliases" => "downstairs, the dial",
+          "bindings" => %{"climate" => @entity},
+          "settings" => %{"min_temperature_f" => "62", "max_temperature_f" => "76"}
+        }
+      )
+      |> render_submit()
+
+      # The file first, because it is the record. Aliases arrive as the list
+      # they are and the setting as the number it is — the browser sent both
+      # as text.
+      assert {:ok, reread} = HomeConfig.load(path)
+
+      assert [%{name: "hall thermostat", aliases: ["downstairs", "the dial"]} = entry, _light] =
+               reread.house[:devices]
+
+      assert entry.settings.min_temperature_f == 62
+
+      # And the running house is the house that was written.
+      assert "hall thermostat" in Enum.map(Dobby.Home.devices(), & &1.name)
+      assert has_element?(view, "#card-thermostat\\:main .name", "hall thermostat")
+
+      # The agents were rebuilt and have been told nothing, so the card is
+      # honestly blank until Home Assistant speaks — and then it heals.
+      assert eventually(fn -> has_element?(view, "#card-thermostat\\:main .val", "70°") end)
+    end
+
+    test "a refusal keeps what was typed and leaves the file alone", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+      original = File.read!(path)
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      # A minimum above the maximum is the rule a declared schema cannot state,
+      # and the thermostat is the one that states it.
+      view
+      |> form(".device-form",
+        device: %{
+          "name" => "main thermostat",
+          "aliases" => "",
+          "bindings" => %{"climate" => @entity},
+          "settings" => %{"min_temperature_f" => "80", "max_temperature_f" => "76"}
+        }
+      )
+      |> render_submit()
+
+      assert has_element?(view, ".device-form .why", "exceeds max_temperature_f")
+      assert has_element?(view, "input[name='device[settings][min_temperature_f]'][value='80']")
+      assert File.read!(path) == original
+    end
+
+    # The schema is the validator, and it names the field. Nothing here knows
+    # that a thermostat's minimum is a number.
+    test "a setting that is not what the schema declared is named", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      view
+      |> form(".device-form",
+        device: %{
+          "name" => "main thermostat",
+          "aliases" => "",
+          "bindings" => %{"climate" => @entity},
+          "settings" => %{"min_temperature_f" => "quite warm", "max_temperature_f" => "76"}
+        }
+      )
+      |> render_submit()
+
+      assert has_element?(view, ".device-form .why", "min_temperature_f")
+    end
+  end
+
+  describe "adding a device" do
+    setup [:editable_house]
+
+    test "is the same form with a type to choose", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element(".cards .acts button", "add a device") |> render_click()
+
+      assert has_element?(view, "select[name='device[type]'] option[value=thermostat]")
+      assert has_element?(view, "select[name='device[type]'] option[value=wifi_endpoint]")
+
+      view
+      |> form(".device-form",
+        device: %{
+          "id" => "thermostat:attic",
+          "type" => "thermostat",
+          "name" => "attic thermostat",
+          "aliases" => "",
+          "bindings" => %{"climate" => "climate.attic"},
+          "settings" => %{"min_temperature_f" => "", "max_temperature_f" => ""}
+        }
+      )
+      |> render_submit()
+
+      assert {:ok, reread} = HomeConfig.load(path)
+
+      assert Enum.map(reread.house[:devices], & &1.id) == [
+               @thermostat,
+               @light,
+               "thermostat:attic"
+             ]
+
+      # A setting nobody narrowed is left out of the file rather than written
+      # as an empty one.
+      assert %{settings: settings} = List.last(reread.house[:devices])
+      assert settings == %{}
+
+      assert has_element?(view, "#card-thermostat\\:attic .name", "attic thermostat")
+      assert is_pid(Dobby.Jido.whereis("thermostat:attic"))
+    end
+
+    # The device type has the last word about its own entry, and the form does
+    # not repeat it in different words: a blank entity field is left out, and
+    # what comes back is the thermostat's own sentence.
+    test "a device its type will not accept is not written", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+      original = File.read!(path)
+
+      view |> element(".cards .acts button", "add a device") |> render_click()
+
+      view
+      |> form(".device-form",
+        device: %{
+          "id" => "thermostat:attic",
+          "type" => "thermostat",
+          "name" => "attic thermostat",
+          "aliases" => "",
+          "bindings" => %{"climate" => ""},
+          "settings" => %{"min_temperature_f" => "", "max_temperature_f" => ""}
+        }
+      )
+      |> render_submit()
+
+      assert has_element?(view, ".device-form .why", "missing required binding :climate")
+      assert File.read!(path) == original
+      refute has_element?(view, "#card-thermostat\\:attic")
+    end
+  end
+
+  describe "removing a device" do
+    setup [:editable_house]
+
+    test "asks first, and says what a schedule aimed at it loses", %{conn: conn, path: path} do
+      {:ok, _schedule} = weeknight_heat()
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "remove") |> render_click()
+
+      # The question is a board line; what it would cost is a sentence.
+      assert has_element?(view, "#card-thermostat\\:main .confirm", "Remove main thermostat?")
+
+      assert has_element?(
+               view,
+               "#card-thermostat\\:main .hint",
+               "One enabled schedule aims at it"
+             )
+
+      view |> element("#card-thermostat\\:main .acts button", "remove") |> render_click()
+
+      refute has_element?(view, "#card-thermostat\\:main")
+      assert {:ok, reread} = HomeConfig.load(path)
+      assert Enum.map(reread.house[:devices], & &1.id) == [@light]
+
+      # And it did exactly what the line said it would: the row is still there,
+      # still enabled, and no longer able to reach anything. Admin says so.
+      assert [schedule] = Schedules.list_schedules()
+      assert schedule.enabled
+      assert Schedules.describe(schedule).status != "active"
+    end
+
+    test "says nothing about schedules when nothing aims at it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-light\\:living_room .acts button", "remove") |> render_click()
+
+      assert has_element?(view, "#card-light\\:living_room .confirm", "Remove living room light?")
+      refute has_element?(view, "#card-light\\:living_room .hint")
+    end
+
+    test "keeping it changes nothing", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+      original = File.read!(path)
+
+      view |> element("#card-thermostat\\:main .acts button", "remove") |> render_click()
+      view |> element("#card-thermostat\\:main .acts button", "keep it") |> render_click()
+
+      assert has_element?(view, "#card-thermostat\\:main .acts button", "edit")
+      refute has_element?(view, "#card-thermostat\\:main .confirm")
+      assert File.read!(path) == original
+    end
+  end
+
+  describe "staying current" do
+    setup [:editable_house]
+
+    # No file watcher in v1 and none needed: everything Dobby writes is
+    # announced on `dobby:config` the moment it takes effect, and this page
+    # renders from the applied configuration.
+    test "a house somebody else changed reaches an open page", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      config = Writer.current()
+      devices = Keyword.fetch!(config.house, :devices)
+
+      attic = %{
+        id: "thermostat:attic",
+        name: "attic thermostat",
+        aliases: [],
+        agent_module: Dobby.DeviceAgents.Thermostat,
+        bindings: %{climate: "climate.attic"},
+        settings: %{}
+      }
+
+      {:ok, _applied} =
+        Writer.save(%{config | house: Keyword.put(config.house, :devices, devices ++ [attic])})
+
+      assert eventually(fn -> has_element?(view, "#card-thermostat\\:attic") end)
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   # What the fader's hook pushes when a finger comes up — never on a drag tick.
@@ -266,5 +604,75 @@ defmodule DobbyWeb.HouseLiveTest do
 
   defp named(conn, name) do
     post(conn, "/speaker", %{"name" => name, "return_to" => "/house"})
+  end
+
+  # A house Dobby can write, which is the other half of this page. The file is
+  # real, in a temporary directory, and the running house is booted from it —
+  # so the file on disk and the house on the board are the same house, which is
+  # what a boot means.
+  defp editable_house(_context) do
+    path = Path.join(System.tmp_dir!(), "house-#{System.unique_integer([:positive])}.yaml")
+    File.write!(path, @editable)
+    on_exit(fn -> File.rm(path) end)
+
+    config = on_the_fake(HomeConfig.load!(path))
+
+    Application.put_env(:dobby, Dobby.Home, HomeConfig.manifest(config))
+    Fake.reset()
+    {:ok, _pid} = Dobby.Home.restart()
+
+    Fake.subscribe()
+    Dobby.DeviceEvents.subscribe()
+
+    swap_writer!(config)
+    seed_house(%{@entity => thermostat_entity(current: 66, target: 70)})
+
+    %{conn: build_conn(), path: path}
+  end
+
+  # The application's own writer is pointed at the rig, which it will not
+  # write. This one takes its name for as long as the scenario runs, because
+  # the page reaches the writer the way everything else does — by its name.
+  defp swap_writer!(config) do
+    :ok = Supervisor.terminate_child(Dobby.Supervisor, Writer)
+    {:ok, writer} = Writer.start_link(config: config)
+
+    on_exit(fn ->
+      reference = Process.monitor(writer)
+      if Process.alive?(writer), do: GenServer.stop(writer)
+
+      receive do
+        {:DOWN, ^reference, :process, _pid, _reason} -> :ok
+      after
+        5_000 -> :ok
+      end
+
+      {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Writer)
+    end)
+  end
+
+  # The rig speaks to the fake and a YAML house never says so — that is the
+  # point of it. So the client is swapped in the loaded struct, and the file
+  # that lands on disk stays the shareable one either way.
+  defp on_the_fake(%HomeConfig{house: house} = config) do
+    home_assistant =
+      house
+      |> Keyword.fetch!(:home_assistant)
+      |> Keyword.put(:client, Dobby.HomeAssistant.Fake)
+
+    %{config | house: Keyword.put(house, :home_assistant, home_assistant)}
+  end
+
+  defp weeknight_heat do
+    Schedules.create_schedule(%{
+      label: "weeknight heat",
+      cron: "0 20 * * 1-5",
+      timezone: "America/New_York",
+      target: @thermostat,
+      action: "set_temperature",
+      args: %{"temperature_f" => 68},
+      created_by: "greg",
+      created_via: :admin
+    })
   end
 end

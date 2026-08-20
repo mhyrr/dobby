@@ -15,6 +15,7 @@ defmodule Dobby.Health do
 
   alias Dobby.Home
   alias Dobby.HomeAssistant
+  alias Dobby.HomeAssistant.Connection
   alias Dobby.SchedulerAgent
 
   @typedoc "One thing that is either there or not, said in the board's words."
@@ -64,11 +65,17 @@ defmodule Dobby.Health do
   # The client is a process like any other, and which one it is matters as
   # much as whether it is up: a box happily talking to the fake is a box that
   # is not talking to the house.
+  #
+  # AWAKE here means the *connection* answers, not that the process exists. A
+  # client sitting in its reconnect backoff is up and is not talking to Home
+  # Assistant, and this row used to call that awake. The fact comes from
+  # `Connection`, which the topology panel reads too — one answer, so the two
+  # panels cannot disagree about the same house.
   defp home_assistant_row do
     module = HomeAssistant.impl()
     detail = module |> Module.split() |> List.last()
 
-    if is_pid(Process.whereis(module)) do
+    if Connection.status(module) == :connected do
       %{name: "Home Assistant", word: "Awake", state: :acting, detail: detail}
     else
       %{name: "Home Assistant", word: "Quiet", state: :silent, detail: detail}

@@ -849,6 +849,60 @@ body {
 .new-sched input::placeholder { color: var(--ink-faint); }
 .new-sched .why { font-size: .86rem; color: var(--st-refused); }
 
+/* ── the topology ─────────────────────────────────────────────────────────
+   The command hierarchy, drawn: two directors, the devices, the one client
+   underneath them. It is a board and not a chart — the nodes are board rows
+   that lost their middle column, and the only thing here that was invented for
+   it is the wire.
+
+   The wires are SVG bands with a `0 0 100 10` viewBox stretched over whatever
+   width the panel got, so a line's ends are the two tiers' own column centres
+   and nothing has to be measured in a browser. `non-scaling-stroke` on each
+   line is what keeps that stretch from drawing a hairline at one weight across
+   and another down. */
+.topo { display: grid; gap: 0; min-width: 0; }
+.topo .tier {
+  display: grid;
+  gap: .5rem 1.05rem;
+  align-items: start;
+  min-width: 0;
+}
+/* A phone gets the tiers as a list and no wires. Five nodes across 24rem is
+   four characters of device name each, and a diagram that has to be scrolled
+   sideways to be read is not one — so the drawing gives up being a drawing at
+   the width where it stops being legible, and stays a labelled list of what
+   this house is made of. The page never scrolls sideways for it. */
+.topo .tier { grid-template-columns: minmax(0, 1fr); }
+.topo .wires { display: none; width: 100%; height: 1.6rem; }
+
+.topo-node { display: grid; gap: .2rem; justify-items: center; min-width: 0; text-align: center; }
+.topo-node .name {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .86rem;
+  color: var(--ink-quiet);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topo-node .read { display: flex; align-items: center; gap: .4rem; }
+.topo-node .read .flap { font-size: .74rem; padding: .1rem .4rem .12rem; --flap-h: 1.2rem; }
+.topo-node .read .val {
+  font-family: var(--board-type);
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.topo-node .note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-node .wrong { color: var(--st-refused); }
+
+/* Brass, because a wire is structure and structure is what brass marks here.
+   A state colour on it would be a reserved colour doing decoration, which is
+   the one thing palette law forbids. */
+.topo .wires .wire { stroke: var(--brass-dim); stroke-width: 1; fill: none; }
+
 .feed { min-width: 0; }
 .feed .entry {
   display: grid;
@@ -939,6 +993,15 @@ body {
   .msg .attr { flex-direction: column; align-items: flex-start; gap: .05rem; margin: 0; }
   .msg .steps, .msg .collapsed, .msg .note { grid-column: 2; }
   .sys { padding-left: 8.6rem; }
+
+  /* Wide enough for the drawing to be one, so the tiers become tiers and the
+     wires come out. The device count is inlined by the panel and the same
+     arithmetic runs in Elixir for the line ends: node i of n sits at the
+     centre of its own column. */
+  .topo .tier.directors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topo .tier.devices { grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); }
+  .topo .tier.house .topo-node { justify-self: center; }
+  .topo .wires { display: block; }
 }
 
 /* ── a finger ─────────────────────────────────────────────────────────────
@@ -1055,10 +1118,14 @@ body {
   .board-admin {
     padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
   }
-  /* Two items and two tracks, so nothing here needs placing by hand. */
+  /* Two tracks, and the only thing placed by hand is the drawing above them. */
   .admin {
     grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
     align-items: start;
     justify-content: center;
   }
+  /* The topology is the one panel whose subject is the whole house rather than
+     one aspect of it, so it takes the whole board: three tiers of nodes in the
+     22rem column would be a list with wires drawn down it. */
+  .topology { grid-column: 1 / -1; }
 }

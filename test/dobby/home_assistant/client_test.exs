@@ -16,6 +16,7 @@ defmodule Dobby.HomeAssistant.ClientTest do
   alias Dobby.Directive.HACall
   alias Dobby.HAServer
   alias Dobby.HomeAssistant.Client
+  alias Dobby.HomeAssistant.Connection
 
   defp start_client!(url, opts \\ []) do
     test = self()
@@ -309,6 +310,33 @@ defmodule Dobby.HomeAssistant.ClientTest do
       assert_receive {:dispatched, "climate.hvac", "heat", %{}}, 1_000
 
       assert Client.execute(client, call()) == :ok
+    end
+  end
+
+  describe "the connection announcement" do
+    # A named client, because `Connection` only listens to the process holding
+    # the house's name — every other client in this file is anonymous, which is
+    # what keeps this file's concurrent rig clients from all speaking for the
+    # house at once.
+    test "transitions are published as they happen" do
+      url = HAServer.start!(owner: self())
+      :ok = Connection.subscribe()
+
+      start_client!(url, name: Client)
+
+      assert_receive {:ha_server, :connected, handler}, 1_000
+      assert_receive {:home_assistant, :connected}, 1_000
+      assert Connection.status(Client) == :connected
+
+      # Announced on the way down, never asked for: the client spends its bad
+      # minutes blocked in a connect, which is when a question would hang.
+      send(handler, :close)
+
+      assert_receive {:home_assistant, :reconnecting}, 1_000
+
+      # And back, as the backoff reconnects.
+      assert_receive {:home_assistant, :connected}, 1_000
+      assert Connection.status(Client) == :connected
     end
   end
 end

@@ -25,6 +25,7 @@ defmodule Dobby.HomeAssistant.Fake do
   use GenServer
 
   alias Dobby.Directive.HACall
+  alias Dobby.HomeAssistant.Connection
 
   @behaviour Dobby.HomeAssistant
 
@@ -93,10 +94,26 @@ defmodule Dobby.HomeAssistant.Fake do
   @spec reset() :: :ok
   def reset, do: GenServer.call(__MODULE__, :reset)
 
+  @doc """
+  Walks the rig's connection through a transition, as the real client would.
+
+  From inside the fake's own process, because `Connection` only takes a
+  transition from the process holding the client's name — a test announcing on
+  the fake's behalf would be exactly the impersonation that rule exists for.
+  """
+  @spec set_connection(Dobby.HomeAssistant.Connection.status()) :: :ok
+  def set_connection(status), do: GenServer.call(__MODULE__, {:set_connection, status})
+
   # -- server ----------------------------------------------------------------
 
   @impl GenServer
   def init(opts) do
+    # A rig with nothing to lose is connected, and says so through the same
+    # seam the real client does — otherwise the panel that reports the
+    # connection is honest in production and blank in dev and test, which is
+    # the wrong way round for a surface nobody looks at until something breaks.
+    connected()
+
     {:ok, %__MODULE__{entities: Keyword.get(opts, :entities, %{})}}
   end
 
@@ -145,11 +162,23 @@ defmodule Dobby.HomeAssistant.Fake do
     {:reply, :ok, %{state | subscribers: [pid | state.subscribers]}}
   end
 
+  def handle_call({:set_connection, status}, _from, state) do
+    Connection.publish(__MODULE__, status)
+    {:reply, :ok, state}
+  end
+
   def handle_call(:trace, _from, state), do: {:reply, state.trace, state}
 
   def handle_call(:reset, _from, state) do
+    # The world as it stands before a scenario begins, and that includes the
+    # connection: a test that walked the fake through a disconnection must not
+    # leave the next one starting from it.
+    connected()
+
     {:reply, :ok, %{state | trace: [], entities: %{}, failures: %{}, subscribers: []}}
   end
+
+  defp connected, do: Connection.publish(__MODULE__, :connected)
 
   # -- the physical confirm loop --------------------------------------------
 

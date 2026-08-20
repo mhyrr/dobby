@@ -30,6 +30,7 @@ defmodule Dobby.HomeAssistant.Client do
   require Logger
 
   alias Dobby.Directive.HACall
+  alias Dobby.HomeAssistant.Connection
 
   @behaviour Dobby.HomeAssistant
 
@@ -214,6 +215,10 @@ defmodule Dobby.HomeAssistant.Client do
   defp schedule_reconnect(state) do
     Process.send_after(self(), :connect, state.backoff)
 
+    # Every path down to a retry comes through here — a refused upgrade, a lost
+    # socket, a bad token — so this is the one place the house has to be told.
+    Connection.publish(__MODULE__, :reconnecting)
+
     %{
       state
       | conn: nil,
@@ -301,6 +306,11 @@ defmodule Dobby.HomeAssistant.Client do
 
   defp handle_message(state, %{"type" => "auth_ok"} = message) do
     Logger.info("connected to Home Assistant #{message["ha_version"]} at #{state.url}")
+
+    # Announced rather than answered on request: a surface asking this process
+    # whether it is connected would queue behind the reconnect it is in the
+    # middle of. See `Dobby.HomeAssistant.Connection`.
+    Connection.publish(__MODULE__, :connected)
 
     %{state | status: :connected, backoff: state.initial_backoff}
     |> send_command(%{type: "subscribe_events", event_type: "state_changed"}, :subscription)

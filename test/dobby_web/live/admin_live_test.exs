@@ -15,6 +15,7 @@ defmodule DobbyWeb.AdminLiveTest do
 
   alias Dobby.Activity
   alias Dobby.ActivityEvents
+  alias Dobby.Health
   alias Dobby.SchedulerAgent
   alias Dobby.Schedules
 
@@ -72,6 +73,173 @@ defmodule DobbyWeb.AdminLiveTest do
 
       assert has_element?(view, ".panel .note .wrong", "weeknight heat")
       assert has_element?(view, ".panel .note .wrong", "no timer")
+    end
+
+    # The row used to say AWAKE for a client that was up and reconnecting,
+    # which is a process being there rather than a house answering. It reads
+    # the same fact the topology panel does, so the two cannot disagree.
+    test "a client that is up and not connected is not awake" do
+      assert %{word: "Awake", state: :acting} = home_assistant_row()
+
+      Fake.set_connection(:reconnecting)
+
+      assert %{word: "Quiet", state: :silent} = home_assistant_row()
+    end
+  end
+
+  # A live diagram of the house's mind: what commands what, what is running,
+  # and what it currently says. Not the OTP tree — that is a flat fan by
+  # design, and it says nothing about who commands whom.
+  describe "the topology" do
+    test "draws a node for every device in the manifest", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, "section.panel.topology h2", "Topology")
+
+      for id <- ["thermostat:main", "light:living_room", "vacuum:robo", "wifi:kitchen_tv"] do
+        assert has_element?(view, ".tier.devices .topo-node[data-part='#{id}']")
+      end
+
+      # The two directors and the one client every device speaks through.
+      assert has_element?(view, ".tier.directors .topo-node[data-part='dobby']")
+      assert has_element?(view, ".tier.directors .topo-node[data-part='scheduler']")
+      assert has_element?(view, ".tier.house .topo-node[data-part='home_assistant']")
+    end
+
+    # Which is the whole of §1.1 said in two words, on the page rather than in
+    # a document nobody on a laptop at 11pm is going to open.
+    test "says which half of itself is probabilistic", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".topo-node[data-part='dobby'] .note", "Probabilistic")
+      assert has_element?(view, ".topo-node[data-part='scheduler'] .note", "Deterministic")
+    end
+
+    # Configuration, never process introspection: the roster's tools, the
+    # schedule rows, and the manifest's entity bindings.
+    test "wires the directors to what they can actually command", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".wire[data-from='dobby'][data-to='#{@thermostat}']")
+      assert has_element?(view, ".wire[data-from='#{@thermostat}'][data-to='home_assistant']")
+
+      # Nothing is scheduled, so the scheduler commands nothing. A wire drawn
+      # anyway would claim a path that cannot fire.
+      refute has_element?(view, ".wire[data-from='scheduler']")
+    end
+
+    test "the scheduler's wire appears with the schedule that draws it", %{conn: conn} do
+      create!(label: "weeknight heat")
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".wire[data-from='scheduler'][data-to='#{@thermostat}']")
+
+      view |> element(".sched .acts button", "pause") |> render_click()
+
+      # A paused schedule has no timer, and the drawing says so the way the
+      # row beneath it does — by not claiming otherwise.
+      refute has_element?(view, ".wire[data-from='scheduler'][data-to='#{@thermostat}']")
+    end
+
+    test "a device node says what the device says", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      node = ".topo-node[data-part='#{@thermostat}']"
+
+      # The seed is 66 heading for 70, and WARMING is what the card on /house
+      # says about that — the node reads through the same function on purpose.
+      assert has_element?(view, "#{node} .flap[data-st=acting]", "Warming")
+      assert has_element?(view, "#{node} .val", "70°")
+    end
+
+    test "the scheduler node carries the timer count and the missing ones", %{conn: conn} do
+      create!(label: "weeknight heat")
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".topo-node[data-part='scheduler'] .note", "1 timer")
+      refute has_element?(view, ".topo-node[data-part='scheduler'] .note.wrong")
+
+      # The most useful fact on the page, on the node it is about: a row
+      # accepted at authoring time and then rejected by the timer.
+      SchedulerAgent.clear()
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".topo-node[data-part='scheduler'] .note.wrong", "1 without a timer")
+    end
+
+    # Liveness by monitor, not by asking: a `:DOWN` flips the node, and a
+    # re-lookup catches the supervisor putting the agent back. A restart is
+    # visibly a restart.
+    @tag :capture_log
+    test "a device agent that dies reads down, and comes back", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      node = ".topo-node[data-part='#{@thermostat}']"
+      assert has_element?(view, "#{node} .flap[data-st=acting]", "Warming")
+
+      Process.exit(Dobby.Jido.whereis(@thermostat), :kill)
+
+      assert eventually(fn -> has_element?(view, "#{node} .flap[data-st=silent]", "Quiet") end)
+
+      # And back — knowing nothing, because a restarted agent came back with
+      # the state it was built with and Home Assistant has not spoken since.
+      assert eventually(fn -> has_element?(view, "#{node} .flap", "Not known") end)
+      assert is_pid(Dobby.Jido.whereis(@thermostat))
+    end
+
+    test "Dobby's node goes quiet with Dobby", %{conn: conn} do
+      Dobby.Jido.stop_agent(Dobby.DobbyAgent.id())
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".topo-node[data-part='dobby'] .flap[data-st=silent]", "Quiet")
+    end
+
+    # The connection is a fact about the world, not about the process, and it
+    # arrives as a transition rather than being asked for — the client spends
+    # its bad minutes blocked in a connect, which is exactly when a synchronous
+    # status call would be waited on.
+    test "a lost connection to Home Assistant reaches the panel", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      house = ".topo-node[data-part='home_assistant']"
+      assert has_element?(view, "#{house} .flap[data-st=acting]", "Awake")
+
+      Fake.set_connection(:reconnecting)
+
+      assert eventually(fn -> has_element?(view, "#{house} .flap[data-st=silent]", "Quiet") end)
+      assert has_element?(view, "#{house} .note", "Trying again")
+
+      Fake.set_connection(:connected)
+
+      assert eventually(fn -> has_element?(view, "#{house} .flap[data-st=acting]", "Awake") end)
+      refute has_element?(view, "#{house} .note", "Trying again")
+    end
+
+    # State once at mount and PubSub after it. The event carries the snapshot,
+    # so the node is updated from what arrived rather than by asking the agent
+    # that just told us.
+    test "takes device state from the topic, not from the agent", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      node = ".topo-node[data-part='#{@thermostat}']"
+      assert has_element?(view, "#{node} .val", "70°")
+
+      Fake.inject_state_changed(@entity, thermostat_entity(current: 66, target: 64))
+
+      assert eventually(fn -> has_element?(view, "#{node} .val", "64°") end)
+    end
+
+    test "a house with nothing in it says so", %{conn: conn} do
+      boot_house!([])
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".topo .note", "No devices")
+      refute has_element?(view, ".tier.devices")
+      refute has_element?(view, ".wire")
     end
   end
 
@@ -324,5 +492,9 @@ defmodule DobbyWeb.AdminLiveTest do
 
   defp named(conn, name) do
     post(conn, "/speaker", %{"name" => name, "return_to" => "/admin"})
+  end
+
+  defp home_assistant_row do
+    Enum.find(Health.rows(), &(&1.name == "Home Assistant"))
   end
 end

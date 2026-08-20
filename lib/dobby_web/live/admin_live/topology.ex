@@ -53,6 +53,7 @@ defmodule DobbyWeb.AdminLive.Topology do
   attr :changed_at, :map, default: %{}, doc: "device id => when it last moved"
   attr :timers, :integer, default: 0
   attr :unregistered, :list, default: []
+  attr :pulses, :map, default: %{}, doc: "{from, to} => the traffic lighting that wire"
 
   def topology(assigns) do
     assigns =
@@ -80,7 +81,13 @@ defmodule DobbyWeb.AdminLive.Topology do
           />
         </div>
 
-        <.wires :if={@devices != []} edges={@topology.edges} band={:command} places={@places} />
+        <.wires
+          :if={@devices != []}
+          edges={@topology.edges}
+          band={:command}
+          places={@places}
+          pulses={@pulses}
+        />
 
         <%!-- A house with nothing in it has no middle tier, and says so in the
               record voice rather than leaving a gap between two wires. --%>
@@ -97,7 +104,13 @@ defmodule DobbyWeb.AdminLive.Topology do
           />
         </div>
 
-        <.wires :if={@devices != []} edges={@topology.edges} band={:house} places={@places} />
+        <.wires
+          :if={@devices != []}
+          edges={@topology.edges}
+          band={:house}
+          places={@places}
+          pulses={@pulses}
+        />
 
         <div class="tier house">
           <.part
@@ -138,6 +151,7 @@ defmodule DobbyWeb.AdminLive.Topology do
   attr :edges, :list, required: true
   attr :band, :atom, required: true
   attr :places, :map, required: true
+  attr :pulses, :map, default: %{}
 
   defp wires(assigns) do
     assigns = assign(assigns, :lines, lines(assigns.edges, assigns.band, assigns.places))
@@ -146,7 +160,7 @@ defmodule DobbyWeb.AdminLive.Topology do
     <svg class="wires" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
       <line
         :for={line <- @lines}
-        class="wire"
+        class={["wire", Map.has_key?(@pulses, {line.from, line.to}) && "pulse"]}
         x1={line.x1}
         y1="0"
         x2={line.x2}

@@ -124,6 +124,7 @@ defmodule DobbyWeb.AdminLive do
         changed_at={@changed_at}
         timers={@timers}
         unregistered={@unregistered}
+        pulses={@pulses}
       />
 
       <%!-- Health and schedules are one column and not two grid rows. As rows
@@ -416,7 +417,20 @@ defmodule DobbyWeb.AdminLive do
     {:noreply,
      socket
      |> assign(:blank_feed, false)
+     |> pulse(entry)
      |> stream_insert(:activity, entry, at: 0, limit: @feed)}
+  end
+
+  # Only the newest pulse's own timer may darken its wire — an older timer
+  # firing under fresh traffic would flicker a line that is honestly busy.
+  def handle_info({:pulse_fade, wire, count}, socket) do
+    case socket.assigns.pulses do
+      %{^wire => ^count} ->
+        {:noreply, assign(socket, :pulses, Map.delete(socket.assigns.pulses, wire))}
+
+      _newer_pulse ->
+        {:noreply, socket}
+    end
   end
 
   # A firing changes what `next_fire` and `status` say, and both are computed
@@ -518,6 +532,8 @@ defmodule DobbyWeb.AdminLive do
     |> assign(:changed_at, Activity.last_changes())
     |> assign(:live, %{})
     |> assign(:watching, %{})
+    |> assign(:pulses, %{})
+    |> assign(:pulse_count, 0)
     |> then(fn socket -> Enum.reduce(Topology.agent_ids(), socket, &watch(&2, &1)) end)
   end
 
@@ -549,6 +565,50 @@ defmodule DobbyWeb.AdminLive do
 
   defp put_live(socket, id, alive?),
     do: assign(socket, :live, Map.put(socket.assigns.live, id, alive?))
+
+  # The feed entry, said on the drawing (TK-016 step two): each recorded entry
+  # names an edge, and the edge it names lights for a moment. Pure ornament on
+  # a topic this page already subscribes to — the map of what the entry means
+  # is the same one the wires were drawn from, so a pulse can only travel a
+  # wire that exists.
+  #
+  # A `request` pulses nothing: it is a person speaking to Dobby, and people
+  # are deliberately not on this drawing.
+  @pulse_for %{
+    "tool_call" => :command,
+    "schedule_fired" => :command,
+    "control" => :house,
+    "device_changed" => :house
+  }
+
+  defp pulse(socket, %{kind: kind, device: device}) when is_binary(device) do
+    case Map.get(@pulse_for, kind) do
+      # The commanded wire's far end is the director the entry attributes it
+      # to; the house wire always runs from the device to the client.
+      :command -> light(socket, {director(kind), device})
+      :house -> light(socket, {device, Topology.house_id()})
+      nil -> socket
+    end
+  end
+
+  defp pulse(socket, _entry), do: socket
+
+  defp director("schedule_fired"), do: Dobby.SchedulerAgent.id()
+  defp director(_tool_call), do: Dobby.DobbyAgent.id()
+
+  # A busy wire stays lit rather than flickering: each pulse takes a fresh
+  # count, and only the fade carrying the current count darkens the wire.
+  @pulse_ms 700
+
+  defp light(socket, wire) do
+    count = socket.assigns.pulse_count + 1
+
+    if connected?(socket), do: Process.send_after(self(), {:pulse_fade, wire, count}, @pulse_ms)
+
+    socket
+    |> assign(:pulse_count, count)
+    |> assign(:pulses, Map.put(socket.assigns.pulses, wire, count))
+  end
 
   defp put_snapshot(socket, nil, _snapshot), do: socket
 

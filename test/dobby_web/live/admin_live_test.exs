@@ -241,6 +241,45 @@ defmodule DobbyWeb.AdminLiveTest do
       refute has_element?(view, ".tier.devices")
       refute has_element?(view, ".wire")
     end
+
+    # Step two: the feed, said on the drawing. Each recorded entry lights the
+    # wire it names, and it can only light a wire the drawing already has —
+    # the map from entry to edge is the map the wires were drawn from.
+    test "traffic lights the wire it travelled", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      refute has_element?(view, ".wire.pulse")
+
+      # A state change reaches the feed through the watcher, and pulses the
+      # device's own line to the house.
+      Fake.inject_state_changed(@entity, thermostat_entity(current: 67, target: 70))
+
+      house_wire = ".wire[data-from='#{@thermostat}'][data-to='home_assistant']"
+      assert eventually(fn -> has_element?(view, "#{house_wire}.pulse") end)
+
+      # A tool call is Dobby's doing, and pulses the command wire instead.
+      {:ok, _entry} =
+        Activity.record(%{
+          kind: "tool_call",
+          actor: "dobby",
+          device: @thermostat,
+          action: "thermostat_get_status"
+        })
+
+      command_wire = ".wire[data-from='dobby'][data-to='#{@thermostat}']"
+      assert eventually(fn -> has_element?(view, "#{command_wire}.pulse") end)
+    end
+
+    # People are deliberately not on this drawing, so what a person said
+    # cannot light anything.
+    test "a request pulses no wire", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      {:ok, _entry} = Activity.record(%{kind: "request", actor: "greg", action: "ask"})
+
+      assert eventually(fn -> has_element?(view, ".feed .entry .kind", "request") end)
+      refute has_element?(view, ".wire.pulse")
+    end
   end
 
   describe "the schedule form" do

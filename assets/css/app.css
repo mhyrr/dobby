@@ -901,7 +901,18 @@ body {
 /* Brass, because a wire is structure and structure is what brass marks here.
    A state colour on it would be a reserved colour doing decoration, which is
    the one thing palette law forbids. */
-.topo .wires .wire { stroke: var(--brass-dim); stroke-width: 1; fill: none; }
+.topo .wires .wire {
+  stroke: var(--brass-dim);
+  stroke-width: 1;
+  fill: none;
+  /* The decay half of a pulse: the flash below is quick, and this is the
+     wire cooling back down after the class drops. */
+  transition: stroke .45s ease-out;
+}
+/* Traffic on the line (TK-016 step two). Brass-lit, never a state colour —
+   a pulse is the light catching a wire that just carried something, and the
+   palette law holds: the words on the flaps stay the only saturation here. */
+.topo .wires .wire.pulse { stroke: var(--brass-lit); transition: stroke .06s; }
 
 .feed { min-width: 0; }
 .feed .entry {

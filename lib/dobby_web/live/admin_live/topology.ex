@@ -92,7 +92,7 @@ defmodule DobbyWeb.AdminLive.Topology do
         <%!-- A house with nothing in it has no middle tier, and says so in the
               record voice rather than leaving a gap between two wires. --%>
         <p :if={@devices == []} class="note">
-          No devices. The house is described in <span class="file arg">home.exs</span> on the box.
+          No devices. The house is described in <span class="file arg">home.yaml</span> on the box.
         </p>
 
         <div :if={@devices != []} class="tier devices" style={"--n: #{length(@devices)}"}>

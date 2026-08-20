@@ -45,6 +45,9 @@ defmodule Dobby.DeviceAgents.Light do
   @impl Dobby.DeviceAgent
   def config_type, do: "light"
 
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "light"
+
   # Nothing to narrow: whether this bulb dims is the bulb's word
   # (`supported_color_modes`), not the household's.
   @impl Dobby.DeviceAgent

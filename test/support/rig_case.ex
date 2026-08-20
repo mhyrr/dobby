@@ -58,6 +58,61 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  Puts the rig's house in a file Dobby is allowed to write, and returns it.
+
+  `config/homes/rig.exs` is Elixir on purpose and the writer refuses it on
+  purpose — a file with logic in it is not a file a machine can round-trip. So
+  a scenario that exercises *writing* the house has to give it a YAML one, and
+  this does it the way production would: a real file on disk, loaded into the
+  real `Dobby.HomeConfig.Writer`, restarted through the real supervisor.
+
+  One thing is not round-tripped, and it is the reason the config is handed over
+  as a struct rather than read back from the file it writes. `to_yaml/1` drops
+  the client module, because a YAML house is a real house and the fake is a test
+  fixture that lives in Elixir. Reading the written file back would therefore
+  point the rig at `Dobby.HomeAssistant.Client`, which is not running. The
+  struct keeps the manifest the suite booted on; the file on disk is what a
+  household would have.
+  """
+  @spec writable_house!() :: Dobby.HomeConfig.t()
+  def writable_house! do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "dobby-rig-house-#{System.unique_integer([:positive])}.yaml"
+      )
+
+    config = %Dobby.HomeConfig{
+      path: path,
+      format: :yaml,
+      house: Application.get_env(:dobby, Dobby.Home, [])
+    }
+
+    File.write!(path, Dobby.HomeConfig.to_yaml(config))
+    restart_writer!(config: config)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      File.rm(path)
+      restart_writer!([])
+    end)
+
+    config
+  end
+
+  # The writer is a child of the application supervisor with its options baked
+  # into the spec, so pointing it at another house means replacing the child
+  # rather than telling it something.
+  defp restart_writer!(opts) do
+    Supervisor.terminate_child(Dobby.Supervisor, Dobby.HomeConfig.Writer)
+    Supervisor.delete_child(Dobby.Supervisor, Dobby.HomeConfig.Writer)
+
+    {:ok, _pid} =
+      Supervisor.start_child(Dobby.Supervisor, {Dobby.HomeConfig.Writer, opts})
+
+    :ok
+  end
+
+  @doc """
   Reboots the house from a different manifest.
 
   Scenarios that need a differently-shaped home — two thermostats, a device

@@ -36,6 +36,23 @@ defmodule Dobby.DeviceAgent do
   @callback config_schema() :: keyword()
 
   @doc """
+  Whether an unbound Home Assistant entity looks like one of these (TK-010).
+
+  The removable half of the double-entry problem. Home Assistant already knows
+  that `climate.dining_room` is a climate entity; nobody should have to retype
+  that as a device type. What HA cannot supply — the id this house will use
+  forever, the words the household actually says, the policy bounds — stays the
+  household's to state, which is why this only ever *suggests*.
+
+  Declared per type rather than as a domain table somewhere central, for the
+  reason `config_type/0` is: a new device agent should bring its own discovery
+  with it. It also lets a type be narrower than its domain — `wifi_endpoint`
+  wants the `binary_sensor` entities that report connectivity and none of the
+  motion sensors, and only `WifiEndpoint` knows that.
+  """
+  @callback matches_entity?(Dobby.HomeAssistant.Entity.t()) :: boolean()
+
+  @doc """
   Validates the manifest entry for one instance of this device type.
 
   Called during `Dobby.Home` bootstrap, before any agent starts. Return an

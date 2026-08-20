@@ -23,11 +23,18 @@ defmodule Dobby.Home do
   # about the household's intentions, so these are offered whatever is plugged
   # in — a house with nothing schedulable refuses at authoring time, naming
   # what it does have, which is a better answer than a missing tool.
+  #
+  # The config three are here for the sharper version of the same reason: they
+  # are how a house gets its *first* device, so a house that has none must
+  # still offer them or there is no way in but a text editor (TK-010).
   @house_tools [
     Dobby.Tools.CreateSchedule,
     Dobby.Tools.ListSchedules,
     Dobby.Tools.SetScheduleEnabled,
-    Dobby.Tools.DeleteSchedule
+    Dobby.Tools.DeleteSchedule,
+    Dobby.Tools.DiscoverEntities,
+    Dobby.Tools.ProposeDevice,
+    Dobby.Tools.ConfirmDevice
   ]
 
   # -- lifecycle -------------------------------------------------------------

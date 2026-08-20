@@ -38,6 +38,16 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
   @impl Dobby.DeviceAgent
   def config_type, do: "wifi_endpoint"
 
+  # Narrower than its domain, deliberately. Home Assistant's `binary_sensor` is
+  # a bucket — motion, doors, moisture, and the ping integration's reachability
+  # all land in it — and only the last of those is a thing Dobby can report on.
+  # The device class is HA's own word for the difference.
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity) do
+    Dobby.HomeAssistant.Entity.domain(entity) == "binary_sensor" and
+      entity.device_class == "connectivity"
+  end
+
   # Read-only, so there is nothing to permit or forbid.
   @impl Dobby.DeviceAgent
   def config_schema, do: []

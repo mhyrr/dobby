@@ -41,6 +41,9 @@ defmodule Dobby.DeviceAgents.Vacuum do
   @impl Dobby.DeviceAgent
   def config_type, do: "vacuum"
 
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "vacuum"
+
   # A vacuum's whole envelope comes from the robot. There is nothing here for a
   # household to say that HA does not already know.
   @impl Dobby.DeviceAgent

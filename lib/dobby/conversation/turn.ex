@@ -244,6 +244,7 @@ defmodule Dobby.Conversation.Turn do
     detail = describe(error)
     record_request(turn, %{ok: false, error: detail})
     fail(turn.request_id, sentence(error), detail)
+    catch_up()
   end
 
   defp finish(turn) do
@@ -256,6 +257,36 @@ defmodule Dobby.Conversation.Turn do
         record_request(turn, %{ok: true, reply: text})
         reply(turn, text)
     end
+
+    catch_up()
+  end
+
+  # A turn that changed the house restarts it, once the turn is over.
+  #
+  # Restarting `Dobby.Home` stops `DobbyAgent` along with everything else, so a
+  # confirmation that restarted the house from inside its own tool call would
+  # write the file correctly and then lose the sentence saying so — the request
+  # dies with the agent it is running on. So `Dobby.HomeConfig.Writer` writes,
+  # validates and announces synchronously and holds the restart, and this is
+  # where it is let go: after the reply is in the thread, by the process that
+  # put it there. Every other turn finds nothing waiting and this costs a call.
+  #
+  # /admin and /house do not need it. A browser is not inside the request it is
+  # changing; a conversation is.
+  defp catch_up do
+    case Dobby.HomeConfig.Writer.catch_up() do
+      {:error, reason} ->
+        Logger.error("the house would not take on a confirmed change: #{reason}")
+
+      _idle_or_applied ->
+        :ok
+    end
+
+    :ok
+  catch
+    # No writer means no house file to catch up with, which is every test that
+    # does not boot the application.
+    :exit, _reason -> :ok
   end
 
   # The result the runtime finished with, not the deltas — deltas are for

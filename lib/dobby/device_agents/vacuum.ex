@@ -39,6 +39,14 @@ defmodule Dobby.DeviceAgents.Vacuum do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "vacuum"
+
+  # A vacuum's whole envelope comes from the robot. There is nothing here for a
+  # household to say that HA does not already know.
+  @impl Dobby.DeviceAgent
+  def config_schema, do: []
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings, settings: settings}) do
     with :ok <- require_binding(bindings, :vacuum) do
       if is_map(settings),

@@ -36,6 +36,13 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "wifi_endpoint"
+
+  # Read-only, so there is nothing to permit or forbid.
+  @impl Dobby.DeviceAgent
+  def config_schema, do: []
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings}) when is_map(bindings) do
     case Map.fetch(bindings, :connectivity) do
       {:ok, entity_id} when is_binary(entity_id) ->

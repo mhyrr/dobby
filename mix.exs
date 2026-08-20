@@ -66,7 +66,13 @@ defmodule Dobby.MixProject do
       {:mint_web_socket, "~> 1.0"},
       # .env loading for dev (config/runtime.exs). Already in the tree via
       # req_llm; declared because we call it ourselves.
-      {:dotenvy, "~> 1.1"}
+      {:dotenvy, "~> 1.1"},
+      # The home file, both directions. Reading was already in the tree via
+      # jido_ai; declared because `Dobby.HomeConfig` calls it. `ymlr` is the
+      # writing half — the house is machine-round-trippable (TK-018), so
+      # something has to emit it.
+      {:yaml_elixir, "~> 2.12"},
+      {:ymlr, "~> 5.1"}
     ]
   end
 

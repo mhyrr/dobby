@@ -42,6 +42,27 @@ defmodule Dobby.DeviceAgents.Thermostat do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "thermostat"
+
+  # Household policy, and only that. The hardware's own envelope is discovered
+  # from the bound entity, so these narrow what the device already allows and
+  # can never widen it — a manifest cannot authorize a setpoint the furnace
+  # rejects.
+  @impl Dobby.DeviceAgent
+  def config_schema do
+    [
+      min_temperature_f: [
+        type: {:or, [:integer, :float]},
+        doc: "The coolest this household will let anyone set the thermostat."
+      ],
+      max_temperature_f: [
+        type: {:or, [:integer, :float]},
+        doc: "The warmest this household will let anyone set the thermostat."
+      ]
+    ]
+  end
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings, settings: settings}) do
     with :ok <- require_binding(bindings, :climate) do
       validate_settings(settings)

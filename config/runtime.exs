@@ -30,36 +30,58 @@ if System.get_env("PHX_SERVER") do
   config :dobby, DobbyWeb.Endpoint, server: true
 end
 
-# The home manifest is read here, at runtime, and deliberately not imported by
+# The test environment honours no environment variable at all, and that is the
+# whole rule rather than a list of exceptions (TK-018). The rig is the house the
+# suite describes; which house `mix test` boots must not depend on what a shell
+# happens to export.
+#
+# The .env guard above was written for this and did not reach far enough. An
+# exported DOBBY_HOME_MANIFEST arrives in every environment, test included, and
+# on 2026-08-20 it did: the suite booted the real WebSocket client against a
+# real Home Assistant, and the interventions watcher committed real device rows
+# to the test database before the sandbox engaged.
+test? = config_env() == :test
+
+# The home file is read here, at runtime, and deliberately not imported by
 # config/config.exs (design §4). Imported at compile time it would be frozen
 # into the release, and every corrected entity ID would cost a rebuild and a
 # redeploy. Read here, changing the house is edit-and-restart.
 #
-# `import_config` is unavailable in runtime.exs; Config.Reader.read!/1 is the
-# supported path.
-home_manifest =
-  System.get_env("DOBBY_HOME_MANIFEST") ||
-    case config_env() do
-      :prod -> "/opt/dobby/config/home.exs"
-      _ -> "config/homes/rig.exs"
-    end
+# `import_config` is unavailable in runtime.exs, and neither format is an import
+# anyway: `Dobby.HomeConfig` reads the household's YAML and the rig's Elixir and
+# hands back the one manifest shape `Dobby.Home` has always taken. It is called
+# from here because it is pure — runtime.exs runs with the dependencies loaded
+# and the application not started.
+home_path =
+  cond do
+    test? -> "config/homes/rig.exs"
+    path = System.get_env("DOBBY_HOME_MANIFEST") -> path
+    config_env() == :prod -> "/opt/dobby/config/home.exs"
+    true -> "config/homes/rig.exs"
+  end
 
-config :dobby, Dobby.Home, get_in(Config.Reader.read!(home_manifest), [:dobby, Dobby.Home])
+config :dobby, Dobby.Home, Dobby.HomeConfig.manifest!(home_path)
 
-# Dobby's soul travels with the manifest and for the same reason: the two files
+# Dobby's soul travels with the home file and for the same reason: the two files
 # under /opt/dobby/config are the parts of Dobby a person should be able to
 # change without a release. One says what the house contains; the other says
 # who is answering.
 soul_path =
-  System.get_env("DOBBY_SOUL") ||
-    case config_env() do
-      :prod -> "/opt/dobby/config/soul.md"
-      _ -> "config/soul.md"
-    end
+  cond do
+    test? -> "config/soul.md"
+    path = System.get_env("DOBBY_SOUL") -> path
+    config_env() == :prod -> "/opt/dobby/config/soul.md"
+    true -> "config/soul.md"
+  end
 
 config :dobby, :soul_path, soul_path
 
-config :dobby, DobbyWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+# Not in test: config/test.exs has already said 4002, and a port arriving from
+# the environment is the same leak in a smaller coat.
+if not test? do
+  config :dobby, DobbyWeb.Endpoint,
+    http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+end
 
 if config_env() == :dev do
   # The dev server boots against FakeHA by default, and the one thing the

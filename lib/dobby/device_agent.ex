@@ -11,11 +11,40 @@ defmodule Dobby.DeviceAgent do
   alias Dobby.Home.Device
 
   @doc """
+  The name a home file calls this device type (TK-018).
+
+  A household writes `type: thermostat`, never an Elixir module name. Declared
+  by the module rather than listed centrally so that a new device type brings
+  its own word with it; `Dobby.HomeConfig.Types` only says which modules are on
+  offer.
+  """
+  @callback config_type() :: String.t()
+
+  @doc """
+  The `settings` this device type accepts in a home file, declared.
+
+  A `NimbleOptions` schema, and the `:doc` on each key is written for whoever
+  is editing the file rather than for whoever is reading the code. Two readers,
+  one declaration: `Dobby.HomeConfig` validates against it, naming the field
+  when a value is wrong, and /house renders a form from it — which is the seam
+  that makes a new device type cost one module instead of a form as well.
+
+  `[]` is a complete answer, and three of the four types give it: a device whose
+  behaviour is entirely discovered from Home Assistant has nothing for a
+  household to narrow.
+  """
+  @callback config_schema() :: keyword()
+
+  @doc """
   Validates the manifest entry for one instance of this device type.
 
   Called during `Dobby.Home` bootstrap, before any agent starts. Return an
   error naming the offending field — the message reaches the operator as a
   startup failure.
+
+  This is where a rule that spans two fields lives, the kind a declared schema
+  cannot state: `config_schema/0` says a minimum is a number, and this says a
+  minimum above the maximum is not a house.
   """
   @callback validate_device(Device.t()) :: :ok | {:error, String.t()}
 

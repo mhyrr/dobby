@@ -43,6 +43,14 @@ defmodule Dobby.DeviceAgents.Light do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "light"
+
+  # Nothing to narrow: whether this bulb dims is the bulb's word
+  # (`supported_color_modes`), not the household's.
+  @impl Dobby.DeviceAgent
+  def config_schema, do: []
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings, settings: settings}) do
     with :ok <- require_binding(bindings, :light) do
       if is_map(settings),

@@ -24,6 +24,9 @@ defmodule Dobby.HomeConfig.Writer do
   and the result says so rather than pretending — see
   `Dobby.HomeConfig.Applied`.
 
+  One caller applies the house half a moment late rather than at once, and for
+  a reason rather than for comfort: see `catch_up/1`.
+
   ## What it will not do
 
   It will not write an Elixir home. `config/homes/rig.exs` is a test fixture
@@ -46,7 +49,7 @@ defmodule Dobby.HomeConfig.Writer do
 
   @impl GenServer
   def init(opts) do
-    {:ok, %{config: starting_config(opts)}}
+    {:ok, %{config: starting_config(opts), pending_house: nil}}
   end
 
   # A caller that has already loaded one hands it over; everyone else names a
@@ -76,6 +79,22 @@ defmodule Dobby.HomeConfig.Writer do
   @spec current(GenServer.server()) :: HomeConfig.t()
   def current(server \\ __MODULE__), do: GenServer.call(server, :current)
 
+  @doc """
+  Whether this house is one Dobby is allowed to write, and why not if it isn't.
+
+  A pure function and public on purpose: the rule has to be checked twice — by
+  a surface deciding whether to offer an edit at all, and by this process
+  before it touches the file — and two copies of it would eventually be two
+  rules. The sentence a household reads comes from here either way.
+  """
+  @spec writable(HomeConfig.t()) :: :ok | {:error, String.t()}
+  def writable(%HomeConfig{format: :yaml}), do: :ok
+
+  def writable(%HomeConfig{format: format, path: path}) do
+    {:error,
+     "Dobby writes YAML and #{path} is #{format}; migrate the house to a .yaml file first"}
+  end
+
   # -- writes ----------------------------------------------------------------
 
   @doc """
@@ -85,54 +104,65 @@ defmodule Dobby.HomeConfig.Writer do
   accept or a credential reference the environment cannot answer. Announces on
   `dobby:config` when something actually changed.
   """
-  @spec save(GenServer.server(), HomeConfig.t()) :: {:ok, Applied.t()} | {:error, String.t()}
-  def save(server \\ __MODULE__, %HomeConfig{} = config) do
-    GenServer.call(server, {:save, config}, 30_000)
+  @spec save(GenServer.server(), HomeConfig.t(), keyword()) ::
+          {:ok, Applied.t()} | {:error, String.t()}
+  def save(server \\ __MODULE__, %HomeConfig{} = config, opts \\ []) do
+    GenServer.call(server, {:save, config, opts}, 30_000)
   end
+
+  @doc """
+  Restarts the house on a save that asked to be applied later.
+
+  Deferral exists for exactly one caller: a change made from inside the
+  household thread. Restarting `Dobby.Home` stops `DobbyAgent` with everything
+  else, and a request cannot survive its own agent being stopped — so a
+  confirmation that restarted the house immediately would write the file
+  correctly and then lose the sentence saying so. A browser is not inside the
+  request it is changing; a conversation is.
+
+  So the file is written, validated, and announced synchronously, and the house
+  is told to catch up once the turn that changed it has finished
+  (`Dobby.Conversation.Turn`). `:idle` when there is nothing waiting, which is
+  every turn but the rare one.
+  """
+  @spec catch_up(GenServer.server()) :: :idle | {:ok, Applied.t()} | {:error, String.t()}
+  def catch_up(server \\ __MODULE__), do: GenServer.call(server, :catch_up, 30_000)
 
   @impl GenServer
   def handle_call(:current, _from, state), do: {:reply, state.config, state}
 
-  def handle_call({:save, incoming}, _from, state) do
-    case write_and_apply(state.config, incoming) do
-      {:ok, %Applied{} = applied} -> {:reply, {:ok, applied}, %{state | config: applied.config}}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+  def handle_call({:save, incoming, opts}, _from, state) do
+    case write_and_apply(state.config, incoming, opts) do
+      {:ok, %Applied{} = applied} ->
+        pending = if :house in applied.on_restart, do: applied, else: state.pending_house
+        {:reply, {:ok, applied}, %{state | config: applied.config, pending_house: pending}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
-  defp write_and_apply(previous, incoming) do
+  def handle_call(:catch_up, _from, %{pending_house: nil} = state), do: {:reply, :idle, state}
+
+  def handle_call(:catch_up, _from, state) do
+    %Applied{config: config} = state.pending_house
+
+    case restart_house() do
+      {:ok, applied} ->
+        applied = %Applied{config: config, applied: applied}
+        ConfigEvents.applied(applied)
+        {:reply, {:ok, applied}, %{state | pending_house: nil}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, %{state | pending_house: nil}}
+    end
+  end
+
+  defp write_and_apply(previous, incoming, opts) do
     with :ok <- writable(incoming),
-         {:ok, manifest} <- resolved(incoming),
-         :ok <- house_holds_together(manifest),
+         {:ok, manifest} <- HomeConfig.validate(incoming),
          :ok <- write(incoming) do
-      apply_changes(previous, incoming, manifest)
-    end
-  end
-
-  defp writable(%HomeConfig{format: :yaml}), do: :ok
-
-  defp writable(%HomeConfig{format: format, path: path}) do
-    {:error,
-     "Dobby writes YAML and #{path} is #{format}; migrate the house to a .yaml file first"}
-  end
-
-  # The resolver owns the raise, and at boot a missing credential taking the
-  # application down is the right shape. A save is a request, so here the one
-  # raise becomes the one refusal, with the same message.
-  defp resolved(config) do
-    {:ok, HomeConfig.manifest(config)}
-  rescue
-    error in RuntimeError -> {:error, Exception.message(error)}
-  end
-
-  # `Dobby.HomeConfig` validated each entry on the way in. This is the other
-  # half — two devices answering to "the thermostat", a device pointing at a
-  # network nobody declared — and it is asked before the file is touched, so a
-  # house that would not boot is never the house on disk.
-  defp house_holds_together(manifest) do
-    case Dobby.Home.Manifest.load(manifest) do
-      {:ok, _manifest} -> :ok
-      {:error, reason} -> {:error, reason}
+      apply_changes(previous, incoming, manifest, opts)
     end
   end
 
@@ -162,12 +192,12 @@ defmodule Dobby.HomeConfig.Writer do
 
   # -- applying --------------------------------------------------------------
 
-  defp apply_changes(previous, incoming, manifest) do
+  defp apply_changes(previous, incoming, manifest, opts) do
     {live, later} = apply_system(previous.system, incoming.system)
 
-    case apply_house(previous, incoming, manifest) do
-      {:ok, house} ->
-        applied = %Applied{config: incoming, applied: house ++ live, on_restart: later}
+    case apply_house(previous, incoming, manifest, opts) do
+      {:ok, house, waiting} ->
+        applied = %Applied{config: incoming, applied: house ++ live, on_restart: waiting ++ later}
         if Applied.changed?(applied), do: ConfigEvents.applied(applied)
         {:ok, applied}
 
@@ -176,11 +206,25 @@ defmodule Dobby.HomeConfig.Writer do
     end
   end
 
-  defp apply_house(%{house: house}, %{house: house}, _manifest), do: {:ok, []}
+  defp apply_house(%{house: house}, %{house: house}, _manifest, _opts), do: {:ok, [], []}
 
-  defp apply_house(_previous, _incoming, manifest) do
+  defp apply_house(_previous, _incoming, manifest, opts) do
     Application.put_env(:dobby, Dobby.Home, manifest)
 
+    # Deferred, the manifest is already the applied one and only the processes
+    # are behind — which is precisely the state an external hand edit leaves the
+    # house in until it restarts, so it is a state the design already accepts.
+    if Keyword.get(opts, :defer_house, false) do
+      {:ok, [], [:house]}
+    else
+      case restart_house() do
+        {:ok, house} -> {:ok, house, []}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp restart_house do
     case Dobby.Home.restart() do
       {:ok, _pid} ->
         {:ok, [:house]}

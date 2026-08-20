@@ -326,4 +326,88 @@ defmodule Dobby.HomeConfig.WriterTest do
       refute_receive {:applied, _applied}, 200
     end
   end
+
+  describe "a house applied a moment late" do
+    # Deferral exists for one caller: a change made from inside the household
+    # thread (TK-018 layer E). Restarting `Dobby.Home` stops `DobbyAgent` with
+    # everything else, so a confirmation that restarted the house from inside
+    # its own tool call would write the file correctly and then lose the
+    # sentence saying so. A browser is not inside the request it is changing; a
+    # conversation is.
+
+    test "the file and the manifest are applied, the processes are not", %{writer: writer} do
+      running = Dobby.Jido.whereis("thermostat:main")
+
+      config = current(writer)
+      devices = [thermostat("thermostat:attic", "attic thermostat", "climate.attic")]
+
+      assert {:ok, applied} =
+               Writer.save(writer, with_devices(config, devices), defer_house: true)
+
+      # Written and applied: what a caller may honestly call done.
+      assert applied.applied == []
+      assert applied.on_restart == [:house]
+      assert File.read!(config.path) =~ "thermostat:attic"
+
+      manifest = Application.get_env(:dobby, Dobby.Home)
+      assert manifest |> Keyword.fetch!(:devices) |> Enum.map(& &1.id) == ["thermostat:attic"]
+
+      # Not yet applied: the agents, which is the half that would have killed
+      # the request that asked for this.
+      assert Dobby.Jido.whereis("thermostat:main") == running
+      assert Dobby.Jido.whereis("thermostat:attic") == nil
+    end
+
+    test "catching up restarts the house and announces it", %{writer: writer} do
+      config = current(writer)
+      devices = [thermostat("thermostat:attic", "attic thermostat", "climate.attic")]
+
+      assert {:ok, _deferred} =
+               Writer.save(writer, with_devices(config, devices), defer_house: true)
+
+      assert {:ok, applied} = Writer.catch_up(writer)
+      assert applied.applied == [:house]
+
+      assert Enum.map(Dobby.Home.devices(), & &1.id) == ["thermostat:attic"]
+      assert is_pid(Dobby.Jido.whereis("thermostat:attic"))
+
+      assert_receive {:applied, %Applied{applied: [:house]}}, 2_000
+    end
+
+    test "catching up twice is idle the second time", %{writer: writer} do
+      devices = [thermostat("thermostat:attic", "attic thermostat", "climate.attic")]
+
+      assert {:ok, _deferred} =
+               Writer.save(writer, with_devices(current(writer), devices), defer_house: true)
+
+      assert {:ok, _applied} = Writer.catch_up(writer)
+      assert Writer.catch_up(writer) == :idle
+    end
+
+    test "a writer with nothing waiting is idle, which is every turn but one", %{writer: writer} do
+      assert Writer.catch_up(writer) == :idle
+    end
+  end
+
+  describe "the rule about which houses are writable" do
+    test "it is a pure question, answerable without writing anything", %{writer: writer} do
+      # Two callers have to ask it — a surface deciding whether to offer an edit
+      # at all, and this process before it touches the file — and two copies
+      # would eventually be two rules.
+      assert Writer.writable(current(writer)) == :ok
+
+      exs = %HomeConfig{path: "config/homes/rig.exs", format: :exs, house: []}
+
+      assert {:error, reason} = Writer.writable(exs)
+      assert reason =~ "Dobby writes YAML"
+      assert reason =~ "migrate the house to a .yaml file first"
+    end
+
+    test "a save of an Elixir house refuses with that same sentence", %{writer: writer} do
+      exs = %{current(writer) | format: :exs, path: "config/homes/rig.exs"}
+
+      assert {:error, reason} = Writer.save(writer, exs)
+      assert reason == elem(Writer.writable(exs), 1)
+    end
+  end
 end

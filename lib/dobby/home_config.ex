@@ -120,6 +120,91 @@ defmodule Dobby.HomeConfig do
   def manifest!(path), do: path |> load!() |> manifest()
 
   @doc """
+  Adds one device to a configuration, validated exactly as a file's would be.
+
+  The entry is the YAML shape — string keys, string values, `type: "thermostat"`
+  and never a module name — because that is the vocabulary a home file has and
+  the vocabulary a language model can be given without handing it the atom
+  table (TK-010). It goes through the same `yaml_device` a loaded file goes
+  through, so a proposal is refused by the same code, with the same sentence,
+  that would have refused the line somebody typed.
+
+  Refuses a device id or a bound entity that is already spoken for. Those two
+  are whole-house questions rather than per-entry ones, and `validate/1` asks
+  the rest of them — but an id collision is the mistake this path invites, so
+  it is named here where the sentence can say which id.
+  """
+  @spec add_device(t(), map()) :: {:ok, t()} | {:error, String.t()}
+  def add_device(%__MODULE__{} = config, entry) when is_map(entry) do
+    devices = Keyword.get(config.house, :devices, [])
+
+    with {:ok, device} <- yaml_device(entry),
+         :ok <- unclaimed_id(devices, device),
+         :ok <- unclaimed_entities(devices, device) do
+      {:ok, %{config | house: Keyword.put(config.house, :devices, devices ++ [device])}}
+    end
+  end
+
+  def add_device(%__MODULE__{}, other),
+    do: {:error, "a device must be a mapping, got: #{inspect(other)}"}
+
+  @doc """
+  The manifest this configuration describes, validated as a whole house.
+
+  Two questions `load/1` deliberately does not ask, because they are about the
+  house rather than about an entry: can every `env:` reference be answered, and
+  does `Dobby.Home.Manifest` accept the result. Both have to be asked before a
+  file is written, or a house that would not boot becomes the house on disk.
+  """
+  @spec validate(t()) :: {:ok, keyword()} | {:error, String.t()}
+  def validate(%__MODULE__{} = config) do
+    with {:ok, manifest} <- resolved(config),
+         :ok <- holds_together(manifest) do
+      {:ok, manifest}
+    end
+  end
+
+  # The resolver owns the raise, and at boot a missing credential taking the
+  # application down is the right shape. A save is a request, so here the one
+  # raise becomes the one refusal, with the same message.
+  defp resolved(config) do
+    {:ok, manifest(config)}
+  rescue
+    error in RuntimeError -> {:error, Exception.message(error)}
+  end
+
+  defp holds_together(manifest) do
+    case Dobby.Home.Manifest.load(manifest) do
+      {:ok, _manifest} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp unclaimed_id(devices, %{id: id}) do
+    if Enum.any?(devices, &(&1.id == id)) do
+      {:error, "this house already has a device called #{inspect(id)}"}
+    else
+      :ok
+    end
+  end
+
+  defp unclaimed_entities(devices, device) do
+    claimed =
+      devices
+      |> Enum.flat_map(&Map.values(Map.get(&1, :bindings, %{})))
+      |> MapSet.new()
+
+    case Enum.find(Map.values(device.bindings), &MapSet.member?(claimed, &1)) do
+      nil ->
+        :ok
+
+      entity_id ->
+        owner = Enum.find(devices, &(entity_id in Map.values(Map.get(&1, :bindings, %{}))))
+        {:error, "#{entity_id} is already bound to #{owner.name} (#{owner.id})"}
+    end
+  end
+
+  @doc """
   Renders a configuration as the YAML file it came from, or will become.
 
   The inverse of `load/1` and it belongs next to it, though the only caller is

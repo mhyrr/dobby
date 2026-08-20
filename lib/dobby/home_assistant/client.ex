@@ -31,6 +31,7 @@ defmodule Dobby.HomeAssistant.Client do
 
   alias Dobby.Directive.HACall
   alias Dobby.HomeAssistant.Connection
+  alias Dobby.HomeAssistant.Entity
 
   @behaviour Dobby.HomeAssistant
 
@@ -51,6 +52,12 @@ defmodule Dobby.HomeAssistant.Client do
     upgrade_status: nil,
     status: :disconnected,
     routing: nil,
+    # Every entity Home Assistant has reported, routed or not (TK-010). The
+    # routing table decides who *hears* about an entity; this is the client
+    # remembering what it was told, which is the only way Dobby can answer
+    # "what does Home Assistant have that this house does not manage?" without
+    # anything above the boundary making a request of its own.
+    catalogue: %{},
     pending: %{},
     next_id: 1,
     backoff: @initial_backoff,
@@ -90,6 +97,24 @@ defmodule Dobby.HomeAssistant.Client do
   @spec configure_routing(GenServer.server(), %{String.t() => String.t()}) :: :ok
   def configure_routing(server, routing_table),
     do: GenServer.call(server, {:configure_routing, routing_table})
+
+  @impl Dobby.HomeAssistant
+  def entities, do: entities(__MODULE__)
+
+  @doc """
+  Every entity this client has been told about, routed or not.
+
+  Answered from memory, so it costs nothing and cannot hang a conversation on a
+  Home Assistant that has stopped answering. A client that has never connected
+  knows nothing and says so with an empty list — which discovery reads as "no
+  candidates", not as an error, because that is what it is.
+  """
+  @spec entities(GenServer.server()) :: [Entity.t()]
+  def entities(server) do
+    GenServer.call(server, :entities)
+  catch
+    :exit, _reason -> []
+  end
 
   # -- server ----------------------------------------------------------------
 
@@ -140,6 +165,10 @@ defmodule Dobby.HomeAssistant.Client do
 
   def handle_call({:configure_routing, routing}, _from, state) do
     {:reply, :ok, maybe_sync(%{state | routing: routing})}
+  end
+
+  def handle_call(:entities, _from, state) do
+    {:reply, Map.values(state.catalogue), state}
   end
 
   @impl GenServer
@@ -334,7 +363,9 @@ defmodule Dobby.HomeAssistant.Client do
          state,
          %{"type" => "event", "event" => %{"event_type" => "state_changed", "data" => data}}
        ) do
-    dispatch_entity(state, data["entity_id"], data["new_state"])
+    state
+    |> remember(data["entity_id"], data["new_state"])
+    |> dispatch_entity(data["entity_id"], data["new_state"])
   end
 
   defp handle_message(state, _message), do: state
@@ -366,7 +397,15 @@ defmodule Dobby.HomeAssistant.Client do
 
   defp handle_result(state, :initial_sync, %{"success" => true, "result" => states})
        when is_list(states) do
-    Enum.reduce(states, state, fn entity_state, state ->
+    # Replaced wholesale rather than merged. A sync is Home Assistant's complete
+    # answer about itself, so an entity somebody deleted stops being a discovery
+    # candidate here — where a merge would keep offering it forever.
+    catalogue =
+      for %{"entity_id" => entity_id} = entity_state <- states, into: %{} do
+        {entity_id, entity(entity_id, entity_state)}
+      end
+
+    Enum.reduce(states, %{state | catalogue: catalogue}, fn entity_state, state ->
       dispatch_entity(state, entity_state["entity_id"], entity_state)
     end)
   end
@@ -400,6 +439,25 @@ defmodule Dobby.HomeAssistant.Client do
   end
 
   defp dispatch_entity(state, _entity_id, _new_state), do: state
+
+  # The catalogue tracks every entity, routed or not — that is the whole point
+  # of it. An entity HA no longer has a state for is dropped rather than kept
+  # as a candidate nobody could bind.
+  defp remember(state, entity_id, nil) when is_binary(entity_id),
+    do: %{state | catalogue: Map.delete(state.catalogue, entity_id)}
+
+  defp remember(state, entity_id, %{} = new_state) when is_binary(entity_id),
+    do: put_in(state.catalogue[entity_id], entity(entity_id, new_state))
+
+  defp remember(state, _entity_id, _new_state), do: state
+
+  defp entity(entity_id, entity_state) do
+    Entity.from_attributes(
+      entity_id,
+      Map.get(entity_state, "state"),
+      Map.get(entity_state, "attributes") || %{}
+    )
+  end
 
   defp maybe_sync(%{status: :connected, routing: routing} = state) when is_map(routing) do
     send_command(state, %{type: "get_states"}, :initial_sync)

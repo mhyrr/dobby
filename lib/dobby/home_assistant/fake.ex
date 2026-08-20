@@ -26,6 +26,7 @@ defmodule Dobby.HomeAssistant.Fake do
 
   alias Dobby.Directive.HACall
   alias Dobby.HomeAssistant.Connection
+  alias Dobby.HomeAssistant.Entity
 
   @behaviour Dobby.HomeAssistant
 
@@ -45,6 +46,9 @@ defmodule Dobby.HomeAssistant.Fake do
   @impl Dobby.HomeAssistant
   def configure_routing(routing_table),
     do: GenServer.call(__MODULE__, {:configure_routing, routing_table})
+
+  @impl Dobby.HomeAssistant
+  def entities, do: GenServer.call(__MODULE__, :entities)
 
   @doc """
   Seeds HA's view of an entity without publishing an event.
@@ -165,6 +169,23 @@ defmodule Dobby.HomeAssistant.Fake do
   def handle_call({:set_connection, status}, _from, state) do
     Connection.publish(__MODULE__, status)
     {:reply, :ok, state}
+  end
+
+  # The fake's entity store *is* HA's view of the world, so discovery reads it
+  # directly — the same store the routed entities are fanned out from, which is
+  # what makes an unbound entity in the rig genuinely unbound rather than a
+  # second list somebody remembered to keep in step.
+  def handle_call(:entities, _from, state) do
+    entities =
+      Enum.map(state.entities, fn {entity_id, entity} ->
+        Entity.from_attributes(
+          entity_id,
+          Map.get(entity, :state),
+          Map.get(entity, :attributes, %{})
+        )
+      end)
+
+    {:reply, entities, state}
   end
 
   def handle_call(:trace, _from, state), do: {:reply, state.trace, state}

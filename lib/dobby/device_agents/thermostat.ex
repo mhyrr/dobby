@@ -44,6 +44,9 @@ defmodule Dobby.DeviceAgents.Thermostat do
   @impl Dobby.DeviceAgent
   def config_type, do: "thermostat"
 
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "climate"
+
   # Household policy, and only that. The hardware's own envelope is discovered
   # from the bound entity, so these narrow what the device already allows and
   # can never widen it — a manifest cannot authorize a setpoint the furnace

@@ -3,7 +3,7 @@ defmodule Dobby.ScheduleEvents do
   The `dobby.schedule.fired` seam.
 
   Every firing announces itself, whether it actuated the house or was refused.
-  The thread renders it as a system line (design §10.1 — "· thermostat set to
+  The thread renders it as a system line (design §10.3 — "· thermostat set to
   70 — schedule 'weeknight heat'") and the admin's activity log keeps the
   detail.
 

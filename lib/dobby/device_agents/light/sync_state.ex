@@ -19,6 +19,7 @@ defmodule Dobby.DeviceAgents.Light.SyncState do
       attributes: [type: {:map, :string, :any}, default: %{}]
     ]
 
+  alias Dobby.DeviceAgent
   alias Dobby.DeviceEvents
 
   @impl true
@@ -33,10 +34,18 @@ defmodule Dobby.DeviceAgents.Light.SyncState do
       capabilities: discover_capabilities(previous.capabilities, attributes)
     }
 
-    if meaningful_change?(previous, next) do
-      {:ok, next, [DeviceEvents.emit(previous.dobby_id, snapshot(previous, next))]}
-    else
-      {:ok, next}
+    case DeviceAgent.changes(previous, next, [:available, :power, :brightness_percent]) do
+      %{changed: []} ->
+        {:ok, next}
+
+      %{changed: changed, moved: moved} ->
+        {:ok, next,
+         [
+           DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
+             changed: changed,
+             moved: moved
+           )
+         ]}
     end
   end
 
@@ -81,12 +90,6 @@ defmodule Dobby.DeviceAgents.Light.SyncState do
       modes when is_list(modes) -> Map.put(previous || %{}, :color_modes, modes)
       _absent -> previous || %{}
     end
-  end
-
-  defp meaningful_change?(previous, next) do
-    Enum.any?([:available, :power, :brightness_percent], fn key ->
-      Map.get(previous, key) != Map.get(next, key)
-    end)
   end
 
   # "on" and "off" are the vocabulary; anything else is a genuine surprise

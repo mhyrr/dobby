@@ -40,6 +40,9 @@ defmodule Dobby.RigCase do
     # processes that query are not descendants of the test.
     owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Dobby.Repo, shared: true)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
+    # After the house is down, so anything its last breath emitted is already
+    # in the watcher's mailbox when we queue behind it.
+    on_exit(&settle_watcher!/0)
     on_exit(&stop_home!/0)
     on_exit(&drain_turns!/0)
 
@@ -283,6 +286,23 @@ defmodule Dobby.RigCase do
     after
       5_000 -> raise "a turn was still running when its test ended"
     end
+  end
+
+  @doc false
+  # `Dobby.Interventions.Watcher` is an application process, not a descendant of
+  # the test, and it writes to the database when a device changes or a schedule
+  # fires. A test that returns while it is mid-write leaves a query in flight
+  # against a connection the sandbox is about to check back in — which does not
+  # fail the test that caused it, it kills the connection and takes the next
+  # several tests with it. Same shape as `drain_turns!`, different process.
+  #
+  # A synchronous call is the barrier: it queues behind everything already in
+  # the mailbox, so returning means the watcher has finished with all of it.
+  def settle_watcher! do
+    GenServer.call(Dobby.Interventions.Watcher, :settle, 5_000)
+  catch
+    # Not running, which is most of the suite's business.
+    :exit, _reason -> :ok
   end
 
   @doc false

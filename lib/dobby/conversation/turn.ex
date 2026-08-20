@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.Turn do
   @moduledoc """
-  One request, from what somebody said to what Dobby answered (design §10.5).
+  One request, from what somebody said to what Dobby answered (design §10.7).
 
   ## Why this is a task and not a LiveView
 
@@ -43,25 +43,51 @@ defmodule Dobby.Conversation.Turn do
   alias Dobby.Conversation
   alias Dobby.Conversation.Speaker
   alias Dobby.DobbyAgent
+  alias Dobby.Interventions
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
   alias Jido.AI.Runtime.Event
 
   @doc """
-  Says something to Dobby, in the background.
+  Says something to Dobby.
 
-  Returns as soon as the task is started; everything the caller needs arrives
-  on `dobby:thread`, including the caller's own utterance. That is deliberate —
-  one path writes the thread, so a surface cannot end up rendering an
-  optimistic copy of a message that never persisted.
+  Hands the utterance to `Dobby.Conversation.Turn.Queue`, which writes it into
+  the thread straight away and asks when Dobby is free. Returns immediately;
+  everything the caller needs arrives on `dobby:thread`, including the caller's
+  own utterance. That is deliberate — one path writes the thread, so a surface
+  cannot end up rendering an optimistic copy of a message that never persisted.
   """
-  @spec say(Utterance.t(), Speaker.t(), keyword()) :: DynamicSupervisor.on_start_child()
+  @spec say(Utterance.t(), Speaker.t(), keyword()) :: :ok
   def say(%Utterance{} = utterance, %Speaker{} = speaker, opts \\ []) do
-    Task.Supervisor.start_child(Dobby.TaskSupervisor, fn -> run(utterance, speaker, opts) end)
+    __MODULE__.Queue.say(utterance, speaker, opts)
   end
 
   @doc """
-  Runs a turn in the calling process.
+  Writes an utterance into the thread and returns its request id.
+
+  Separate from asking, because the two happen at different times once there is
+  a queue: what somebody said belongs in the thread the moment they said it,
+  and the answer comes when Dobby gets to it. A person whose words sat
+  invisible until the agent freed up would reasonably conclude the house had
+  stopped listening.
+  """
+  @spec record(Utterance.t(), Speaker.t()) :: {:ok, String.t()} | :error
+  def record(%Utterance{} = utterance, %Speaker{} = speaker) do
+    request_id = Jido.Util.generate_id()
+
+    case Conversation.append_utterance(utterance, speaker, request_id: request_id) do
+      {:ok, message} ->
+        ThreadEvents.said(%{message | speaker: speaker})
+        {:ok, request_id}
+
+      {:error, changeset} ->
+        Logger.error("could not record an utterance: #{inspect(changeset.errors)}")
+        :error
+    end
+  end
+
+  @doc """
+  Runs a turn in the calling process, queue and all skipped.
 
   `say/3` is the production entry point. This is exposed because the calling
   process is the event sink: a test that wants a turn to have finished before
@@ -69,26 +95,27 @@ defmodule Dobby.Conversation.Turn do
   """
   @spec run(Utterance.t(), Speaker.t(), keyword()) :: :ok
   def run(%Utterance{} = utterance, %Speaker{} = speaker, opts \\ []) do
-    request_id = Jido.Util.generate_id()
-
-    try do
-      case Conversation.append_utterance(utterance, speaker, request_id: request_id) do
-        {:ok, message} ->
-          ThreadEvents.said(%{message | speaker: speaker})
-          ask(utterance, speaker, request_id, opts)
-
-        {:error, changeset} ->
-          Logger.error("could not record an utterance: #{inspect(changeset.errors)}")
-          :ok
-      end
-    rescue
-      # The task is nobody's supervisor and nobody's caller. Without this, a
-      # crash anywhere below is a person watching their own message sit there
-      # forever with no reply and no explanation.
-      error ->
-        Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
-        fail(request_id, "something went wrong answering that")
+    case record(utterance, speaker) do
+      {:ok, request_id} -> answer(utterance, speaker, request_id, opts)
+      :error -> :ok
     end
+  end
+
+  @doc """
+  Asks Dobby, for an utterance already in the thread.
+
+  This is what the queue runs, one at a time. It is also where the rescue is:
+  the process running it is nobody's supervisor and nobody's caller, so without
+  it a crash anywhere below is a person watching their own message sit there
+  forever with no reply and no explanation.
+  """
+  @spec answer(Utterance.t(), Speaker.t(), String.t(), keyword()) :: :ok
+  def answer(%Utterance{} = utterance, %Speaker{} = speaker, request_id, opts \\ []) do
+    ask(utterance, speaker, request_id, opts)
+  rescue
+    error ->
+      Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
+      fail(request_id, "something went wrong answering that")
   end
 
   defp ask(utterance, speaker, request_id, opts) do
@@ -172,6 +199,7 @@ defmodule Dobby.Conversation.Turn do
 
     ThreadEvents.step(turn.request_id, step)
     record_tool_call(turn, data, Map.get(turn.arguments, id, %{}), state)
+    record_intervention(turn, data)
 
     %{turn | steps: Map.put(turn.steps, id, step)}
   end
@@ -267,14 +295,11 @@ defmodule Dobby.Conversation.Turn do
     }
   end
 
-  # One ReAct agent, one request at a time: an utterance arriving while a turn
-  # is in flight is rejected outright, which was found by talking to the real
-  # thing twice in a row. Two people saying something within a few seconds of
-  # each other is the ordinary case in a house at six in the evening, so this
-  # wants a real answer — hold the utterance and re-issue it, or inject it into
-  # the running turn (jido has `:input_injected` for exactly that). Both change
-  # what a turn means, so both are Greg's call. Meanwhile the thread says what
-  # actually happened rather than implying the request was wrong.
+  # One ReAct agent still takes one request at a time; `Turn.Queue` is what
+  # stops a second utterance ever reaching it while the first is in flight.
+  # This sentence should therefore be unreachable through `say/3` — it survives
+  # for `run/3`, which deliberately skips the queue, and because a rejection
+  # nobody can explain is worse than one with a sentence attached.
   defp sentence({:rejected, :busy, _status}), do: "Dobby is still working on the last one"
   defp sentence(_error), do: "Dobby couldn't answer that"
 
@@ -302,6 +327,33 @@ defmodule Dobby.Conversation.Turn do
 
   # -- the record ------------------------------------------------------------
 
+  # A tool call that moved the house gets a line in the thread, attributed to
+  # whoever asked (design §10.3). The reply already says what Dobby did
+  # in his own words; the line is the record, and it is the same line a card
+  # tap or a schedule writes — so scrolling back to yesterday shows one kind of
+  # entry for "the thermostat went to 70", however it got there.
+  #
+  # Keyed on the write-acknowledgment protocol's own `accepted: true` rather
+  # than on a list of tool names, so a reading tool cannot accidentally
+  # announce an intervention and a future actuating one does not have to be
+  # added here.
+  defp record_intervention(turn, data) do
+    case normalize(data[:result]) do
+      {:ok, %{accepted: true, device: device, name: name} = value} ->
+        Interventions.record(%{
+          device: device,
+          name: name,
+          value: Interventions.reading(value),
+          action: data[:tool_name],
+          via: turn.speaker,
+          request_id: turn.request_id
+        })
+
+      _not_an_actuation ->
+        :ok
+    end
+  end
+
   defp record_tool_call(turn, data, arguments, state) do
     Activity.record(%{
       kind: "tool_call",
@@ -327,22 +379,7 @@ defmodule Dobby.Conversation.Turn do
     })
   end
 
-  # `args` and `result` are `:map` columns, so everything in them has to
-  # survive a JSON round trip. Tool results are ordinary Elixir — tuples,
-  # structs, whatever an action chose to return — and a log write that raises
-  # would take down the turn it was only supposed to describe.
-  defp jsonable(value) when is_map(value) and not is_struct(value) do
-    Map.new(value, fn {key, value} -> {to_string(key), jsonable(value)} end)
-  end
-
-  defp jsonable(%DateTime{} = value), do: DateTime.to_iso8601(value)
-  defp jsonable(value) when is_struct(value), do: value |> Map.from_struct() |> jsonable()
-  defp jsonable(value) when is_list(value), do: Enum.map(value, &jsonable/1)
-  defp jsonable(value) when is_tuple(value), do: value |> Tuple.to_list() |> jsonable()
-  defp jsonable(value) when is_binary(value) or is_number(value), do: value
-  defp jsonable(value) when is_boolean(value) or is_nil(value), do: value
-  defp jsonable(value) when is_atom(value), do: to_string(value)
-  defp jsonable(value), do: inspect(value)
+  defp jsonable(value), do: Activity.jsonable(value)
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(%{reason: reason}) when is_binary(reason), do: reason

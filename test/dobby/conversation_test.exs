@@ -1,6 +1,6 @@
 defmodule Dobby.ConversationTest do
   @moduledoc """
-  The transcript and the people in it (design §10.1, §10.2).
+  The transcript and the people in it (design §10.2, §10.4).
   """
 
   use Dobby.DataCase, async: true

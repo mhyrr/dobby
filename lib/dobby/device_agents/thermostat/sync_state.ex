@@ -26,7 +26,11 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
       attributes: [type: {:map, :string, :any}, default: %{}]
     ]
 
+  alias Dobby.DeviceAgent
+  alias Dobby.DeviceAgents.Thermostat
   alias Dobby.DeviceEvents
+
+  @watched [:available, :hvac_mode, :current_temperature_f, :target_temperature_f]
 
   # HA reports temperatures in the unit system the instance is configured for.
   # Dobby's field names say Fahrenheit and the rig speaks Fahrenheit; whether
@@ -45,10 +49,45 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
       capabilities: discover_capabilities(previous.capabilities, attributes)
     }
 
-    if meaningful_change?(previous, next) do
-      {:ok, next, [DeviceEvents.emit(previous.dobby_id, snapshot(previous, next))]}
-    else
-      {:ok, next}
+    case DeviceAgent.changes(previous, next, @watched) do
+      %{changed: []} ->
+        {:ok, next}
+
+      %{changed: changed, moved: moved} ->
+        {:ok, next,
+         [
+           DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
+             changed: changed,
+             moved: moved,
+             commanded?: commanded?(previous, next)
+           )
+         ]}
+    end
+  end
+
+  @doc """
+  Whether this setpoint is the echo of a command this house issued.
+
+  Every path that moves a setpoint — the model's tool, a card someone tapped, a
+  schedule at eight o'clock — goes through `SetTemperature` and lands in
+  `last_command`, and all three announce themselves in the thread at the moment
+  they act. What comes back through Home Assistant afterwards is the same event
+  a second time, and saying it twice would make the thread read as though
+  somebody had gone and turned the dial by hand.
+
+  So the setpoint we asked for and got is ours, and any other setpoint is
+  somebody's hand. The one case this rounds off is a person setting the dial
+  back to a value Dobby had already commanded, which reads as ours and is not
+  worth a timestamp to catch.
+  """
+  @spec commanded?(map(), map()) :: boolean()
+  def commanded?(previous, next) do
+    case Map.get(previous, :last_command) do
+      %{result: :accepted, temperature_f: temperature} ->
+        temperature == next.target_temperature_f
+
+      _never_or_refused ->
+        false
     end
   end
 
@@ -67,6 +106,13 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
   """
   @spec snapshot(map(), map()) :: map()
   def snapshot(previous, next) do
+    # The range travels with the snapshot because the card is the one surface
+    # that offers a setpoint before anybody names one, and a control that lets
+    # you reach 85° in a house capped at 76 is a control that exists to be
+    # refused. `accepted_range/1` reads capabilities from `next` and household
+    # policy from `previous`, so it is asked of the two merged.
+    {min, max} = Thermostat.accepted_range(Map.merge(previous, next))
+
     %{
       id: previous.dobby_id,
       name: previous.name,
@@ -74,7 +120,9 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
       available: next.available,
       current_temperature_f: next.current_temperature_f,
       target_temperature_f: next.target_temperature_f,
-      hvac_mode: next.hvac_mode
+      hvac_mode: next.hvac_mode,
+      min_temperature_f: min,
+      max_temperature_f: max
     }
   end
 
@@ -94,12 +142,6 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
         nil -> acc
         value -> Map.put(acc, key, value)
       end
-    end)
-  end
-
-  defp meaningful_change?(previous, next) do
-    Enum.any?([:available, :hvac_mode, :current_temperature_f, :target_temperature_f], fn key ->
-      Map.get(previous, key) != Map.get(next, key)
     end)
   end
 

@@ -32,10 +32,55 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
+// Show progress bar on live navigation and form submits. Brass, because it is
+// the only thing on this surface a person can see that was not drawn for it:
+// the generator's default is a #29d bar with a shadow under it, which is a
+// colour belonging to none of the board's three materials and the second
+// box-shadow in a system that has exactly one. It waits 300ms before showing
+// and a route change here takes about ten, so it is almost never on the board —
+// which is the reason to make it right rather than to argue about it.
+topbar.config({barColors: {0: "#B08A46"}, shadowColor: "transparent"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+
+// ── the board's one moving part ─────────────────────────────────────────────
+// A split-flap board's whole magic is the mechanism, and until now the fold had
+// never moved: a state word silently became a different state word. When one
+// changes the card now turns over and lands on the new one.
+//
+// A MutationObserver rather than a phx-hook, because flaps are rendered in
+// loops, inside streams, on three pages, and not one of them has an id to hang
+// a hook on. Watching characterData alone is deliberate: the thing worth
+// animating is a word *changing*, not a flap arriving. A new system line should
+// appear, not flap.
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+
+new MutationObserver(records => {
+  if (reduceMotion.matches) return
+
+  const turned = new Set()
+
+  for (const record of records) {
+    const node = record.target.nodeType === Node.TEXT_NODE ? record.target.parentElement : record.target
+    const flap = node && node.closest && node.closest(".flap")
+
+    // One turn per card per batch: a word and its state colour change together,
+    // and two overlapping animations on one card read as a stutter.
+    if (flap && !turned.has(flap)) {
+      turned.add(flap)
+      // A card falls, overshoots its stop, and settles — which is what makes it
+      // read as a physical thing landing rather than a value being replaced.
+      // The easing is per-keyframe on purpose: one curve across the whole turn
+      // dumped most of the rotation into the first 40ms and read as a snap.
+      flap.animate(
+        [{transform: "perspective(340px) rotateX(-88deg)", easing: "cubic-bezier(.5,0,.7,.6)"},
+         {transform: "perspective(340px) rotateX(9deg)", offset: 0.68, easing: "ease-out"},
+         {transform: "perspective(340px) rotateX(0deg)"}],
+        {duration: 300}
+      )
+    }
+  }
+}).observe(document.body, {subtree: true, characterData: true})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.Rehydrate do
   @moduledoc """
-  Rebuilds `DobbyAgent`'s conversation window from the transcript (design §10.5).
+  Rebuilds `DobbyAgent`'s conversation window from the transcript (design §10.8).
 
   Jido AI's ReAct strategy accumulates turns in `Jido.AI.Context` for the life
   of the process and nothing more — restart the node and Dobby has forgotten
@@ -46,10 +46,11 @@ defmodule Dobby.Conversation.Rehydrate do
 
   require Logger
 
-  # §6.3 caps projected history rather than summarizing it. This is that cap,
-  # applied at the one place history can otherwise arrive unbounded: a house
-  # that has been talking for a year should not send a year of it.
-  @default_window 40
+  # The house's standing window (`Dobby.Conversation.window/0`), applied here at
+  # boot. It used to be the *only* bound in the system, which is what `TK-007`
+  # was: it capped what Dobby remembered on the way up and nothing capped what
+  # he sent afterwards. `Dobby.DobbyAgent.RequestTransformer` holds the other
+  # end now, and both read the same number.
 
   @doc """
   Builds a `Jido.AI.Context` from the recent transcript.
@@ -59,7 +60,7 @@ defmodule Dobby.Conversation.Rehydrate do
   """
   @spec context(keyword()) :: Context.t()
   def context(opts \\ []) do
-    build(Keyword.get(opts, :window, @default_window))
+    build(Keyword.get(opts, :window, Conversation.window()))
   rescue
     # Broad on purpose, and this is the one place it is warranted. This runs
     # inside `Dobby.Home.init/1`, so anything raised here is the difference

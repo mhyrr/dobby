@@ -1,6 +1,6 @@
 defmodule DobbyWeb.Markdown do
   @moduledoc """
-  Takes the markdown out of Dobby's replies (surface design §5.4).
+  Takes the markdown out of Dobby's replies (design §10.2).
 
   Models emit `**bold**` whether or not anybody asked. The soul tells this one
   not to, and this strips it anyway, because that belt-and-braces pair is

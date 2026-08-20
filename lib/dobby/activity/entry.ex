@@ -1,6 +1,6 @@
 defmodule Dobby.Activity.Entry do
   @moduledoc """
-  One thing that happened (design §10.4).
+  One thing that happened (design §10.6).
 
   `device` and `action` are strings rather than references on purpose: an entry
   has to stay readable after its device leaves the manifest, and a log whose

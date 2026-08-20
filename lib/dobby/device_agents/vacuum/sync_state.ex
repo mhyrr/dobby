@@ -18,6 +18,7 @@ defmodule Dobby.DeviceAgents.Vacuum.SyncState do
       attributes: [type: {:map, :string, :any}, default: %{}]
     ]
 
+  alias Dobby.DeviceAgent
   alias Dobby.DeviceEvents
 
   @impl true
@@ -30,10 +31,18 @@ defmodule Dobby.DeviceAgents.Vacuum.SyncState do
       battery_percent: battery(params.attributes["battery_level"])
     }
 
-    if meaningful_change?(previous, next) do
-      {:ok, next, [DeviceEvents.emit(previous.dobby_id, snapshot(previous, next))]}
-    else
-      {:ok, next}
+    case DeviceAgent.changes(previous, next, [:available, :activity, :battery_percent]) do
+      %{changed: []} ->
+        {:ok, next}
+
+      %{changed: changed, moved: moved} ->
+        {:ok, next,
+         [
+           DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
+             changed: changed,
+             moved: moved
+           )
+         ]}
     end
   end
 
@@ -60,12 +69,6 @@ defmodule Dobby.DeviceAgents.Vacuum.SyncState do
 
   defp battery(level) when is_number(level), do: round(level)
   defp battery(_absent), do: nil
-
-  defp meaningful_change?(previous, next) do
-    Enum.any?([:available, :activity, :battery_percent], fn key ->
-      Map.get(previous, key) != Map.get(next, key)
-    end)
-  end
 
   # HA's vacuum activity vocabulary is closed. Anything outside it is a
   # genuine surprise, and reads better as "we don't know".

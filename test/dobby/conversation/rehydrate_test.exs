@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation.RehydrateTest do
   @moduledoc """
-  Rebuilding the conversation window from the transcript (design §10.5).
+  Rebuilding the conversation window from the transcript (design §10.8).
 
   These assert the *shape handed to the model*, because that is the thing that
   can silently drift: a rehydrated history that looks right in the database and

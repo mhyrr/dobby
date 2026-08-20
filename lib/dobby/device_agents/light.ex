@@ -27,7 +27,10 @@ defmodule Dobby.DeviceAgents.Light do
       dobby_id: [type: :string, required: true],
       name: [type: :string, required: true],
       entity_id: [type: :string, required: true],
-      available: [type: :boolean, default: false],
+      # `nil`, not `false` — see Thermostat: "has not reported yet" and "is
+      # not answering" are different facts, and a `false` start makes every
+      # first report a move the watcher would record as a boot-time event.
+      available: [type: {:or, [:boolean, nil]}, default: nil],
       power: [type: {:or, [:atom, nil]}, default: nil],
       brightness_percent: [type: {:or, [:integer, nil]}, default: nil],
       capabilities: [type: :map, default: %{}],
@@ -71,6 +74,14 @@ defmodule Dobby.DeviceAgents.Light do
 
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Light.SyncState
+
+  # A light's power *is* somebody's hand on the wall switch — but saying so
+  # in the thread needs the commanded?-echo bookkeeping the thermostat has
+  # and this agent does not yet. Without it, every light Dobby switched would
+  # echo back as "changed at the kitchen light". False until that lands: a
+  # missing line costs less than a line about a hand that was never there.
+  @impl Dobby.DeviceAgent
+  def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do

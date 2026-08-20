@@ -38,6 +38,13 @@ defmodule DobbyWeb.ThreadLiveTest do
     %{conn: build_conn()}
   end
 
+  # A browser that has already been named, the way a real one gets that way:
+  # through the controller, so the signed cookie is the real thing rather than
+  # a session seeded by hand.
+  defp named(conn, name) do
+    post(conn, "/speaker", %{"name" => name, "return_to" => "/"})
+  end
+
   describe "the board" do
     test "shows the house before anyone asks", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
@@ -92,63 +99,108 @@ defmodule DobbyWeb.ThreadLiveTest do
     test "asks who is there before it takes anything down", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
+      # A POST and not an event: the cookie this writes can only be written by
+      # a controller, which is the one round trip on this surface.
+      assert has_element?(view, "form.set-line[action='/speaker'][method=post]")
       assert has_element?(view, "input#composer[name=name][aria-label='Your name']")
+      refute has_element?(view, ".plate .speaking-as")
+    end
 
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+    test "takes what somebody says once the browser knows who they are", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
       assert has_element?(view, "input#composer[name=text]")
-      assert has_element?(view, ".plate .who", "greg")
-      assert Conversation.get_speaker_by_name("greg")
+      assert has_element?(view, ".plate .speaking-as .name", "greg")
+      refute has_element?(view, "input#composer[name=name]")
     end
 
-    test "a name that already exists is the same person", %{conn: conn} do
-      {:ok, existing} = Conversation.name_speaker("Greg")
+    test "offers a way to stop being that person", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      assert has_element?(view, ".plate .speaking-as[action='/speaker/switch']")
+      assert has_element?(view, ".plate .speaking-as button", "switch")
+    end
+  end
+
+  # A fresh database on a real box, which is the state nobody had rendered:
+  # a board with a house on it and nothing said into it yet.
+  describe "a thread with nothing in it" do
+    test "names its own blank rather than showing a void", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      assert has_element?(view, ".blank .note", "Nothing said yet")
+    end
+
+    # Proactive speech is deferred (design §11), so nothing here may read as
+    # Dobby opening the conversation. The specimen is a *household* utterance:
+    # the label is the board's voice and the sentence is a person's.
+    test "shows one sentence of the kind that works, in a person's voice", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      assert has_element?(view, ".blank .like .said", "put the main thermostat to 70")
+
+      # Inside the range the device itself reported — 60 to 76 in the rig — so
+      # the board cannot suggest a sentence the house is going to refuse.
+      refute has_element?(view, ".blank", "Dobby")
+    end
+
+    test "asks for a name before it offers anything to say", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
-
-      assert has_element?(view, ".plate .who", "Greg")
-      assert length(Conversation.list_speakers()) == 1
-      assert Conversation.get_speaker_by_name("greg").id == existing.id
+      assert has_element?(view, ".blank .note", "Your name goes on what you change")
+      refute has_element?(view, ".blank .like")
     end
 
-    test "a sentence typed as a name is refused out loud", %{conn: conn} do
-      # Observed in the wild: the placeholder question vanished under the
-      # typing, and a whole request went in as a name. The guard already
-      # refused it — this pins the refusal being said, not swallowed.
-      sentence = "Hey Dobby, can you set the thermostat to seventy three?"
-      {:ok, view, _html} = live(conn, "/")
+    # A house that has not reported has not told us what it takes, and a
+    # specimen naming a value it might refuse would be the board promising
+    # something on its behalf.
+    test "promises nothing while the house is still silent", %{conn: conn} do
+      boot_house!([thermostat_device("thermostat:main", "main thermostat", entity: @entity)])
 
-      view |> element("form.set-line") |> render_submit(%{"name" => sentence})
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
-      assert has_element?(view, ".set-note", "reads like a message")
-      assert has_element?(view, "input#composer[name=name]")
-      refute Conversation.get_speaker_by_name(sentence)
-
-      # The note clears the moment a real name lands.
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
-      refute has_element?(view, ".set-note")
-      assert has_element?(view, "input#composer[name=text]")
+      assert has_element?(view, ".blank .note", "Nothing said yet")
+      refute has_element?(view, ".blank .like")
     end
 
-    test "the identity question stays visible while an answer is typed", %{conn: conn} do
-      # It lives beside the input, not inside it, because a placeholder is
-      # erased by the first letter of the answer.
-      {:ok, view, _html} = live(conn, "/")
+    # A system line counts. A house that changed while nobody was talking has a
+    # record, and a board still offering an example beneath it would be
+    # describing an empty page it is no longer on.
+    test "goes at the first line of any kind", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
-      assert has_element?(view, ".set-ask", "who's this?")
+      {:ok, message} = Conversation.append_system_line("the house restarted", %{})
+      ThreadEvents.system_line(message)
 
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
-
-      refute has_element?(view, ".set-ask")
+      assert eventually(fn -> has_element?(view, ".sys .dev", "the house restarted") end)
+      refute has_element?(view, ".blank")
     end
+
+    test "is not there at all once the thread has something in it", %{conn: conn} do
+      {:ok, speaker} = Conversation.name_speaker("greg")
+      {:ok, _message} = Conversation.append_utterance(Utterance.new("greg", "hello"), speaker)
+
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      refute has_element?(view, ".blank")
+    end
+
+    # A band with no rows still lays out as a link the width of the board:
+    # invisible, zero-high, and reachable by tab.
+    test "a house with no devices has no band to tap", %{conn: conn} do
+      boot_house!([])
+
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
+
+      refute has_element?(view, "a.rows")
+    end
+
   end
 
   describe "a turn" do
     test "puts what somebody said in the thread, then says it could not answer",
          %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
-      view |> element("form.set-line") |> render_submit(%{"name" => "greg"})
+      {:ok, view, _html} = live(named(conn, "greg"), "/")
 
       view |> element("form.set-line") |> render_submit(%{"text" => "is the printer on?"})
 

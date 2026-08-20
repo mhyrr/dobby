@@ -301,12 +301,15 @@ defmodule Dobby.Schedules do
         {:ok, device}
 
       :error ->
-        known = Dobby.Home.devices() |> Enum.map_join(", ", & &1.id)
-        {:error, "unknown device #{inspect(target)}; this house has: #{known}"}
+        {:error, "unknown device #{inspect(target)}; #{roll_call(Dobby.Home.devices())}"}
     end
   end
 
   defp fetch_device(other), do: {:error, "device must be an id string, got #{inspect(other)}"}
+
+  # See `Dobby.Home`: a house with no devices ended this on a colon and stopped.
+  defp roll_call([]), do: "this house has no devices"
+  defp roll_call(devices), do: "this house has: " <> Enum.map_join(devices, ", ", & &1.id)
 
   defp lookup_action(device, action) when is_binary(action) do
     available = device.agent_module.scheduled_actions()
@@ -453,6 +456,52 @@ defmodule Dobby.Schedules do
   defp stringify(args), do: Map.new(args, fn {key, value} -> {Atom.to_string(key), value} end)
 
   # -- firing ----------------------------------------------------------------
+
+  @doc """
+  The arguments a device action takes, described well enough to build a form.
+
+  Read from the action's own NimbleOptions schema rather than from a copy of
+  it, which is what keeps the admin's form honest when a device type changes
+  what it accepts — and what stops a new device type needing a form written for
+  it. Same source `coerce_args/2` validates against, so the form can only offer
+  fields the row will actually accept.
+  """
+  @spec action_arguments(String.t(), String.t()) :: {:ok, [map()]} | {:error, String.t()}
+  def action_arguments(target, action) do
+    with {:ok, _device, {_signal_type, module}} <- resolve_action(target, action) do
+      arguments =
+        module.schema()
+        |> Keyword.drop(@runtime_keys)
+        |> Enum.map(fn {name, spec} ->
+          %{
+            name: Atom.to_string(name),
+            type: spec[:type],
+            required: Keyword.get(spec, :required, false),
+            doc: spec[:doc]
+          }
+        end)
+
+      {:ok, arguments}
+    end
+  end
+
+  @doc """
+  Every device in this house that has something schedulable, with its actions.
+
+  What the admin's two selects are built from. A read-only device is left out
+  rather than offered and then refused — the refusal at authoring time exists
+  for a model that cannot see the roster, not for a form that can.
+  """
+  @spec schedulable_devices() :: [%{id: String.t(), name: String.t(), actions: [String.t()]}]
+  def schedulable_devices do
+    for device <- Dobby.Home.devices(),
+        actions = Map.keys(device.agent_module.scheduled_actions()),
+        actions != [] do
+      %{id: device.id, name: device.name, actions: Enum.map(actions, &Atom.to_string/1)}
+    end
+  rescue
+    ArgumentError -> []
+  end
 
   @doc """
   The signal a schedule's cron timer carries.

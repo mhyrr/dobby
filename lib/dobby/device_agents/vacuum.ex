@@ -24,7 +24,10 @@ defmodule Dobby.DeviceAgents.Vacuum do
       dobby_id: [type: :string, required: true],
       name: [type: :string, required: true],
       entity_id: [type: :string, required: true],
-      available: [type: :boolean, default: false],
+      # `nil`, not `false` — see Thermostat: "has not reported yet" and "is
+      # not answering" are different facts, and a `false` start makes every
+      # first report a move the watcher would record as a boot-time event.
+      available: [type: {:or, [:boolean, nil]}, default: nil],
       activity: [type: {:or, [:atom, nil]}, default: nil],
       battery_percent: [type: {:or, [:integer, nil]}, default: nil],
       settings: [type: :map, default: %{}],
@@ -66,6 +69,13 @@ defmodule Dobby.DeviceAgents.Vacuum do
 
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Vacuum.SyncState
+
+  # A vacuum moves on its own initiative: cleaning becomes returning becomes
+  # docked with nobody in the room, and the bin filling up is the robot's
+  # decision. An activity change is not evidence of a hand, so none of it
+  # belongs in the thread — it goes to the card and the log.
+  @impl Dobby.DeviceAgent
+  def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device) do

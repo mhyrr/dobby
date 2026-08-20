@@ -1,6 +1,6 @@
 defmodule Dobby.Conversation do
   @moduledoc """
-  The household thread and the people in it (design §10.1, §10.2, §10.5).
+  The household thread and the people in it (design §10.2, §10.4, §10.8).
 
   One shared, persistent conversation. Everyone reads the same document, which
   is why nothing here is scoped to a viewer: there is no "my messages", no
@@ -12,7 +12,7 @@ defmodule Dobby.Conversation do
   The thread records **interventions** — things somebody said, things Dobby
   answered, and changes to the house by any path. Passive observation (an
   endpoint flapping at 3am) belongs to `Dobby.Activity`, which records
-  everything. That split is design §10.1 and it is the reason two modules exist
+  everything. That split is design §10.3 and it is the reason two modules exist
   rather than one: the thread is something a person reads, and a log is
   something a machine queries.
   """
@@ -22,6 +22,27 @@ defmodule Dobby.Conversation do
   alias Dobby.Conversation.{Message, Speaker}
   alias Dobby.Repo
   alias Dobby.Utterance
+
+  # How much conversation this house keeps in mind (`TK-007`).
+  #
+  # It is one number in one place because it is one policy, applied at two
+  # moments: `Dobby.Conversation.Rehydrate` reads this many rows at boot, and
+  # `Dobby.DobbyAgent.RequestTransformer` sends at most this many messages on
+  # every request afterwards. Before the second of those existed the first was
+  # the only bound in the system and applied at boot alone, so a process up for
+  # a week sent a week of conversation every time anybody spoke.
+  #
+  # Forty is Greg's call (2026-08-15, "40-50 sounds right"). The live window
+  # counts projected messages rather than transcript rows, so it holds slightly
+  # less conversation than the boot window does — tool calls and their results
+  # are messages too.
+  @window 40
+
+  @doc """
+  How many messages of conversation the house keeps in mind.
+  """
+  @spec window() :: pos_integer()
+  def window, do: @window
 
   # -- speakers --------------------------------------------------------------
 

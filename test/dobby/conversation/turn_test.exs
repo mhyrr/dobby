@@ -65,6 +65,80 @@ defmodule Dobby.Conversation.TurnTest do
     assert_receive {:replied, %Message{role: :assistant, text: "Set the main thermostat to 70°."}}
   end
 
+  test "a tool call that moved the house leaves the same line a card would",
+       %{speaker: speaker} do
+    utterance = Utterance.new("greg", "Dobby, turn the thermostat to 71")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("thermostat_set_temperature", %{"device" => @thermostat, "temperature_f" => 71})
+        answer("Set to 71.")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    # The reply says what Dobby did in his own words; this is the record, and
+    # it is the same shape a card tap or a schedule writes — so scrolling back
+    # to yesterday shows one kind of entry for "the thermostat went to 71",
+    # however it got there.
+    assert_receive {:turn_started, request_id}
+
+    assert_receive {:system_line,
+                    %Message{
+                      role: :system,
+                      text: "main thermostat",
+                      request_id: ^request_id,
+                      meta: meta
+                    }}
+
+    assert meta["via"] == "greg"
+    assert meta["word"] == "Set"
+    assert meta["value"] == "71°"
+  end
+
+  # `Turn.run/3` everywhere else in this file skips the queue deliberately, so
+  # that a test can assert against a finished turn. This one goes through the
+  # front door — `say/3` casts to `Turn.Queue`, which records the utterance and
+  # runs the real `Turn.answer/4`. It is what makes the queue's own tests
+  # honest: they inject a runner to observe ordering, and this proves the
+  # production runner reaches the model through the same door.
+  test "say/3 goes through the queue and still answers", %{speaker: speaker} do
+    utterance = Utterance.new("greg", "how warm is it?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("thermostat_get_status", %{"device" => @thermostat})
+        answer("68° in here.")
+      end
+
+    assert :ok = Turn.say(utterance, speaker, react_opts(script))
+
+    assert_receive {:said, %Message{role: :user, text: "how warm is it?"}}, 2_000
+    assert_receive {:replied, %Message{role: :assistant, text: "68° in here."}}, 5_000
+  end
+
+  test "a tool call that only read something announces nothing", %{speaker: speaker} do
+    utterance = Utterance.new("greg", "how warm is it?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("thermostat_get_status", %{"device" => @thermostat})
+        answer("68° in here.")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    assert_receive {:replied, %Message{role: :assistant}}
+
+    # Keyed on the write-acknowledgment protocol's own `accepted: true` rather
+    # than on a list of tool names, so a reading tool cannot accidentally
+    # announce an intervention.
+    refute_receive {:system_line, _message}, 200
+  end
+
   test "the reply carries its own record of the work", %{speaker: speaker} do
     utterance = Utterance.new("greg", "how warm is it?")
 

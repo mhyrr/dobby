@@ -918,11 +918,12 @@ The intervention record: what changed in the house, by whatever path.
 
 ### Admin
 
-Same board, same words; what changes is that a maintainer is reading it. Three
+Same board, same words; what changes is that a maintainer is reading it. Four
 panels, and the order is an argument: health first because it is three lines and
-it changes what the other two mean, schedules next because they are the only
-thing on the page you can change, the feed last because you scroll to a log
-rather than being handed it.
+it changes what the other two mean, schedules next because they are the thing on
+this page changed most often, the system panel under them because a model alias
+or a port is set once and then left alone, the feed last because you scroll to a
+log rather than being handed it.
 
 - **Panel heading:** the headline step in brass over a hairline — the plate's
   type, used as a section rule. The rule takes the board's width and the content
@@ -939,7 +940,37 @@ rather than being handed it.
 - **No form when there is nothing to schedule.** A house with nothing
   schedulable was offered two empty selects and an `add` that could only be
   refused
-- **Health and schedules are one column, not two rows of the page grid.** A grid
+- **The system panel is drawn from the section's own schema,** never from a
+  field list written into a template: a knob added to
+  `Dobby.HomeConfig.System` grows a field here, typed by its declared type,
+  explained in its own `:doc` — which was written for whoever edits the file by
+  hand and has a second reader now. The field's name is a schema key, so it is
+  set as the identifier it is, in lower case, exactly as the schedule form's
+  argument fields are. A boolean is two words in a select and never a tick: a
+  tick is an icon, and this board says things in words
+- **What a save did, per field, and never one line claiming the whole save
+  worked.** The model alias takes effect at the moment it is next used; a port
+  and a LAN binding belong to a socket opened at boot and no amount of writing
+  the file moves them. So the field that took says `IN EFFECT NOW` and the field
+  still owed a restart says `WAITING FOR A RESTART`, in the record voice on the
+  field it is about. Not a flap and not a state colour: none of the eight words
+  means "written down and waiting", and the two are told apart by which of the
+  quiet inks they take — the standing debt is the louder, the receipt the
+  fainter. This is the honesty rule the board keeps about devices, carried into
+  configuration
+- **Read-only is the ordinary case here, not an edge.** The writer will not
+  rewrite an Elixir home and the dev and test rig boots from one, so the panel
+  renders the same blocks with the value where the box was, and one sentence
+  says why — naming the file, because a person who cannot edit this panel is
+  owed the place the settings actually live. It is the call this page already
+  makes about a house with nothing schedulable: no form beats a form that could
+  only ever be refused
+- **A knob the file does not mention reads `default`,** lower case and faint.
+  Deliberately not `NOT SET`: in capitals that is a ninth word on a board with
+  eight, one letter from `NOT KNOWN`, which means the opposite — nobody has told
+  us. Here somebody has, by saying nothing
+- **Health, schedules and system are one column, not three rows of the page
+  grid.** A grid
   row grows to hold an item spanning it, so the feed beside them was setting
   their heights: at 1440×900 that put 233px of health panel in a 508px row and
   started the schedules 275px below the thing above them. The order here is an

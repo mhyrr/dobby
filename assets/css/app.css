@@ -743,6 +743,7 @@ body {
 .panel > .why,
 .panel > .undo,
 .new-sched,
+.settings,
 .sched { max-width: var(--pitch); }
 .panel h2 {
   font-family: var(--board-type);
@@ -804,7 +805,7 @@ body {
    that means two things. The row going quiet says it instead. */
 .sched.paused .name, .sched.paused .val, .sched.paused .detail { color: var(--ink-faint); }
 .sched .acts { display: flex; gap: .9rem; }
-.sched .acts button, .new-sched button, .admin .undo button {
+.sched .acts button, .new-sched button, .settings button, .admin .undo button {
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--brass-dim);
@@ -835,7 +836,7 @@ body {
   font-size: .74rem;
   color: var(--ink-faint);
 }
-.new-sched input, .new-sched select {
+.new-sched input, .new-sched select, .settings input, .settings select {
   width: 100%;
   background: var(--flap);
   border: 0;
@@ -847,7 +848,65 @@ body {
   caret-color: var(--st-set);
 }
 .new-sched input::placeholder { color: var(--ink-faint); }
-.new-sched .why { font-size: .86rem; color: var(--st-refused); }
+.new-sched .why, .settings .why { font-size: .86rem; color: var(--st-refused); }
+
+/* ── the system panel ─────────────────────────────────────────────────────
+   The box rather than the house: the model behind the `:capable` alias, the
+   port, whether Dobby answers on the household network. Every block here is
+   drawn from the section's own schema and not from a list written out in a
+   template, so a new knob costs a schema entry and nothing else.
+
+   One composition and two leaves. A house Dobby can write gets the form; a
+   house it cannot — an Elixir home, which is what the dev and test rig boots
+   from — gets the same blocks with the value where the box was. The two read as
+   one panel with its inputs taken out rather than as two panels, which is the
+   truth of it: read-only here is the ordinary case, not an edge. */
+.settings { display: grid; gap: .6rem; justify-items: start; }
+.setting { display: grid; gap: .2rem; width: 100%; }
+/* A field's name is a key out of the schema — nobody wrote it as a word — so it
+   is set as the identifier it is rather than shouted. The same reading the
+   schedule form's argument fields take, and for the same reason. */
+.setting > .arg,
+.setting label span {
+  font-family: var(--board-type);
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+/* The value in the board's own face and never shouted: a model alias and a
+   hostname are identifiers — things you go and open — and capitals here mean a
+   state, a name or a time. It breaks anywhere for the reason the feed's `what`
+   does: an identifier has no space in it to break at, and a panel that scrolls
+   sideways is what the narrow board forbids. */
+.setting .reading {
+  font-family: var(--board-type);
+  font-size: .86rem;
+  letter-spacing: .04em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* A knob the file does not mention is a knob at Dobby's own default, which is a
+   reading like any other — and faint, because it is the board's value and not
+   the household's. */
+.setting .reading.unset { color: var(--ink-faint); }
+/* The schema's own `:doc`. It was written for whoever edits the file by hand
+   and has a second reader now. A sentence, so it is set in the sentence face at
+   the size a refusal takes: the condensed face is the board saying states,
+   names and times, and it does not write prose. */
+.setting .hint { font-size: .74rem; line-height: 1.35; color: var(--ink-faint); }
+/* What the save actually did, on the field it did it to. Not a flap and not a
+   state colour: none of the eight words means "written down and waiting for a
+   restart", and a ninth word or a sixth colour is a design decision rather than
+   a CSS change. The record voice says it instead — and the one that is still
+   owed a restart takes the louder of the two quiet inks, because it is a
+   standing debt and the other is a receipt. */
+.setting .effect {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-faint);
+}
+.setting .effect.waiting { color: var(--ink-quiet); }
 
 /* ── the topology ─────────────────────────────────────────────────────────
    The command hierarchy, drawn: two directors, the devices, the one client
@@ -1140,6 +1199,7 @@ body {
   .undo button,
   .sched .acts button,
   .new-sched button,
+  .settings button,
   .to-admin,
   .collapsed summary,
   .plate h1 a,
@@ -1148,6 +1208,7 @@ body {
   .undo button::after,
   .sched .acts button::after,
   .new-sched button::after,
+  .settings button::after,
   .to-admin::after,
   .collapsed summary::after,
   .plate h1 a::after,
@@ -1161,7 +1222,7 @@ body {
      of these areas overlap — a tap meant for `delete` cannot land on `pause`,
      and one meant for the temperature field cannot land on `Add`. */
   .sched .acts { gap: 1.4rem; }
-  .new-sched { gap: 1.1rem; }
+  .new-sched, .settings { gap: 1.1rem; }
 }
 
 /* ── a short screen ───────────────────────────────────────────────────────
@@ -1197,6 +1258,7 @@ body {
      which is the one thing palette law forbids. */
   .sched .acts button:hover,
   .new-sched button:hover,
+  .settings button:hover,
   .admin .undo button:hover { color: var(--ink); }
 }
 

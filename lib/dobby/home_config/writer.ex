@@ -65,6 +65,18 @@ defmodule Dobby.HomeConfig.Writer do
     end
   end
 
+  @doc """
+  Which writer a surface should talk to.
+
+  The application's own, unless something has said otherwise — the shape
+  `Dobby.HomeAssistant.impl/0` already takes, and for the same reason: the one
+  supervised writer holds the file this boot actually read, and a test that
+  wants an editable house points at a writer holding a file of its own rather
+  than at the rig's Elixir.
+  """
+  @spec server() :: GenServer.server()
+  def server, do: Application.get_env(:dobby, :home_config_writer, __MODULE__)
+
   # -- reads -----------------------------------------------------------------
 
   @doc """
@@ -75,6 +87,18 @@ defmodule Dobby.HomeConfig.Writer do
   """
   @spec current(GenServer.server()) :: HomeConfig.t()
   def current(server \\ __MODULE__), do: GenServer.call(server, :current)
+
+  @doc """
+  Whether this is a house Dobby can write at all.
+
+  Asked by the editing surfaces before they offer a control, because a form
+  that can only ever be refused is worse than a sentence saying why there is no
+  form — the same call `/admin` already makes about a house with nothing
+  schedulable. One rule, two readers: the refusal below is this predicate with
+  the message attached.
+  """
+  @spec writable?(HomeConfig.t()) :: boolean()
+  def writable?(%HomeConfig{format: format}), do: format == :yaml
 
   # -- writes ----------------------------------------------------------------
 
@@ -109,11 +133,13 @@ defmodule Dobby.HomeConfig.Writer do
     end
   end
 
-  defp writable(%HomeConfig{format: :yaml}), do: :ok
-
-  defp writable(%HomeConfig{format: format, path: path}) do
-    {:error,
-     "Dobby writes YAML and #{path} is #{format}; migrate the house to a .yaml file first"}
+  defp writable(%HomeConfig{format: format, path: path} = config) do
+    if writable?(config) do
+      :ok
+    else
+      {:error,
+       "Dobby writes YAML and #{path} is #{format}; migrate the house to a .yaml file first"}
+    end
   end
 
   # The resolver owns the raise, and at boot a missing credential taking the

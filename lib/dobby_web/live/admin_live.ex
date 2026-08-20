@@ -8,10 +8,13 @@ defmodule DobbyWeb.AdminLive do
   because there is no role system; this page is a different question, not a
   different permission.
 
-  Three sections and the order is deliberate. Health first because it is three
+  Four sections and the order is deliberate. Health first because it is three
   lines and it changes what the other two mean. Schedules next because they are
-  the only thing on this page you can change. The feed last because it is the
-  long one, and because you scroll to a log rather than being handed it.
+  the thing on this page changed most often. The system panel under them,
+  because a model alias or a port is changed once and then left alone, and
+  because it is about the box rather than the house the three around it
+  describe. The feed last because it is the long one, and because you scroll to
+  a log rather than being handed it.
 
   Above all three, the topology (TK-016): the diagram is not one of the
   maintainer's three questions, it is the map they are asked about, and it is
@@ -45,20 +48,25 @@ defmodule DobbyWeb.AdminLive do
 
   use DobbyWeb, :live_view
 
+  # The panel only; the rest of that module is what this one calls it by name.
+  import DobbyWeb.AdminLive.SystemPanel, only: [system: 1]
   import DobbyWeb.AdminLive.Topology
   import DobbyWeb.Board
   import DobbyWeb.Flap
 
   alias Dobby.Activity
   alias Dobby.ActivityEvents
+  alias Dobby.ConfigEvents
   alias Dobby.DeviceEvents
   alias Dobby.Health
   alias Dobby.Home
   alias Dobby.HomeAssistant.Connection
+  alias Dobby.HomeConfig.Applied
   alias Dobby.ScheduleEvents
   alias Dobby.SchedulerAgent
   alias Dobby.Schedules
   alias Dobby.Topology
+  alias DobbyWeb.AdminLive.SystemPanel
 
   @feed 100
   @undo_window 8_000
@@ -77,6 +85,7 @@ defmodule DobbyWeb.AdminLive do
       ScheduleEvents.subscribe()
       DeviceEvents.subscribe()
       Connection.subscribe()
+      ConfigEvents.subscribe()
     end
 
     devices = Schedules.schedulable_devices()
@@ -97,6 +106,7 @@ defmodule DobbyWeb.AdminLive do
      |> load_arguments()
      |> load_health()
      |> load_schedules()
+     |> load_system()
      |> watch_house()
      |> stream(:activity, feed)}
   end
@@ -127,13 +137,14 @@ defmodule DobbyWeb.AdminLive do
         pulses={@pulses}
       />
 
-      <%!-- Health and schedules are one column and not two grid rows. As rows
-            they were sized by the feed beside them: a grid row grows to hold an
-            item spanning it, so a hundred entries of log pushed the schedules
-            275px down the page and left a void under the health panel bigger
-            than the panel. The order here is an argument — the thing you can
-            change sits under the thing that says whether it will work — and an
-            argument does not survive a gap that size. --%>
+      <%!-- Health, schedules and system are one column and not three grid rows.
+            As rows they were sized by the feed beside them: a grid row grows to
+            hold an item spanning it, so a hundred entries of log pushed the
+            schedules 275px down the page and left a void under the health panel
+            bigger than the panel. The order here is an argument — what you can
+            change sits under what says whether it will work, and what is
+            changed least sits at the foot — and an argument does not survive a
+            gap that size. --%>
       <div class="side">
         <section class="panel">
           <h2>Health</h2>
@@ -218,6 +229,17 @@ defmodule DobbyWeb.AdminLive do
             error={@error}
           />
         </section>
+
+        <%!-- The box rather than the house, and at the foot of the column
+              because it is the thing here touched least: a model alias or a
+              port is set once and then left alone, while the two panels above
+              it are read every time somebody comes to this page. --%>
+        <.system
+          config={@system_config}
+          form={@system_form}
+          effects={@effects}
+          error={@system_error}
+        />
       </div>
 
       <section class="panel feed">
@@ -387,6 +409,32 @@ defmodule DobbyWeb.AdminLive do
     end
   end
 
+  # The system panel has no cascade — a port does not change what a model can
+  # be — so this only remembers what is in the boxes, which is what keeps them
+  # holding it across the feed streaming an entry in underneath.
+  def handle_event("system", %{"system" => params}, socket) do
+    {:noreply, assign(socket, :system_form, SystemPanel.entered(params))}
+  end
+
+  # Through the one writer, always. Its answer is applied here as well as on
+  # `dobby:config`, so the browser that asked sees its own save land without
+  # waiting for the announcement — and applying it twice says the same thing
+  # twice, which is the point of the announcement being a fact rather than an
+  # instruction.
+  def handle_event("save", %{"system" => params}, socket) do
+    case SystemPanel.save(socket.assigns.system_config, params) do
+      {:ok, applied} ->
+        {:noreply, socket |> assign(:system_error, nil) |> take_config(applied)}
+
+      # The typing stays where it was, beside the reason it was refused.
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:system_form, SystemPanel.entered(params))
+         |> assign(:system_error, reason)}
+    end
+  end
+
   def handle_event("restore", _params, socket) do
     case socket.assigns.deleted do
       %{schedule: schedule} ->
@@ -431,6 +479,17 @@ defmodule DobbyWeb.AdminLive do
       _newer_pulse ->
         {:noreply, socket}
     end
+  end
+
+  # The file changed, by whatever path — this browser, another one, or the
+  # household thread once it can. The panel is always current with the *applied*
+  # configuration, which is what buys v1 out of needing a file watcher.
+  #
+  # Only the system half is taken. A changed house is a restarted house, and
+  # what that means for the topology, the health rows and the schedules on this
+  # page is `/house`'s question to answer when it can make one.
+  def handle_info({:applied, %Applied{} = applied}, socket) do
+    {:noreply, take_config(socket, applied)}
   end
 
   # A firing changes what `next_fire` and `status` say, and both are computed
@@ -516,6 +575,28 @@ defmodule DobbyWeb.AdminLive do
     |> assign(:timers, SchedulerAgent.timers())
     |> assign(:ha_status, Connection.status())
     |> load_topology()
+  end
+
+  # Once, when the page opens. `dobby:config` keeps it current after that.
+  defp load_system(socket) do
+    config = SystemPanel.current()
+
+    socket
+    |> assign(:system_config, config)
+    |> assign(:system_form, SystemPanel.values(config))
+    |> assign(:system_error, nil)
+    |> assign(:effects, %{})
+  end
+
+  # The boxes are refilled from what was applied, including under a hand that
+  # was typing: two browsers editing one knob is exactly the argument the single
+  # writer exists to settle, and showing the value that won is the honest half
+  # of settling it.
+  defp take_config(socket, %Applied{} = applied) do
+    socket
+    |> assign(:system_config, applied.config)
+    |> assign(:system_form, SystemPanel.values(applied.config))
+    |> assign(:effects, SystemPanel.effects(socket.assigns.effects, applied))
   end
 
   # Nodes and edges only — configuration, and cheap enough to take again

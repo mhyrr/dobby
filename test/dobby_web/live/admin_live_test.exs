@@ -16,6 +16,8 @@ defmodule DobbyWeb.AdminLiveTest do
   alias Dobby.Activity
   alias Dobby.ActivityEvents
   alias Dobby.Health
+  alias Dobby.HomeConfig
+  alias Dobby.HomeConfig.Writer
   alias Dobby.SchedulerAgent
   alias Dobby.Schedules
 
@@ -386,6 +388,197 @@ defmodule DobbyWeb.AdminLiveTest do
     end
   end
 
+  # The box rather than the house: the model behind the `:capable` alias, the
+  # port, whether Dobby answers on the household network. Every field on it is
+  # drawn from the section's own schema, so a knob added there grows a field
+  # here and nowhere else.
+  describe "the system panel" do
+    test "has a field for every knob the schema declares, and no others", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, "section.panel.system h2", "System")
+
+      for {key, _spec} <- HomeConfig.System.schema() do
+        assert has_element?(view, ".system .setting .arg", Atom.to_string(key))
+      end
+
+      # And nothing else: a field on this panel that is not in the schema would
+      # be a hand-built form growing back.
+      assert settings(view) == length(HomeConfig.System.schema())
+    end
+
+    # The rig boots from `config/homes/rig.exs`, the writer will not write
+    # Elixir, and that is the ordinary case on a developer's machine rather than
+    # an edge. So the panel says why, and names the file the settings do live in.
+    test "an Elixir house is read-only, and says so in one sentence", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      # No form at all, rather than one that could only ever be refused — the
+      # call this page already makes about a house with nothing schedulable.
+      refute has_element?(view, "form#system")
+      refute has_element?(view, ".system input")
+
+      assert has_element?(view, ".system .note", "does not write")
+      assert has_element?(view, ".system .note .file", "config/homes/rig.exs")
+    end
+
+    # A knob the file does not mention is a knob at Dobby's own default, and
+    # that is a reading. Deliberately not `NOT SET`, which in capitals would be
+    # a ninth word on a board with eight — one letter from `NOT KNOWN`, which
+    # means something else.
+    test "a knob the file does not mention reads as a default", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".system .setting .reading.unset", "default")
+
+      # A boolean always has a value, so it never reads that way.
+      assert has_element?(view, ".system .setting .reading", "no")
+    end
+
+    # The schema's `:doc` was written for whoever edits the file by hand. It has
+    # a second reader now, which is the whole of "a new knob costs a schema
+    # entry and nothing else".
+    test "explains each knob in the schema's own words", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".system .setting .hint", "capable")
+
+      # And without the Markdown it was written in: a backtick painted on this
+      # board is a stray mark.
+      refute view |> element(".system") |> render() =~ "`"
+    end
+
+    test "says so rather than showing nothing when there is no writer", %{conn: conn} do
+      Application.put_env(:dobby, :home_config_writer, :no_writer_here)
+      on_exit(fn -> Application.delete_env(:dobby, :home_config_writer) end)
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, ".system .note", "has not been read")
+      refute has_element?(view, ".system .setting")
+    end
+  end
+
+  # The other half, and the one a household actually has: a YAML house is an
+  # editable house. The writer under this panel holds a file of the test's own,
+  # so what lands on disk can be read back and read back from.
+  describe "the system panel, on a house Dobby can write" do
+    setup :editable_house
+
+    test "offers a box for every knob, typed by the schema", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      assert has_element?(view, "form#system")
+      assert has_element?(view, "input[name='system[model]'][type=text]")
+      assert has_element?(view, "input[name='system[port]'][type=number]")
+      assert has_element?(view, "input[name='system[hostname]'][type=text]")
+
+      # Two words rather than a checkbox: a tick is an icon, and this board says
+      # things in words.
+      assert has_element?(view, "select[name='system[lan]'] option[value=true]", "yes")
+      refute has_element?(view, ".system input[type=checkbox]")
+    end
+
+    # The `:capable` alias is the one setting read at the moment it is used,
+    # which is exactly why design §2.1 made the agent name an alias.
+    test "a change that took effect says so on the field it took effect on", %{conn: conn} do
+      previous = Application.get_env(:jido_ai, :model_aliases)
+      on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
+
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view |> form("form#system", system: %{"model" => "openai:gpt-5.6-luna"}) |> render_submit()
+
+      assert has_element?(view, ".setting .effect", "In effect now")
+      refute has_element?(view, ".setting .effect.waiting")
+
+      assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "openai:gpt-5.6-luna"}
+    end
+
+    # And the honest half: a port belongs to a socket opened at boot, and no
+    # amount of writing the file moves it. The panel says which, per field,
+    # rather than one line underneath claiming the whole save worked.
+    test "a change that cannot take effect yet says it is waiting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view
+      |> form("form#system", system: %{"port" => "4100", "lan" => "true"})
+      |> render_submit()
+
+      assert has_element?(view, ".setting .effect.waiting", "Waiting for a restart")
+
+      # Two fields waiting, and each says so where it is — the port and the LAN
+      # binding are two settings, not one save.
+      assert view |> element(".system") |> render() =~
+               ~r/Waiting for a restart.*Waiting for a restart/s
+
+      # The socket is where it was: a written port is a written port.
+      assert DobbyWeb.Endpoint.config(:http)[:port] == 4002
+    end
+
+    test "what it writes is what the file says, and what the panel then shows", %{
+      conn: conn,
+      path: path
+    } do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view |> form("form#system", system: %{"hostname" => "greg.local"}) |> render_submit()
+
+      assert {:ok, written} = HomeConfig.load(path)
+      assert written.system.hostname == "greg.local"
+
+      assert has_element?(view, "input[name='system[hostname]'][value='greg.local']")
+    end
+
+    # An empty box is not a value: a field somebody cleared is a field the file
+    # should stop mentioning, so the built-in default comes back rather than an
+    # empty string being written down as though somebody had chosen one.
+    test "a box somebody emptied stops being mentioned in the file", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view |> form("form#system", system: %{"hostname" => "greg.local"}) |> render_submit()
+      view |> form("form#system", system: %{"hostname" => ""}) |> render_submit()
+
+      assert {:ok, written} = HomeConfig.load(path)
+      assert written.system.hostname == nil
+      refute File.read!(path) =~ "hostname"
+    end
+
+    # The refusal is the schema's own, naming the field. Nothing on the surface
+    # writes a second message for the same mistake.
+    test "a value the schema refuses is refused by name, and the file keeps what it had", %{
+      conn: conn,
+      path: path
+    } do
+      {:ok, view, _html} = live(conn, "/admin")
+      original = File.read!(path)
+
+      view |> form("form#system", system: %{"port" => "the kitchen one"}) |> render_submit()
+
+      assert has_element?(view, ".settings .why", "port")
+      assert File.read!(path) == original
+
+      # And what was typed stays where it was, beside the reason it was refused.
+      assert has_element?(view, "input[name='system[port]'][value='the kitchen one']")
+    end
+
+    # Always current with the applied configuration, which is what buys v1 out
+    # of needing a file watcher: an open page follows a change made anywhere.
+    test "follows a change made somewhere other than this browser", %{conn: conn, writer: writer} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      config = Writer.current(writer)
+      system = struct!(config.system, hostname: "elsewhere.local")
+      {:ok, _applied} = Writer.save(writer, %{config | system: system})
+
+      assert eventually(fn ->
+               has_element?(view, "input[name='system[hostname]'][value='elsewhere.local']")
+             end)
+
+      assert has_element?(view, ".setting .effect.waiting")
+    end
+  end
+
   describe "the feed" do
     test "is the full record, including what the thread leaves out", %{conn: conn} do
       {:ok, _entry} =
@@ -510,6 +703,49 @@ defmodule DobbyWeb.AdminLiveTest do
   end
 
   # -- helpers ---------------------------------------------------------------
+
+  # A house Dobby can write, which the rig's Elixir home is not. The writer is
+  # the test's own, pointed at a file in a temporary directory, and the panel
+  # reaches it the way the application's own writer is reached — by name, which
+  # is what `Writer.server/0` exists to answer.
+  #
+  # The house in it is a valid one and it is never changed here: the system
+  # section is what this panel edits, and a save that leaves the house alone
+  # does not restart the house.
+  @editable_house """
+  house:
+    id: rig
+    name: Rig Home
+    timezone: America/New_York
+    home_assistant:
+      url: http://fake.invalid:8123
+    devices: []
+  """
+
+  defp settings(view) do
+    view
+    |> element(".system")
+    |> render()
+    |> then(&Regex.scan(~r/class="setting"/, &1))
+    |> length()
+  end
+
+  defp editable_house(_context) do
+    path = Path.join(System.tmp_dir!(), "admin-#{System.unique_integer([:positive])}.yaml")
+    File.write!(path, @editable_house)
+
+    name = :"admin_writer_#{System.unique_integer([:positive])}"
+    writer = start_supervised!({Writer, path: path, name: name})
+
+    Application.put_env(:dobby, :home_config_writer, name)
+
+    on_exit(fn ->
+      Application.delete_env(:dobby, :home_config_writer)
+      File.rm(path)
+    end)
+
+    %{path: path, writer: writer, conn: build_conn()}
+  end
 
   defp create!(overrides) do
     attrs =

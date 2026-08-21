@@ -17,6 +17,15 @@ defmodule DobbyWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # The MCP door (TK-022): JSON only, none of the browser plugs. CSRF
+  # protection defends forms a browser submits, and nothing here is one; the
+  # session cookie and the speaker plug are the household surface's identity,
+  # and this surface's identity is the bearer token `DobbyWeb.MCP.Router`
+  # checks in `connect/2`.
+  pipeline :mcp do
+    plug :accepts, ["json"]
+  end
+
   # Three routes, no auth on any of them (design §10.1). LAN-only, flat
   # trust: the Wi-Fi password is the boundary, and identity personalizes rather
   # than permits.
@@ -33,6 +42,22 @@ defmodule DobbyWeb.Router do
       live "/house", HouseLive
       live "/admin", AdminLive
     end
+  end
+
+  # A user's own AI on the LAN, presenting a token minted on /admin. The
+  # tools-only JSON path adds no processes: Phantom answers each POST in the
+  # endpoint's own request process, which is a sibling of Dobby.Home — so a
+  # confirmed house change restarting the house cannot kill the reply that
+  # reports it. `validate_origin` is off at the plug because Phantom's check
+  # refuses a *missing* Origin header too, and MCP clients are programs that
+  # send none; the origin rule lives in `DobbyWeb.MCP.Router.connect/2`,
+  # where absent passes and a foreign page is refused.
+  scope "/mcp" do
+    pipe_through :mcp
+
+    forward "/", Phantom.Plug,
+      router: DobbyWeb.MCP.Router,
+      validate_origin: false
   end
 
   # Other scopes may use custom stacks.

@@ -72,7 +72,13 @@ defmodule Dobby.MixProject do
       # writing half — the house is machine-round-trippable (TK-018), so
       # something has to emit it.
       {:yaml_elixir, "~> 2.12"},
-      {:ymlr, "~> 5.1"}
+      {:ymlr, "~> 5.1"},
+      # The door for someone else's AI (TK-022 layer B): a streamable-HTTP MCP
+      # server as a Plug, chosen over anubis/jido_mcp in the library survey —
+      # plug-native, MIT, raw `input_schema:` so the Jido tool mapping stays
+      # ours, and a `connect/2` callback that is exactly the bearer-token seam
+      # the trust model needs.
+      {:phantom_mcp, "~> 0.5"}
     ]
   end
 

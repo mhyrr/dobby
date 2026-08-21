@@ -242,6 +242,23 @@ defmodule Dobby.Home do
   end
 
   @doc """
+  Every tool module any house could ever be offered, whatever this one has.
+
+  `tools/0` is one house's set; this is the closure it is drawn from — the
+  tools of every registered device type plus the house's own. The MCP surface
+  declares this at compile time and narrows to `tools/0` per connection, the
+  same shape `Dobby.DobbyAgent` takes for the same macro-shaped reason: a
+  declaration cannot read the manifest, so the compile-time set is the library
+  and the running house narrows it.
+  """
+  @spec library() :: [module()]
+  def library do
+    device_tools = Enum.flat_map(Dobby.HomeConfig.Types.modules(), & &1.tools())
+
+    Enum.uniq(device_tools ++ @house_tools)
+  end
+
+  @doc """
   The roster the model is shown each turn: what exists, what to call it, and
   the ID to use when acting on it.
   """

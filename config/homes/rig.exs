@@ -2,7 +2,7 @@ import Config
 
 # The rig home (design §12): one thermostat, no hardware anywhere.
 #
-# Bound to FakeHA at the one honest boundary, so this manifest boots the whole
+# Bound to FakeHA, so this manifest boots the whole
 # real application — real device agents, real bootstrap, real DobbyAgent — in
 # both `mix test` and `mix phx.server`, with no Proxmox, no HAOS, and no house.
 config :dobby, Dobby.Home,

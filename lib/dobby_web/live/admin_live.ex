@@ -50,6 +50,7 @@ defmodule DobbyWeb.AdminLive do
 
   # The panel only; the rest of that module is what this one calls it by name.
   import DobbyWeb.AdminLive.SystemPanel, only: [system: 1]
+  import DobbyWeb.AdminLive.TokensPanel, only: [tokens: 1]
   import DobbyWeb.AdminLive.Topology
   import DobbyWeb.Board
   import DobbyWeb.Flap
@@ -68,6 +69,7 @@ defmodule DobbyWeb.AdminLive do
   alias Dobby.Schedules
   alias Dobby.Topology
   alias DobbyWeb.AdminLive.SystemPanel
+  alias DobbyWeb.AdminLive.TokensPanel
   alias DobbyWeb.Fields
 
   @feed 100
@@ -123,6 +125,7 @@ defmodule DobbyWeb.AdminLive do
      |> load_health()
      |> load_schedules()
      |> load_system()
+     |> load_tokens()
      |> watch_house()
      |> stream(:activity, feed)}
   end
@@ -299,6 +302,17 @@ defmodule DobbyWeb.AdminLive do
         form={@system_form}
         effects={@effects}
         error={@system_error}
+      />
+
+      <%!-- Under the system fields, because it is the same subject — who and
+            what may reach this box — and the same reader. The keys to the MCP
+            door: minted here, labeled for the record, revocable here. --%>
+      <.tokens
+        :if={@section == :system}
+        tokens={@tokens}
+        minted={@minted}
+        label={@token_label}
+        error={@token_error}
       />
 
       <section :if={@section == :activity} class="panel feed">
@@ -526,6 +540,45 @@ defmodule DobbyWeb.AdminLive do
     end
   end
 
+  def handle_event("token", %{"token" => %{"label" => label}}, socket) do
+    {:noreply, assign(socket, :token_label, label)}
+  end
+
+  # The one moment the plaintext exists outside `Dobby.MCP`: minted, shown
+  # beside its label, and held only in this assign — a refresh, a revisit or
+  # the next mint and it is gone for good, which is what the sentence next to
+  # it says. The label box clears because its job is done; a refused label
+  # stays put beside the reason, like every other form here.
+  def handle_event("mint", %{"token" => %{"label" => label}}, socket) do
+    case Dobby.MCP.mint(label) do
+      {:ok, plaintext, token} ->
+        {:noreply,
+         socket
+         |> assign(:minted, %{label: token.label, token: plaintext})
+         |> assign(:token_label, "")
+         |> assign(:token_error, nil)
+         |> assign(:tokens, TokensPanel.list())}
+
+      {:error, reason} ->
+        {:noreply, socket |> assign(:token_label, label) |> assign(:token_error, reason)}
+    end
+  end
+
+  # No undo, deliberately, where a schedule gets one: a deleted schedule can
+  # be put back because Dobby still knows everything about it, but a revoked
+  # token's plaintext is exactly what Dobby does not keep. Putting the row
+  # back would restore the label and not the key — an undo that looks like
+  # one and isn't. Minting a fresh token is the honest path back in.
+  def handle_event("revoke", %{"id" => id}, socket) do
+    case Dobby.MCP.revoke(id) do
+      {:ok, _token} ->
+        {:noreply, socket |> assign(:token_error, nil) |> assign(:tokens, TokensPanel.list())}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :token_error, reason)}
+    end
+  end
+
   def handle_event("restore", _params, socket) do
     case socket.assigns.deleted do
       %{schedule: schedule} ->
@@ -676,6 +729,16 @@ defmodule DobbyWeb.AdminLive do
     |> assign(:system_form, SystemPanel.values(config))
     |> assign(:system_error, nil)
     |> assign(:effects, %{})
+  end
+
+  # Once, when the page opens. The rows change only through this page's own
+  # mint and revoke, which re-read as they go.
+  defp load_tokens(socket) do
+    socket
+    |> assign(:tokens, TokensPanel.list())
+    |> assign(:minted, nil)
+    |> assign(:token_label, "")
+    |> assign(:token_error, nil)
   end
 
   # The boxes are refilled from what was applied, including under a hand that

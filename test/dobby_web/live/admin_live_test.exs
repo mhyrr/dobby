@@ -170,7 +170,11 @@ defmodule DobbyWeb.AdminLiveTest do
       SchedulerAgent.clear()
       {:ok, view, _html} = open(conn, :topology)
 
-      assert has_element?(view, ".topo-node[data-part='scheduler'] .note.wrong", "1 without a timer")
+      assert has_element?(
+               view,
+               ".topo-node[data-part='scheduler'] .note.wrong",
+               "1 without a timer"
+             )
     end
 
     # Liveness by monitor, not by asking: a `:DOWN` flips the node, and a
@@ -584,6 +588,53 @@ defmodule DobbyWeb.AdminLiveTest do
              end)
 
       assert has_element?(view, ".field .effect.waiting")
+    end
+  end
+
+  describe "the tokens panel" do
+    # The whole life of a key, in one pass: minted with a label, the plaintext
+    # on screen exactly once beside the sentence saying so, listed by label,
+    # refused a twin, revoked. Deliberately no undo test — there is no undo,
+    # because the plaintext is exactly what Dobby does not keep.
+    test "mints with a label, shows the plaintext once, and revokes", %{conn: conn} do
+      {:ok, view, _html} = open(conn, :system)
+
+      # Empty says what it means rather than showing nothing.
+      assert has_element?(view, ".tokens .note", "No tokens")
+
+      html =
+        view
+        |> form("#new-token", %{"token" => %{"label" => "the kitchen laptop"}})
+        |> render_submit()
+
+      # The plaintext is on screen, the sentence says it will not come back —
+      # and it is a real key: the digest Dobby kept verifies it.
+      assert html =~ "it will not be shown again"
+
+      assert [_whole, plaintext] =
+               Regex.run(~r|<span class="arg">([A-Za-z0-9_-]{43})</span>|, html)
+
+      assert Dobby.MCP.verify(plaintext) == {:ok, "the kitchen laptop"}
+
+      assert has_element?(view, ".tokens .row .name", "the kitchen laptop")
+
+      # A label names exactly one key, and the refusal is the row's own words.
+      view
+      |> form("#new-token", %{"token" => %{"label" => "the kitchen laptop"}})
+      |> render_submit()
+
+      assert has_element?(view, ".tokens .why", "already a token")
+
+      [token] = Dobby.MCP.list()
+
+      view
+      |> element(~s{.tokens button[phx-value-id="#{token.id}"]}, "revoke")
+      |> render_click()
+
+      refute has_element?(view, ".tokens .row .name", "the kitchen laptop")
+      assert has_element?(view, ".tokens .note", "No tokens")
+      assert Dobby.MCP.list() == []
+      assert Dobby.MCP.verify(plaintext) == :error
     end
   end
 

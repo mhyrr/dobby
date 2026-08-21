@@ -78,7 +78,12 @@ defmodule Dobby.MixProject do
       # plug-native, MIT, raw `input_schema:` so the Jido tool mapping stays
       # ours, and a `connect/2` callback that is exactly the bearer-token seam
       # the trust model needs.
-      {:phantom_mcp, "~> 0.5"}
+      {:phantom_mcp, "~> 0.5"},
+      # Program dependence graph: what breaks if I change this function, can
+      # input reach a sink, did this branch cross a layer boundary. Advisory by
+      # default. Dev/test only, never loaded at runtime. `jason` above already
+      # unlocks `--format json`.
+      {:reach, "~> 2.8", only: [:dev, :test], runtime: false}
     ]
   end
 

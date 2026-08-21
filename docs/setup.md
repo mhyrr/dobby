@@ -50,9 +50,9 @@ Two rules keep the file shareable and honest:
   names a variable; Dobby resolves it at boot and refuses to start with a
   sentence naming exactly what is missing.
 - **Dobby writes this file too.** Edits made on `/house` and `/admin`, and
-  devices you add by talking to Dobby, all land in the same YAML through one
-  writer. Hand edits are welcome; they take effect when Dobby restarts. Keep
-  it a data file — a house described in `.exs` still boots, but Dobby will
+  devices an agent adds — Dobby's own or yours over MCP — all land in the
+  same YAML through one writer. Hand edits are welcome; they take effect
+  when Dobby restarts. Keep it a data file — a house described in `.exs` still boots, but Dobby will
   not write one, and the editing surfaces will say so.
 
 Entity ids live in HA under **Settings → Devices & services → Entities**. Use
@@ -106,21 +106,57 @@ the boundary, and `/admin` is a room in the house, not a privilege level.
 
 ## Growing the house
 
-Three ways, one file:
+Four ways, one file:
 
 1. **Say it.** "What does Home Assistant have that we don't?" — Dobby reads
    the unclaimed entities and proposes a device entry. Nothing changes until
    somebody says yes; a proposal is reported as proposed, an applied change
-   as applied, and the house restarts into its new shape.
+   as applied, and the house restarts into its new shape. It scales to the
+   whole house: name everything you have and Dobby proposes the lot as one
+   list — one yes adopts everything on it, and anything Home Assistant does
+   not show, Dobby says it cannot see rather than guessing.
 2. **`/house`.** Every device card has `edit` and `remove`, and the foot of
    the list has `add a device`. The form's fields come from the device type's
    own schema — a refused value is refused in the same words the file would
    use, naming the field.
 3. **The file.** Edit `home.yaml`, restart Dobby.
+4. **Send your own agent.** Any MCP client holding a minted token can do
+   everything the first way does — see
+   [Bring your own agent](#bring-your-own-agent-mcp).
 
 After any of them, devices read `NOT KNOWN` for a moment until Home Assistant
 speaks. That is honesty, not breakage — the house learning what it has — and
 the first state sync fills it in.
+
+## Bring your own agent (MCP)
+
+You do not have to do the setup by hand, and you do not have to do it in
+Dobby's own chat. Dobby serves its tools over MCP at `/mcp` — the same
+modules, the same schemas, the same refusals its own model gets — so the AI
+you already use can do the work.
+
+1. **Mint a key.** On `/admin`, under the system section, mint a token with a
+   label naming the agent that will hold it ("Ann's laptop"). The token is
+   shown once and never again; the label is what every call made with it will
+   be logged under. `revoke` closes the door without ceremony.
+2. **Connect your agent.** For Claude Code:
+
+   ```sh
+   claude mcp add --transport http dobby http://dobby.local/mcp \
+     --header "Authorization: Bearer <the token>"
+   ```
+
+   Any MCP client that speaks streamable HTTP connects the same way.
+3. **Tell it what you have.** "Dobby at dobby.local runs my house. I have a
+   thermostat, three lights, and a robot vacuum, all on Home Assistant — set
+   them up." The agent discovers what HA sees, proposes each device, and
+   confirms them into `home.yaml`; the house restarts into its new shape and
+   the cards fill in as HA speaks.
+
+The trust is the house's own, stated plainly: a token-holder speaks for the
+household, the way anyone with the Wi-Fi password does on the surfaces. That
+is why the tokens live on `/admin` and every key carries a name — the record
+of who asked is the token's real job.
 
 ## Running as an installed service
 

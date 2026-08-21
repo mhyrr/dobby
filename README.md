@@ -26,10 +26,11 @@ Credentials are never written in either. `home.yaml` says `env:DOBBY_HA_TOKEN`
 and Dobby reads the variable at boot, which is what keeps the file safe to
 share, commit, or send to someone debugging your setup.
 
-You can edit the house three ways, and they all end in the same file: open
-`home.yaml` in an editor, use the forms on `/house` and `/admin`, or just tell
-Dobby — "add the new thermostat as the dining room thermostat" — and confirm
-what it proposes.
+You can edit the house four ways, and they all end in the same file: open
+`home.yaml` in an editor; use the forms on `/house` and `/admin`; tell Dobby —
+"add the new thermostat as the dining room thermostat," or hand it the whole
+house at once — and say yes to what it proposes; or point your own AI at
+Dobby's MCP door and let it do the work under a key you minted.
 
 ## Running it
 
@@ -62,8 +63,20 @@ what the file's sections mean, serving the whole house at `http://dobby.local/`
 - `/house` — every device, its state, and what it can be asked; edit the
   house here.
 - `/admin` — the maintainer's room: a live diagram of the house's mind, health,
-  schedules, the box's own settings, and the full activity log. A room in the
-  house, not a privilege level — the Wi-Fi password is the boundary.
+  schedules, the box's own settings, the tokens other agents present at the
+  MCP door, and the full activity log. A room in the house, not a privilege
+  level — the Wi-Fi password is the boundary.
+
+## Bring your own agent
+
+Dobby's tools — the same closed set its own model uses — are served over MCP
+at `/mcp`, so an agent that is not Dobby can work the house: Claude Code on
+your laptop, or whatever your household runs. Mint a labeled token on
+`/admin`, hand it to your agent, and tell it what you have; it can discover
+what Home Assistant sees, propose the devices, and — because the token is the
+household's own key — confirm them into `home.yaml`. Every call it makes
+lands in the activity log under the token's label. The connection recipe is
+in [docs/setup.md](docs/setup.md).
 
 ## Developing
 

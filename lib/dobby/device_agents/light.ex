@@ -95,14 +95,8 @@ defmodule Dobby.DeviceAgents.Light do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def initial_state(%Device{} = device) do
-    %{
-      dobby_id: device.id,
-      name: device.name,
-      entity_id: Map.fetch!(device.bindings, :light),
-      settings: device.settings
-    }
-  end
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :light)
 
   @doc """
   Whether the discovered color modes include brightness.

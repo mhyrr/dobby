@@ -135,6 +135,30 @@ defmodule Dobby.DeviceAgent do
   @callback intervention?(attribute :: atom()) :: boolean()
 
   @doc """
+  The identity a device agent starts with, which is the same for every type.
+
+  Every type answers `initial_state/1` with these four keys and differs only in
+  which binding carries its entity — a light's is `:light`, a thermostat's is
+  `:climate`. Written once here so that a fifth thing an agent knows about
+  itself is one edit rather than one per type, and so that four device types
+  cannot quietly drift into four slightly different ideas of what a device is.
+
+  `Map.fetch!/2` rather than `Map.get/2` on purpose. `validate_device/1` has
+  already run by the time `Dobby.Home` builds a state, so a device arriving
+  here without its binding is a bug in bootstrap and should say so loudly
+  rather than start an agent pointed at `nil`.
+  """
+  @spec initial_state(Device.t(), atom()) :: map()
+  def initial_state(%Device{} = device, binding) when is_atom(binding) do
+    %{
+      dobby_id: device.id,
+      name: device.name,
+      entity_id: Map.fetch!(device.bindings, binding),
+      settings: device.settings
+    }
+  end
+
+  @doc """
   What differs between two states, and which of it actually *moved*.
 
   Two answers because the house asks two questions of the same event.

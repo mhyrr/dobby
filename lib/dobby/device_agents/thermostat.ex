@@ -99,14 +99,8 @@ defmodule Dobby.DeviceAgents.Thermostat do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def initial_state(%Device{} = device) do
-    %{
-      dobby_id: device.id,
-      name: device.name,
-      entity_id: Map.fetch!(device.bindings, :climate),
-      settings: device.settings
-    }
-  end
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :climate)
 
   @doc """
   The setpoint range this thermostat will accept right now.

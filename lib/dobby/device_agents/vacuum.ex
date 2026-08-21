@@ -89,14 +89,8 @@ defmodule Dobby.DeviceAgents.Vacuum do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def initial_state(%Device{} = device) do
-    %{
-      dobby_id: device.id,
-      name: device.name,
-      entity_id: Map.fetch!(device.bindings, :vacuum),
-      settings: device.settings
-    }
-  end
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :vacuum)
 
   defp require_binding(bindings, key) when is_map(bindings) do
     case Map.fetch(bindings, key) do

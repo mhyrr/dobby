@@ -82,7 +82,6 @@ spacing:
   pitch: "34rem"
   gutter: "8.6rem"
   span: "42.6rem"
-  span-admin: "66rem"
 components:
   flap:
     backgroundColor: "{colors.flap}"
@@ -150,13 +149,33 @@ components:
     textColor: "{colors.ink-faint}"
     typography: "{typography.label-small}"
     gap: "{spacing.sm}"
-  schedule-input:
+  field-input:
     backgroundColor: "{colors.flap}"
     textColor: "{colors.ink}"
     borderBottomColor: "{colors.brass-dim}"
     typography: "{typography.body}"
     rounded: "{rounded.none}"
     padding: "0.4rem 0.5rem"
+  field-ask:
+    textColor: "{colors.ink-faint}"
+    fontFamily: "Barlow Condensed, Avenir Next Condensed, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.74rem"
+    fontWeight: 600
+    lineHeight: 1.35
+    letterSpacing: "normal"
+    textTransform: "none"
+  field-key:
+    textColor: "{colors.ink-faint}"
+    typography: "{typography.label-small}"
+    textTransform: "none"
+  rail:
+    textColor: "{colors.ink-faint}"
+    typography: "{typography.headline}"
+    borderBottomColor: "{colors.rule}"
+    gap: "0.3rem 1.05rem"
+    padding: "0.7rem 0 0.45rem"
+  rail-on:
+    textColor: "{colors.brass}"
   feed-entry:
     textColor: "{colors.ink-quiet}"
     typography: "{typography.label-small}"
@@ -523,26 +542,24 @@ on the surface a phone opens first.
 `/house` and `/admin` scroll the same way the thread does: the page itself never
 scrolls, and the main region is the only scrolling thing on it.
 
-Admin is the one page with enough on it to want columns. At 980px it becomes
-`minmax(0, 22rem) minmax(0, span)` — health and schedules on the left because
-they are short and they are where the changing happens, the feed on the right
-because it is the long one. That is the system's only two-column layout; 820px
-still does everything else and 600px is where the board fits a hand, and all
-three are content breakpoints rather than device sizes.
+Admin has five subjects and shows one of them. It had two columns instead, and
+the columns shared a scroll container: a hundred entries of log dragged health,
+schedules and system off the top of the screen, so the three panels somebody
+came to change were hostage to the length of the one they came to read. A grid
+that keeps its two tracks in sight has to make the long one short, which is a
+worse answer than not putting them side by side.
 
-Admin is therefore the one page whose board is wider than the span — 22rem plus
-the gap plus the feed's own span, 66rem — and its header takes that number too.
-A nameplate centred on the one-column span while the panels beneath it centre on
-the two-column one leaves the name floating in the middle of them. That is what
-the `board-admin` class on its header is for, and it is the only route-specific
-class in the system.
+So the page is the same three bands as every other route — plate, rail,
+section — and the section is the only thing on it that scrolls. Every route
+now sits on the span. Admin had been the one exception on three counts at once:
+the system's only two-column layout, its only route-specific class
+(`board-admin`), and its third width (66rem, the left column plus the gap plus
+the feed's own span). All three left with the columns, and The One Width Rule
+holds everywhere without a footnote.
 
-Inside admin, a panel is a section of the board: its heading rule is the board's
-width and its content is a row's measure. Rows, schedules and the form take the
-pitch; the feed takes the span, because five columns is the one thing here with
-a reason to be wider than a row. Before this, admin between 820 and 980 was one
-column with nothing capped — a health row's three parts scattered across 775px,
-and a cron field the width of an iPad.
+Inside admin, a section's content takes a row's measure, except the feed, which
+takes the span — five columns is the one thing here with a reason to be wider
+than a row, and it now has the whole page to be wide in.
 
 ### Named Rules
 
@@ -552,11 +569,23 @@ the phone means two people reading the same conversation see two different
 documents. Audit test: two browsers, two names, one screenshot each — the
 messages must land in the same place.
 
-**The No Nav Rule.** Navigation is carried by things that already exist — the
-nameplate, the band of rows, one quiet link at the foot of a page. A shell of
-links around this would be a second visual language arguing with the first.
-Audit test: no route may introduce a nav element; a new page earns its way in
-from a surface that already leads somewhere.
+**The No Nav Rule.** Navigation *between routes* is carried by things that
+already exist — the nameplate, the band of rows, one quiet link at the foot of
+a page. A shell of links around this would be a second visual language arguing
+with the first. Audit test: no route may introduce a nav element; a new page
+earns its way in from a surface that already leads somewhere.
+
+The rule is about routes, and it is about a second language. Moving between
+*sections of one page* is neither, and admin's rail is the case that made the
+distinction worth writing down: it is the five panel headings that page already
+had, rotated from a column into a row and set on the hairline each of them
+already sat over. The section being read stays brass and the other four go
+faint, which is how this board has always told a subject from its
+record-keeping. Nothing is added — no shell, no box, no second face, no colour
+that was not already doing this job. **A rail that has to draw something new to
+work is a nav bar and the rule still forbids it.** Audit test: delete the rail's
+own stylesheet block; what is left should be five headings the page would have
+had anyway.
 
 **The One Width Rule.** A board has one width, and a rule stops where the
 content under it stops. The plate used to span the viewport while everything
@@ -678,7 +707,9 @@ the mark, and a `LISTENING` / `QUIET` flap.
   hairline there ruled the name off from 22px of empty plate and then the
   board's own 2px brass edge — two rules with a void between them, which reads
   as a header that lost its contents. `:only-child` is the condition itself and
-  costs no route class, so `board-admin` is still the only one in the system
+  costs no route class — which is why, when admin's two columns left and took
+  `board-admin` with them, there was no route-specific class left in the system
+  at all
 
 - **Section:** absent on `/`. Elsewhere the name becomes a link, followed by a
   brass-dim separator and the section in quiet ink, all on the headline step
@@ -845,9 +876,10 @@ the admin's schedule delete use the same line, unchanged.
 - **Style:** the record voice in faint ink — `undo · back to 70°`, or
   `undo · put back "weeknight heat"`
 - **The button:** transparent, no border but a 1px `brass-dim` underline, brass
-  lettering, lower case. That is the system's quiet control, and the same
-  treatment carries `pause`, `resume`, `delete` and the form's `add` — all five
-  lower case, because each of them is a verb
+  lettering, lower case. That is the system's quiet control, and it carries
+  `pause`, `resume`, `edit`, `switch`, `save` and the form's `add` — all of them
+  lower case, because each is a verb. Two verbs are drawn out of it rather than
+  in it; see The Three Verbs
 - **One step, not a stack.** Undoing does not offer its own undo
 - **A refusal is not an undo.** `HELD` and its reason stay until the next
   attempt rather than expiring with the window: an undo is an offer and goes
@@ -918,17 +950,29 @@ The intervention record: what changed in the house, by whatever path.
 
 ### Admin
 
-Same board, same words; what changes is that a maintainer is reading it. Four
-panels, and the order is an argument: health first because it is three lines and
-it changes what the other two mean, schedules next because they are the thing on
-this page changed most often, the system panel under them because a model alias
-or a port is set once and then left alone, the feed last because you scroll to a
-log rather than being handed it.
+Same board, same words; what changes is that a maintainer is reading it. Five
+sections and one showing, and their order in the rail is still an argument: the
+topology first because it is the map the other four are questions about, health
+next because it changes what schedules mean, schedules after it because they are
+the thing on this page changed most often, the system panel because a model
+alias or a port is set once and then left alone, and the feed last because you
+scroll to a log rather than being handed it.
 
-- **Panel heading:** the headline step in brass over a hairline — the plate's
-  type, used as a section rule. The rule takes the board's width and the content
-  under it takes a row's measure, so three sections read as one board rather
-  than as three rules of two lengths
+- **The rail:** the five panel headings, rotated from a column into a row. Same
+  headline step, same brass, same hairline each of them sat over when they were
+  stacked — the only thing this adds is that four are faint at a time. There is
+  no panel heading any more, because the rail is it: a section repeating the
+  name the rail gave it is the same heading printed twice on one screen. See The
+  No Nav Rule for why five links here are not a nav bar, and for the audit test
+  that keeps it that way
+- **The section is in the address,** not in an assign. A LiveView that loses its
+  socket remounts on the URL it is on, so a page left open on the feed comes
+  back to the feed rather than to the map. A section nobody names is the map
+- **The feed is in the DOM only while it is showing,** so it re-reads on the way
+  in rather than a hundred rows being kept current behind four other sections
+  for nobody. The topology's pulses are not the feed's and keep arriving
+  whatever is on screen: a wire that only lit while somebody was watching the
+  log would be a diagram that lies about a quiet house
 - **Health rows:** board rows whose middle column is demoted to 0.74rem faint
   ink. Empty is the healthy answer for the note beneath them, and it says so in
   words rather than showing nothing. The note claims what it measures — every
@@ -944,10 +988,10 @@ log rather than being handed it.
   field list written into a template: a knob added to
   `Dobby.HomeConfig.System` grows a field here, typed by its declared type,
   explained in its own `:doc` — which was written for whoever edits the file by
-  hand and has a second reader now. The field's name is a schema key, so it is
-  set as the identifier it is, in lower case, exactly as the schedule form's
-  argument fields are. A boolean is two words in a select and never a tick: a
-  tick is an icon, and this board says things in words
+  hand and has a second reader now — as this panel's questions, since every one
+  of its four knobs declares one. See The Form. A boolean is two words in a
+  select and never a tick: a tick is an icon, and this board says things in
+  words
 - **What a save did, per field, and never one line claiming the whole save
   worked.** The model alias takes effect at the moment it is next used; a port
   and a LAN binding belong to a socket opened at boot and no amount of writing
@@ -981,11 +1025,11 @@ log rather than being handed it.
   declined it, but the shape is the same and so is the treatment
 - **Paused:** no flap at all, and the name, value and detail drop to faint ink.
   See The Absent Word Rule
-- **The form:** the only form inputs in the system. A filled `flap` ground, a
-  1px `brass-dim` underline and no other border, no radius, a commanded-amber
-  caret, and the field's name above it in the record voice. The input itself is
-  1rem Barlow, the same as the set line's, because what you type is language.
-  An error is declined rust under the field it came from
+- **The form:** the only form inputs in the system, and there is one drawing of
+  them — see The Form below. A filled `flap` ground, a 1px `brass-dim`
+  underline and no other border, no radius, a commanded-amber caret. The input
+  itself is 1rem Barlow, the same as the set line's, because what you type is
+  language. An error is declined rust under the field it came from
 - **The feed:** a fixed five-column grid,
   `5.5rem 6.5rem minmax(0, 1fr) 7rem 3.5rem` — time, kind, what, who, took —
   hairline-ruled between entries, in the record voice. Fixed pitch so a
@@ -993,6 +1037,96 @@ log rather than being handed it.
   truncate rather than wrap, and `took` is right-aligned. Below 600px it is two
   lines rather than five columns, because five columns need 392px before `what`
   gets a pixel — see A narrow board
+
+### The Form
+
+One drawing, on both routes that have one: the device on `/house`, the schedule
+and the box's own settings on `/admin`. There were three before, and one of them
+printed labels in three voices on a single screen — a written word in capitals,
+a schema key in lower case with dots in it, and a sentence demoted to a footnote
+under the box it belonged above.
+
+- **The label is the question, and the key is the receipt.** The question sits
+  at one end of the label line and the key at the other, small, for whoever will
+  go and open the file. A field that has no question carries only its key, and a
+  flex row leaves it at the left where a label belongs — so one rule draws both
+  and neither is a special case
+- **A question is a sentence** and takes sentence case with no tracking. The
+  same exception a refusal's reason takes: capitals on this board mean a label,
+  and a clause set in condensed capitals is the record voice doing a job it is
+  not for
+- **The trailing full stop comes off.** It is punctuation for a doc block, not
+  for a label, and leaving it in put a period on every generated label and none
+  on any written one, three lines apart on the same form. A `:doc` long enough
+  for that to read oddly is too long to be a label
+- **The head is the form's nameplate,** and the one choice that decides which
+  fields follow sits in it rather than among the questions — a device's type,
+  which is set once with its id. A form opening at the foot of a list, under
+  somebody else's card, reads as that card's fine print without one; a form that
+  opens inside the thing it is about needs none
+- **`Identifiers` rules off the second register.** Jargon is the right word
+  there: it is the half of the form a maintainer fills in, and something
+  friendlier would be the form pretending these are questions when they are
+  names
+
+### Named Rules
+
+**The Two Registers Rule.** A field with a `:doc` asks its question in the
+household's words and carries its key beside it. A field without one has no
+question to ask, so its key *is* its label, and it sits under the form's own
+rule with the others like it.
+
+The split is derived and never assigned per form: writing a `:doc` moves a field
+out of the second group and into the first. That is what keeps a new device type
+costing one module and no form code — a form that had to be told which of its
+fields were friendly would need editing every time one was added.
+
+It also puts a missing `:doc` where a person will see it, instead of leaving it
+invisible in a schema nobody opens. Three actuating device-agent actions were
+found that way and now ask their question in words. The model's own tools are a
+separate layer — `Dobby.Tools.*`, which these dispatch into — and they carry
+their own descriptions; a `:doc` on a device agent's action is read by whoever
+edits the schema and by this form, and by nothing else. Audit test: open any
+form; anything under `Identifiers` that is not an id or an entity is a schema
+entry somebody has not finished.
+
+### The Three Verbs
+
+Every verb on this board had one drawing. So `delete` was the same object as
+`pause`, a finger apart in the same row; `remove` was the same object as `edit`
+on every card; and at the one moment somebody is deciding whether to remove a
+device, the removal and the way out of it were the same object again. On a
+surface with no authentication, on a tablet the kids use.
+
+Three tiers, and the only thing that varies between them is weight and ink.
+
+- **A verb that takes something away** — `remove`, `delete` — keeps the brass
+  lettering and takes a **2px** `brass-dim` underline. The board has exactly two
+  rule weights: a 1px hairline inside it, and 2px where the structure actually
+  changes. A removal *is* where the structure changes — a device leaves the
+  manifest, a schedule leaves the table — so this spends the weight the system
+  already spends on that, and spends no colour at all
+- **A verb that reaches the house** — `save`, `add`, `pause`, `resume`, `undo`,
+  `edit`, `switch` — is the quiet control unchanged: brass on a 1px underline
+- **The way back** — `cancel`, `keep it` — gives up the underline and drops to
+  quiet ink. The underline is what says a control reaches the house, and this
+  one does not: it closes a form or declines a question. The border goes
+  transparent rather than to zero, so the baseline it shares with the verb
+  beside it does not move. It keeps its reach and its focus ring
+
+### Named Rules
+
+**The Three Verbs Rule.** Weight tells a verb apart, and colour never does.
+Declined rust is the obvious move for a destructive control and it is the one
+the Palette Law forbids: rust is a sentence saying why something did not happen
+— never a fill, never a badge, never a button. A verb that wants to look
+dangerous gets the weight the board already spends on a structural change, or it
+gets a second step with its cost named, which is what a device removal has.
+
+The tier is declared in the markup and never guessed from the word, because the
+word is the only thing a copied button keeps. Audit test: every control that
+deletes a row or drops an entry from the manifest carries the heavier underline;
+every control that only closes something carries none.
 
 ### The Mark
 

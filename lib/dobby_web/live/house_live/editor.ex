@@ -30,7 +30,10 @@ defmodule DobbyWeb.HouseLive.Editor do
 
   use DobbyWeb, :html
 
+  import DobbyWeb.Fields
+
   alias Dobby.HomeConfig.Types
+  alias DobbyWeb.Fields
 
   @doc """
   One device, as fields.
@@ -41,28 +44,59 @@ defmodule DobbyWeb.HouseLive.Editor do
   attr :error, :string, default: nil, doc: "why the last save was refused"
 
   def editor(assigns) do
+    assigns = assign(assigns, :settings, settings(assigns.module))
+
     ~H"""
     <form id="device-form" class="fields device-form" phx-change="form" phx-submit="save">
       <%!-- The add form opens at the foot of the list, under another device's
             card — without its own nameplate it reads as that card's fields.
             An edit form needs none: it opens inside the card it is about. --%>
-      <span :if={@new} class="fields-head">A new device</span>
-      <%!-- Added once and then only ever read. See the moduledoc: the id is what
-            a schedule stores and the type is where its actions come from. --%>
-      <label :if={@new}>
-        <span class="arg">id</span>
-        <input type="text" name="device[id]" value={@form["id"]} autocomplete="off" />
-        <span class="hint">Dobby's own name for it, like thermostat:main. It is set once.</span>
-      </label>
+      <.head :if={@new}>
+        A new device
+        <:choice>
+          <%!-- The one choice that decides which fields follow, so it belongs
+                in the head rather than among the questions. Set once with the
+                id: changing what a device *is* is a removal and an addition,
+                and it reads like one. --%>
+          <select name="device[type]">
+            <option :for={type <- Types.names()} value={type} selected={type == @form["type"]}>
+              {type}
+            </option>
+          </select>
+        </:choice>
+      </.head>
 
-      <label :if={@new}>
-        <span>Type</span>
-        <select name="device[type]">
-          <option :for={type <- Types.names()} value={type} selected={type == @form["type"]}>
-            {type}
-          </option>
-        </select>
-      </label>
+      <.field ask="What somebody calls it out loud" key="name">
+        <input type="text" name="device[name]" value={@form["name"]} autocomplete="off" />
+      </.field>
+
+      <.field ask="Other names for the same thing, separated by commas" key="aliases">
+        <input type="text" name="device[aliases]" value={@form["aliases"]} autocomplete="off" />
+      </.field>
+
+      <%!-- Three of the four types declare no settings at all, and a house
+            editing them never sees either of these two groups. --%>
+      <.field :for={setting <- asked_settings(@settings)} ask={setting.ask} key={setting.key}>
+        <input
+          type={Fields.input_type(setting.type)}
+          step={if Fields.input_type(setting.type) == "number", do: "any"}
+          name={setting.input}
+          value={@form["settings"][setting.field]}
+          autocomplete="off"
+        />
+      </.field>
+
+      <%!-- Everything this device is called in a file: Dobby's own name for it
+            and Home Assistant's, plus any setting nobody wrote a sentence for.
+            None of them is a question, so none of them gets asked as one. --%>
+      <.named say={named_say(@new)} />
+
+      <%!-- Added once and then only ever read. See the moduledoc: the id is
+            what a schedule stores and the type is where its actions come
+            from. --%>
+      <.field :if={@new} key="id">
+        <input type="text" name="device[id]" value={@form["id"]} autocomplete="off" />
+      </.field>
 
       <%!-- The two that cannot change, said in the record voice as the
             identifiers they are rather than as fields that refuse you. --%>
@@ -70,51 +104,63 @@ defmodule DobbyWeb.HouseLive.Editor do
         <span class="arg">{@form["id"]}</span> · <span class="arg">{@form["type"]}</span>
       </p>
 
-      <label>
-        <span>Name</span>
-        <input type="text" name="device[name]" value={@form["name"]} autocomplete="off" />
-        <span class="hint">What somebody calls it out loud.</span>
-      </label>
-
-      <label>
-        <span>Also called</span>
-        <input type="text" name="device[aliases]" value={@form["aliases"]} autocomplete="off" />
-        <span class="hint">Other names for the same thing, separated by commas.</span>
-      </label>
-
-      <label :for={binding <- @module.subscribed_bindings()}>
-        <span class="arg">bindings.{binding}</span>
+      <.field :for={binding <- @module.subscribed_bindings()} key={"bindings.#{binding}"}>
         <input
           type="text"
           name={"device[bindings][#{binding}]"}
           value={@form["bindings"][to_string(binding)]}
           autocomplete="off"
         />
-        <span class="hint">The Home Assistant entity, exactly as Home Assistant names it.</span>
-      </label>
+      </.field>
 
-      <%!-- Three of the four types declare no settings at all, and a house
-            editing them never sees this. --%>
-      <label :for={{key, spec} <- @module.config_schema()}>
-        <span class="arg">settings.{key}</span>
+      <.field :for={setting <- named_settings(@settings)} key={setting.key}>
         <input
-          type={input_type(spec[:type])}
-          step={if input_type(spec[:type]) == "number", do: "any"}
-          name={"device[settings][#{key}]"}
-          value={@form["settings"][to_string(key)]}
+          type={Fields.input_type(setting.type)}
+          step={if Fields.input_type(setting.type) == "number", do: "any"}
+          name={setting.input}
+          value={@form["settings"][setting.field]}
           autocomplete="off"
         />
-        <span :if={spec[:doc]} class="hint">{spec[:doc]}</span>
-      </label>
+      </.field>
 
       <div :if={@error} class="why">{@error}</div>
 
       <div class="acts">
         <button type="submit">save</button>
-        <button type="button" phx-click="cancel">cancel</button>
+        <button type="button" class="back" phx-click="cancel">cancel</button>
       </div>
     </form>
     """
+  end
+
+  # A type's settings, as fields. The `:doc` the callback declares — written
+  # for whoever edits the file by hand — is the question this form asks, and a
+  # setting without one has no question to ask and falls to the second group.
+  defp settings(module) do
+    Enum.map(module.config_schema(), fn {key, spec} ->
+      %{
+        key: "settings.#{key}",
+        field: to_string(key),
+        input: "device[settings][#{key}]",
+        ask: Fields.ask(spec[:doc]),
+        type: spec[:type]
+      }
+    end)
+  end
+
+  defp asked_settings(settings), do: settings |> Fields.registers() |> elem(0)
+  defp named_settings(settings), do: settings |> Fields.registers() |> elem(1)
+
+  # The id is only in the list while it can still be typed. Afterwards this
+  # group is Home Assistant's names and nothing else, and a line about setting
+  # the id once would be describing a box that is not there.
+  defp named_say(true) do
+    "The id is Dobby's own name and is set once, because a schedule stores it. " <>
+      "The rest are Home Assistant's entities, exactly as Home Assistant names them."
+  end
+
+  defp named_say(false) do
+    "Home Assistant's entities, exactly as Home Assistant names them."
   end
 
   # -- the form's two directions ---------------------------------------------
@@ -269,8 +315,6 @@ defmodule DobbyWeb.HouseLive.Editor do
       _not_a_number -> value
     end
   end
-
-  defp input_type(type), do: if(numeric?(type), do: "number", else: "text")
 
   defp numeric?({:or, types}), do: Enum.any?(types, &numeric?/1)
   defp numeric?(type), do: type in [:integer, :float, :number, :pos_integer, :non_neg_integer]

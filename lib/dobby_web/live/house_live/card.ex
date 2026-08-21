@@ -89,7 +89,9 @@ defmodule DobbyWeb.HouseLive.Card do
     ~H"""
     <div :if={@editable and not @editing and is_nil(@removing)} class="acts">
       <button type="button" phx-click="edit" phx-value-device={@snapshot.id}>edit</button>
-      <button type="button" phx-click="remove" phx-value-device={@snapshot.id}>remove</button>
+      <button type="button" class="takes" phx-click="remove" phx-value-device={@snapshot.id}>
+        remove
+      </button>
     </div>
 
     <%!-- The question is a board line and its cost is a sentence, which is why
@@ -99,10 +101,15 @@ defmodule DobbyWeb.HouseLive.Card do
     <p :if={@removing && @removing.cost} class="hint">{@removing.cost}</p>
 
     <div :if={@removing} class="acts">
-      <button type="button" phx-click="remove_confirm" phx-value-device={@snapshot.id}>
+      <button
+        type="button"
+        class="takes"
+        phx-click="remove_confirm"
+        phx-value-device={@snapshot.id}
+      >
         remove
       </button>
-      <button type="button" phx-click="cancel">keep it</button>
+      <button type="button" class="back" phx-click="cancel">keep it</button>
     </div>
 
     <%!-- A refusal about the device this card is about belongs on this card,

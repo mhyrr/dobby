@@ -340,7 +340,7 @@ defmodule DobbyWeb.HouseLiveTest do
              )
 
       assert has_element?(view, "input[name='device[settings][min_temperature_f]'][value='60']")
-      assert has_element?(view, ".device-form .hint", "coolest this household")
+      assert has_element?(view, ".device-form .ask", "coolest this household")
 
       # A type that declares no settings gets no settings fields, and nobody
       # wrote a light form to make that true.
@@ -592,6 +592,37 @@ defmodule DobbyWeb.HouseLiveTest do
         Writer.save(%{config | house: Keyword.put(config.house, :devices, devices ++ [attic])})
 
       assert eventually(fn -> has_element?(view, "#card-thermostat\\:attic") end)
+    end
+  end
+
+  # Eight verbs shared one drawing, so `remove` was the same object as `edit`
+  # and, at the confirm, the same object as the way out of it. The tier is a
+  # class rather than a guess from the word, and a button copied from its
+  # neighbour loses it silently — which is what this holds.
+  describe "what a verb looks like" do
+    setup [:editable_house]
+
+    test "taking something away is drawn as taking something away", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      assert has_element?(view, ".card .acts button.takes", "remove")
+      refute has_element?(view, ".card .acts button.takes", "edit")
+
+      view |> element("button[phx-value-device='thermostat:main']", "remove") |> render_click()
+
+      # The one moment somebody can still decide otherwise, and the two answers
+      # to it were the same object.
+      assert has_element?(view, ".acts button.takes", "remove")
+      assert has_element?(view, ".acts button.back", "keep it")
+    end
+
+    test "the way out of a form is not drawn like the way in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("button", "add a device") |> render_click()
+
+      assert has_element?(view, ".device-form button.back", "cancel")
+      refute has_element?(view, ".device-form button.back", "save")
     end
   end
 

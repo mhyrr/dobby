@@ -170,7 +170,6 @@
      page whose board is wider than the span: the left column, the gap, and the
      feed's own span. Its header takes the same number, or the nameplate
      centres on one width while the panels under it centre on another. */
-  --span-admin: calc(22rem + 1.4rem + var(--span));
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -741,6 +740,35 @@ body {
   gap: 1.4rem;
   align-content: start;
 }
+/* ── the rail ─────────────────────────────────────────────────────────────
+   The five panel headings, rotated from a column into a row. Same face, same
+   tracking, same brass and the same hairline each of them sat over when they
+   were stacked — the only thing this adds is that four are faint at a time,
+   which is how the board has always separated a subject from its
+   record-keeping. Nothing new is drawn, and that is the whole argument for it
+   under The No Nav Rule.
+
+   Fixed between the plate and the section, because the section is what
+   scrolls. Wraps rather than shrinking: five headings need more than a phone's
+   line, and type on this board does not scale down to fit. */
+.rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem 1.05rem;
+  padding: .7rem var(--inset) .45rem;
+  border-bottom: var(--rule);
+}
+.rail a {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-decoration: none;
+}
+.rail a.on { color: var(--brass); }
 /* A panel is a section of the board, so its heading rule is the board's width
    and what changes underneath is the content. Rows, schedules and the form are
    a row's measure; the feed is the one thing here with five columns and a
@@ -750,29 +778,11 @@ body {
    stretch to the viewport: a health row's three parts scattered across 775px,
    and a cron field the width of an iPad. */
 .panel { display: grid; gap: .5rem; align-content: start; min-width: 0; }
-/* Health and schedules, as one column rather than as two rows of the page's
-   grid. A row grows to hold an item spanning it, so the feed beside them was
-   setting their heights: at 1440×900 the health panel was 233px of content in
-   a 508px row, and the schedules — the only thing on this page you can change
-   — started 275px below the thing above them. */
-.side { display: grid; gap: 1.4rem; align-content: start; min-width: 0; }
 .panel .rows,
 .panel .note,
 .panel > .why,
 .panel > .undo,
-.new-sched,
-.settings,
 .sched { max-width: var(--pitch); }
-.panel h2 {
-  font-family: var(--board-type);
-  text-transform: uppercase;
-  letter-spacing: .16em;
-  font-size: .86rem;
-  font-weight: 600;
-  color: var(--brass);
-  padding-bottom: .35rem;
-  border-bottom: var(--rule);
-}
 /* An empty region on this board is a labelled blank, not an absence. The
    record voice says what is not there, in the same lettering it uses to say
    what is — because "nothing has happened here" is a reading like any other,
@@ -845,7 +855,7 @@ body {
   font-size: .74rem;
   color: var(--ink-quiet);
 }
-.acts button, .sched .acts button, .new-sched button, .fields button, .settings button, .admin .undo button {
+.acts button, .sched .acts button, .fields button, .admin .undo button {
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--brass-dim);
@@ -856,15 +866,46 @@ body {
   cursor: pointer;
   color: var(--brass);
 }
-/* The system's one form treatment, shared by the two surfaces that have one:
-   the schedule on admin and the device on /house. A new device type brings its
-   own fields and no CSS — see `DobbyWeb.HouseLive.Editor`. Two selectors and
-   not one class on both forms, so that adding the second form changed nothing
-   about the page that had the first. */
-.new-sched, .fields {
+/* A verb that takes something away. Eight verbs shared one drawing, so `delete`
+   was the same object as `pause` and `remove` was the same object as `edit` —
+   on a surface with no auth, on a tablet the kids use, with a finger.
+
+   The board has exactly two rule weights: a 1px hairline inside it, and 2px
+   brass-dim where the structure actually changes. A removal is where the
+   structure changes — a device leaves the manifest, a schedule leaves the
+   table — so this spends the weight the system already spends on that, and
+   spends no colour at all. Declined rust was the obvious move and it is the one
+   the Palette Law forbids: rust is a sentence saying why something did not
+   happen, never a fill and never a control. Weight marks importance; colour
+   never does. */
+.acts button.takes, .sched .acts button.takes { border-bottom-width: 2px; }
+/* The way back, which does nothing. `cancel` and `keep it` were drawn exactly
+   like the verb they sit beside, so at the one moment somebody is deciding
+   whether to remove a device, the escape and the removal were the same object.
+
+   It keeps its reach and its focus ring; what it gives up is the underline,
+   because that underline is what says a control reaches the house. The colour
+   goes transparent rather than the border going to zero, so the baseline it
+   shares with the verb beside it does not move. */
+.acts button.back, .fields button.back {
+  border-bottom-color: transparent;
+  color: var(--ink-quiet);
+}
+/* ── the form ─────────────────────────────────────────────────────────────
+   One form, everywhere a form appears: the device on /house, the schedule and
+   the box's own settings on /admin. There were three drawings before this and
+   one of them printed labels in three voices on a single screen — a written
+   word in capitals, a schema key in lower case with dots in it, and a sentence
+   demoted to a footnote under the box it belonged above.
+
+   Now a field's label is its question when it has one and its key when it does
+   not, and both are the same line. See `DobbyWeb.Fields` for why the split is
+   derived from the schema rather than written per form. */
+.fields {
   display: grid;
-  gap: .6rem;
+  gap: .9rem;
   justify-items: start;
+  max-width: var(--pitch);
 }
 /* What separates the new-schedule form from the schedules above it. The device
    form needs none: it opens inside the card it is about, which is already
@@ -874,32 +915,37 @@ body {
   margin-top: .3rem;
   border-top: 2px solid var(--brass-dim);
 }
-.new-sched label, .fields label { display: grid; gap: .2rem; width: 100%; }
-/* The written labels. A key out of a schema — an action's argument, a device's
-   binding or setting — takes `.arg` instead, because it is a thing you go and
-   open rather than a word somebody chose. */
-.new-sched label span:not(.arg),
-.fields label span:not(.arg) {
-  text-transform: uppercase;
-  letter-spacing: .07em;
-}
-.new-sched label span,
-.fields label span {
+.field { display: grid; gap: .2rem; width: 100%; }
+.field label { display: grid; gap: .2rem; width: 100%; }
+/* The question at one end of the line and the key at the other, as a receipt
+   for whoever will go and open the file. A field carrying only a key has one
+   child here, and a flex row leaves it at the left, where a label belongs —
+   so the same rule draws both registers and neither is a special case.
+
+   Sentence case, and no letter-spacing. A question is a sentence, and a
+   sentence set in condensed capitals is the record voice doing a job it is not
+   for — the same call `.hint` makes, and the same exception a refusal's reason
+   takes. */
+.fields .asks {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .6rem;
   font-family: var(--board-type);
   font-size: .74rem;
   color: var(--ink-faint);
 }
-/* `.hint` is defined with the notes, since it is one — the sentence under a
-   line rather than the line. This is the same treatment at a specificity that
-   beats the form's own label rule. */
-.fields label span.hint {
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--ink-faint);
-}
-/* The add form's nameplate: a rule and a label, so fields opening beneath
-   another device's card read as their own thing and not as its fine print. */
-.fields .fields-head {
+.fields .asks .ask { min-width: 0; line-height: 1.35; }
+.fields .asks .arg { flex: 0 0 auto; }
+/* The form's nameplate, and beside it the one choice that decides which fields
+   follow. Without it, fields opening beneath another device's card read as
+   that card's fine print. */
+.fields-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .9rem;
+  width: 100%;
   padding-top: .7rem;
   border-top: var(--rule);
   font-family: var(--board-type);
@@ -908,7 +954,27 @@ body {
   font-size: .74rem;
   color: var(--ink-quiet);
 }
-.new-sched input, .new-sched select, .fields input, .fields select, .settings input, .settings select {
+.fields-head > span { flex: 0 0 auto; white-space: nowrap; }
+.fields-head select { width: auto; min-width: 0; max-width: 12rem; flex: 0 1 auto; }
+/* The second register's rule: the same hairline and the same label the form's
+   own head takes, because it is the same kind of thing — a heading over a
+   group of fields, saying which register they are in. */
+.named {
+  display: grid;
+  gap: .2rem;
+  width: 100%;
+  padding-top: .7rem;
+  border-top: var(--rule);
+}
+.named-head {
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+.named .hint { line-height: 1.35; }
+.fields input, .fields select {
   width: 100%;
   background: var(--flap);
   border: 0;
@@ -919,66 +985,37 @@ body {
   padding: .4rem .5rem;
   caret-color: var(--st-set);
 }
-.new-sched input::placeholder, .fields input::placeholder { color: var(--ink-faint); }
-.new-sched .why, .fields .why, .settings .why { font-size: .86rem; color: var(--st-refused); }
+.fields input::placeholder { color: var(--ink-faint); }
+.fields .why { font-size: .86rem; color: var(--st-refused); }
 
-/* ── the system panel ─────────────────────────────────────────────────────
-   The box rather than the house: the model behind the `:capable` alias, the
-   port, whether Dobby answers on the household network. Every block here is
-   drawn from the section's own schema and not from a list written out in a
-   template, so a new knob costs a schema entry and nothing else.
-
-   One composition and two leaves. A house Dobby can write gets the form; a
-   house it cannot — an Elixir home, which is what the dev and test rig boots
-   from — gets the same blocks with the value where the box was. The two read as
-   one panel with its inputs taken out rather than as two panels, which is the
-   truth of it: read-only here is the ordinary case, not an edge. */
-.settings { display: grid; gap: .6rem; justify-items: start; }
-.setting { display: grid; gap: .2rem; width: 100%; }
-/* A field's name is a key out of the schema — nobody wrote it as a word — so it
-   is set as the identifier it is rather than shouted. The same reading the
-   schedule form's argument fields take, and for the same reason. */
-.setting > .arg,
-.setting label span {
-  font-family: var(--board-type);
-  font-size: .74rem;
-  color: var(--ink-faint);
-}
-/* The value in the board's own face and never shouted: a model alias and a
-   hostname are identifiers — things you go and open — and capitals here mean a
-   state, a name or a time. It breaks anywhere for the reason the feed's `what`
-   does: an identifier has no space in it to break at, and a panel that scrolls
-   sideways is what the narrow board forbids. */
-.setting .reading {
-  font-family: var(--board-type);
-  font-size: .86rem;
-  letter-spacing: .04em;
+/* ── a house Dobby cannot write ───────────────────────────────────────────
+   The same blocks with the value where the box was, so the two read as one
+   panel with its inputs taken out rather than as two panels. Read-only here is
+   the ordinary case and not an edge: the writer will not rewrite an Elixir
+   home, and the dev and test rig boots from one. */
+.fields .reading {
+  font-family: var(--said-type);
+  font-size: 1rem;
   color: var(--ink);
+  padding: .4rem 0;
   overflow-wrap: anywhere;
 }
-/* A knob the file does not mention is a knob at Dobby's own default, which is a
-   reading like any other — and faint, because it is the board's value and not
-   the household's. */
-.setting .reading.unset { color: var(--ink-faint); }
-/* The schema's own `:doc`. It was written for whoever edits the file by hand
-   and has a second reader now. A sentence, so it is set in the sentence face at
-   the size a refusal takes: the condensed face is the board saying states,
-   names and times, and it does not write prose. */
-.setting .hint { font-size: .74rem; line-height: 1.35; color: var(--ink-faint); }
-/* What the save actually did, on the field it did it to. Not a flap and not a
-   state colour: none of the eight words means "written down and waiting for a
-   restart", and a ninth word or a sixth colour is a design decision rather than
-   a CSS change. The record voice says it instead — and the one that is still
-   owed a restart takes the louder of the two quiet inks, because it is a
-   standing debt and the other is a receipt. */
-.setting .effect {
+/* A knob the file does not mention reads `default`, faint — somebody chose it
+   by saying nothing, which is not the same as nobody having told us. */
+.fields .reading.unset { color: var(--ink-faint); }
+/* None of the eight words means "written down and waiting for a restart", and
+   a ninth is a design decision rather than a CSS change. So this is not a flap
+   and not a state colour — it is the record voice, on the field it is about,
+   and the two are told apart by which of the quiet inks they take. The standing
+   debt is the louder and the receipt the fainter. */
+.field .effect {
   font-family: var(--board-type);
   text-transform: uppercase;
   letter-spacing: .07em;
   font-size: .74rem;
   color: var(--ink-faint);
 }
-.setting .effect.waiting { color: var(--ink-quiet); }
+.field .effect.waiting { color: var(--ink-quiet); }
 
 /* ── the topology ─────────────────────────────────────────────────────────
    The command hierarchy, drawn: two directors, the devices, the one client
@@ -1271,20 +1308,27 @@ body {
   .undo button,
   .acts button,
   .sched .acts button,
-  .new-sched button,
   .fields button,
-  .settings button,
   .to-admin,
   .collapsed summary,
   .plate h1 a,
-  .plate .speaking-as button { position: relative; }
+  .plate .speaking-as button,
+  .rail a { position: relative; }
+
+  .rail a::after {
+    content: "";
+    position: absolute;
+    inset: -0.7rem -0.5rem;
+  }
+  /* Both gaps clear the reach on either side, in a row that wraps: 1.5rem
+     between two lines of headings against 0.7rem of reach each way, and
+     1.4rem across against 0.5rem. */
+  .rail { gap: 1.5rem 1.4rem; }
 
   .undo button::after,
   .acts button::after,
   .sched .acts button::after,
-  .new-sched button::after,
   .fields button::after,
-  .settings button::after,
   .to-admin::after,
   .collapsed summary::after,
   .plate h1 a::after,
@@ -1299,7 +1343,7 @@ body {
      one meant for the temperature field cannot land on `add`, and one meant
      for `remove` cannot land on `edit`. */
   .acts, .sched .acts { gap: 1.4rem; }
-  .new-sched, .fields, .settings { gap: 1.1rem; }
+  .fields { gap: 1.4rem; }
 }
 
 /* ── a short screen ───────────────────────────────────────────────────────
@@ -1330,39 +1374,14 @@ body {
   .plate .speaking-as button:hover { color: var(--brass); }
   .rows:hover .name { color: var(--ink); }
   .to-admin:hover { color: var(--brass); }
+  /* The section you are on is already brass and has nowhere to go. */
+  .rail a:not(.on):hover { color: var(--ink); }
   /* Ink and not commanded amber. Amber means a value somebody asked for;
      spending it on a hover would be a reserved state colour doing decoration,
      which is the one thing palette law forbids. */
   .acts button:hover,
   .sched .acts button:hover,
-  .new-sched button:hover,
   .fields button:hover,
-  .settings button:hover,
   .admin .undo button:hover { color: var(--ink); }
 }
 
-/* Admin is the one page with enough on it to want columns, and the one that
-   is read on a laptop rather than glanced at from across a kitchen. Health
-   and schedules on the left because they are short and they are where the
-   changing happens; the feed on the right because it is the long one. */
-@media (min-width: 980px) {
-  /* Two tracks, so admin's board is wider than every other page's: the left
-     column plus the gap plus the feed's own span. It is the one page whose
-     content genuinely wants more than one column of width, and it centres on
-     that number rather than on the one-column span — which would otherwise
-     squeeze the two tracks into 42.6rem the moment the screen grew. */
-  .admin,
-  .board-admin {
-    padding-inline: max(var(--edge), calc((100% - var(--span-admin)) / 2));
-  }
-  /* Two tracks, and the only thing placed by hand is the drawing above them. */
-  .admin {
-    grid-template-columns: minmax(0, 22rem) minmax(0, var(--span));
-    align-items: start;
-    justify-content: center;
-  }
-  /* The topology is the one panel whose subject is the whole house rather than
-     one aspect of it, so it takes the whole board: three tiers of nodes in the
-     22rem column would be a list with wires drawn down it. */
-  .topology { grid-column: 1 / -1; }
-}

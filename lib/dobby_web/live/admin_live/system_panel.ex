@@ -43,10 +43,13 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
 
   use DobbyWeb, :html
 
+  import DobbyWeb.Fields
+
   alias Dobby.HomeConfig
   alias Dobby.HomeConfig.Applied
   alias Dobby.HomeConfig.System
   alias Dobby.HomeConfig.Writer
+  alias DobbyWeb.Fields
 
   @doc """
   The panel.
@@ -64,47 +67,42 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
 
     ~H"""
     <section class="panel system">
-      <h2>System</h2>
-
       <%!-- No writer, no file. A heading over a void is the board declining to
             answer, and the box coming up without a home file is a reading like
             any other. --%>
       <p :if={@config == nil} class="note">The home file has not been read.</p>
 
       <%!-- The same blocks as the read-only leaf below, with a box where the
-            value is. The field's name is a key out of the section's own schema
-            and is set as the identifier it is rather than shouted as a word —
-            the same reading the schedule form's argument fields take. --%>
-      <form :if={@editable} id="system" class="settings" phx-change="system" phx-submit="save">
-        <div :for={field <- @fields} class="setting">
-          <label>
-            <span class="arg">{field.name}</span>
+            value is. Every field here declares a `:doc`, so every one of them
+            asks its question in words and carries its schema key beside it —
+            the person who can edit this panel is also the person who may go
+            and edit the file, and the key is how they find the line. --%>
+      <form :if={@editable} id="system" class="fields" phx-change="system" phx-submit="save">
+        <.field :for={field <- @fields} ask={field.ask} key={field.name}>
+          <%!-- Two words rather than a checkbox: a tick is an icon, and this
+                board says things in words. --%>
+          <select :if={field.input == "select"} name={"system[#{field.name}]"}>
+            <option value="false" selected={field.value != "true"}>no</option>
+            <option value="true" selected={field.value == "true"}>yes</option>
+          </select>
 
-            <%!-- Two words rather than a checkbox: a tick is an icon, and this
-                  board says things in words. --%>
-            <select :if={field.type == :boolean} name={"system[#{field.name}]"}>
-              <option value="false" selected={field.value != "true"}>no</option>
-              <option value="true" selected={field.value == "true"}>yes</option>
-            </select>
+          <%!-- No `min` on the number, deliberately. The schema knows a port
+                is positive, and a browser silently refusing to submit would
+                take the place of the board saying so in its own words. --%>
+          <input
+            :if={field.input != "select"}
+            type={field.input}
+            name={"system[#{field.name}]"}
+            value={field.value}
+            autocomplete="off"
+          />
 
-            <%!-- No `min` on the number, deliberately. The schema knows a port
-                  is positive, and a browser silently refusing to submit would
-                  take the place of the board saying so in its own words. --%>
-            <input
-              :if={field.type != :boolean}
-              type={input_type(field.type)}
-              name={"system[#{field.name}]"}
-              value={field.value}
-              autocomplete="off"
-            />
-          </label>
-
-          <p :if={field.doc} class="hint">{field.doc}</p>
-
-          <p :if={field.effect} class={["effect", field.effect == :on_restart && "waiting"]}>
-            {effect(field.effect)}
-          </p>
-        </div>
+          <:note>
+            <p :if={field.effect} class={["effect", field.effect == :on_restart && "waiting"]}>
+              {effect(field.effect)}
+            </p>
+          </:note>
+        </.field>
 
         <div :if={@error} class="why">{@error}</div>
 
@@ -113,12 +111,10 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
         <button type="submit">save</button>
       </form>
 
-      <div :if={@config != nil and not @editable} class="settings">
-        <div :for={field <- @fields} class="setting">
-          <span class="arg">{field.name}</span>
+      <div :if={@config != nil and not @editable} class="fields">
+        <.field :for={field <- @fields} ask={field.ask} key={field.name}>
           <span class={["reading", not field.set? && "unset"]}>{field.reading}</span>
-          <p :if={field.doc} class="hint">{field.doc}</p>
-        </div>
+        </.field>
       </div>
 
       <%!-- One sentence, and it names the file rather than saying "read-only":
@@ -260,7 +256,8 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
       %{
         name: name,
         type: spec[:type],
-        doc: doc(spec[:doc]),
+        ask: Fields.ask(spec[:doc]),
+        input: Fields.input_type(spec[:type]),
         value: Map.get(form, name, ""),
         reading: reading(value),
         set?: value != nil,
@@ -270,12 +267,6 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   end
 
   # -- rendering -------------------------------------------------------------
-
-  # The schema's `:doc` is written in Markdown for the hand editor, and a
-  # backtick painted on this board is a stray mark: what it marks off — an
-  # alias, a model name — is already told apart by being one.
-  defp doc(nil), do: nil
-  defp doc(text), do: String.replace(text, "`", "")
 
   # A knob the file does not mention is a knob at Dobby's own default, and that
   # is a reading. Not `NOT SET`: in capitals it would read as a ninth word on a
@@ -295,10 +286,4 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   # and not a state colour — it is the record voice, on the field it is about.
   defp effect(:applied), do: "In effect now"
   defp effect(:on_restart), do: "Waiting for a restart"
-
-  defp input_type(type) do
-    if type in [:integer, :pos_integer, :non_neg_integer, :float, :number],
-      do: "number",
-      else: "text"
-  end
 end

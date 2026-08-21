@@ -34,7 +34,7 @@ defmodule DobbyWeb.AdminLiveTest do
 
   describe "health" do
     test "says whether each part of the house is actually there", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :health)
 
       assert has_element?(view, ".panel .row .name", "Dobby")
       assert has_element?(view, ".panel .row .name", "Scheduler")
@@ -49,7 +49,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "a part that is not running says so", %{conn: conn} do
       Dobby.Jido.stop_agent(Dobby.DobbyAgent.id())
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :health)
 
       assert has_element?(view, ".panel .rows .row .flap[data-st=silent]", "Quiet")
       assert has_element?(view, ".plate .flap[data-st=silent]", "Quiet")
@@ -59,7 +59,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # are enabled *and* still able to reach their device, so the wider claim
     # reads as a flat contradiction of a HELD row two lines below it.
     test "empty says so rather than showing nothing", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :health)
 
       assert has_element?(view, ".panel .note", "Every schedule that can run has a timer")
     end
@@ -71,7 +71,7 @@ defmodule DobbyWeb.AdminLiveTest do
       create!(label: "weeknight heat")
       SchedulerAgent.clear()
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :health)
 
       assert has_element?(view, ".panel .note .wrong", "weeknight heat")
       assert has_element?(view, ".panel .note .wrong", "no timer")
@@ -94,9 +94,9 @@ defmodule DobbyWeb.AdminLiveTest do
   # design, and it says nothing about who commands whom.
   describe "the topology" do
     test "draws a node for every device in the manifest", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
-      assert has_element?(view, "section.panel.topology h2", "Topology")
+      assert has_element?(view, ".rail a.on", "Topology")
 
       for id <- ["thermostat:main", "light:living_room", "vacuum:robo", "wifi:kitchen_tv"] do
         assert has_element?(view, ".tier.devices .topo-node[data-part='#{id}']")
@@ -111,7 +111,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # Which is the whole of §1.1 said in two words, on the page rather than in
     # a document nobody on a laptop at 11pm is going to open.
     test "says which half of itself is probabilistic", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".topo-node[data-part='dobby'] .note", "Probabilistic")
       assert has_element?(view, ".topo-node[data-part='scheduler'] .note", "Deterministic")
@@ -120,7 +120,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # Configuration, never process introspection: the roster's tools, the
     # schedule rows, and the manifest's entity bindings.
     test "wires the directors to what they can actually command", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".wire[data-from='dobby'][data-to='#{@thermostat}']")
       assert has_element?(view, ".wire[data-from='#{@thermostat}'][data-to='home_assistant']")
@@ -133,11 +133,13 @@ defmodule DobbyWeb.AdminLiveTest do
     test "the scheduler's wire appears with the schedule that draws it", %{conn: conn} do
       create!(label: "weeknight heat")
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".wire[data-from='scheduler'][data-to='#{@thermostat}']")
 
+      view |> element(".rail a", "Schedules") |> render_click()
       view |> element(".sched .acts button", "pause") |> render_click()
+      view |> element(".rail a", "Topology") |> render_click()
 
       # A paused schedule has no timer, and the drawing says so the way the
       # row beneath it does — by not claiming otherwise.
@@ -145,7 +147,7 @@ defmodule DobbyWeb.AdminLiveTest do
     end
 
     test "a device node says what the device says", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       node = ".topo-node[data-part='#{@thermostat}']"
 
@@ -158,7 +160,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "the scheduler node carries the timer count and the missing ones", %{conn: conn} do
       create!(label: "weeknight heat")
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".topo-node[data-part='scheduler'] .note", "1 timer")
       refute has_element?(view, ".topo-node[data-part='scheduler'] .note.wrong")
@@ -166,7 +168,7 @@ defmodule DobbyWeb.AdminLiveTest do
       # The most useful fact on the page, on the node it is about: a row
       # accepted at authoring time and then rejected by the timer.
       SchedulerAgent.clear()
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".topo-node[data-part='scheduler'] .note.wrong", "1 without a timer")
     end
@@ -176,7 +178,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # visibly a restart.
     @tag :capture_log
     test "a device agent that dies reads down, and comes back", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       node = ".topo-node[data-part='#{@thermostat}']"
       assert has_element?(view, "#{node} .flap[data-st=acting]", "Warming")
@@ -194,7 +196,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "Dobby's node goes quiet with Dobby", %{conn: conn} do
       Dobby.Jido.stop_agent(Dobby.DobbyAgent.id())
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".topo-node[data-part='dobby'] .flap[data-st=silent]", "Quiet")
     end
@@ -204,7 +206,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # its bad minutes blocked in a connect, which is exactly when a synchronous
     # status call would be waited on.
     test "a lost connection to Home Assistant reaches the panel", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       house = ".topo-node[data-part='home_assistant']"
       assert has_element?(view, "#{house} .flap[data-st=acting]", "Awake")
@@ -224,7 +226,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # so the node is updated from what arrived rather than by asking the agent
     # that just told us.
     test "takes device state from the topic, not from the agent", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       node = ".topo-node[data-part='#{@thermostat}']"
       assert has_element?(view, "#{node} .val", "70°")
@@ -237,7 +239,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "a house with nothing in it says so", %{conn: conn} do
       boot_house!([])
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       assert has_element?(view, ".topo .note", "No devices")
       refute has_element?(view, ".tier.devices")
@@ -248,7 +250,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # wire it names, and it can only light a wire the drawing already has —
     # the map from entry to edge is the map the wires were drawn from.
     test "traffic lights the wire it travelled", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
       refute has_element?(view, ".wire.pulse")
 
@@ -275,18 +277,24 @@ defmodule DobbyWeb.AdminLiveTest do
     # People are deliberately not on this drawing, so what a person said
     # cannot light anything.
     test "a request pulses no wire", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :topology)
 
-      {:ok, _entry} = Activity.record(%{kind: "request", actor: "greg", action: "ask"})
+      {:ok, entry} = Activity.record(%{kind: "request", actor: "greg", action: "ask"})
 
-      assert eventually(fn -> has_element?(view, ".feed .entry .kind", "request") end)
+      # The feed used to be the proof this had been handled, and the feed is a
+      # different section now. The same entry, sent straight to the view: a
+      # message put in the mailbox here is ahead of the render that follows it,
+      # which a broadcast on its own does not promise.
+      send(view.pid, {:recorded, entry})
+      render(view)
+
       refute has_element?(view, ".wire.pulse")
     end
   end
 
   describe "the schedule form" do
     test "writes a row, registers its timer, and attributes it", %{conn: conn} do
-      {:ok, view, _html} = live(named(conn, "greg"), "/admin")
+      {:ok, view, _html} = live(named(conn, "greg"), "/admin?section=schedules")
 
       view
       |> form("form.new-sched",
@@ -315,7 +323,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # The argument fields come from the target action's own schema, so the form
     # can only offer what the row will accept.
     test "offers the arguments the chosen action actually takes", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       assert has_element?(view, "input[name='schedule[args][temperature_f]'][type=number]")
       assert has_element?(view, "select[name='schedule[target]'] option[value='#{@thermostat}']")
@@ -325,7 +333,7 @@ defmodule DobbyWeb.AdminLiveTest do
     end
 
     test "says why a row was refused, in the words the refusal used", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       html =
         view
@@ -349,7 +357,7 @@ defmodule DobbyWeb.AdminLiveTest do
   describe "changing a schedule" do
     test "pausing cancels the timer and takes the word off the board", %{conn: conn} do
       schedule = create!(label: "weeknight heat")
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       view |> element(".sched .acts button", "pause") |> render_click()
 
@@ -365,7 +373,7 @@ defmodule DobbyWeb.AdminLiveTest do
 
     test "deleting offers the row back for a moment", %{conn: conn} do
       create!(label: "weeknight heat")
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       view |> element(".sched .acts button", "delete") |> render_click()
 
@@ -394,12 +402,12 @@ defmodule DobbyWeb.AdminLiveTest do
   # here and nowhere else.
   describe "the system panel" do
     test "has a field for every knob the schema declares, and no others", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
-      assert has_element?(view, "section.panel.system h2", "System")
+      assert has_element?(view, ".rail a.on", "System")
 
       for {key, _spec} <- HomeConfig.System.schema() do
-        assert has_element?(view, ".system .setting .arg", Atom.to_string(key))
+        assert has_element?(view, ".system .field .arg", Atom.to_string(key))
       end
 
       # And nothing else: a field on this panel that is not in the schema would
@@ -411,7 +419,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # Elixir, and that is the ordinary case on a developer's machine rather than
     # an edge. So the panel says why, and names the file the settings do live in.
     test "an Elixir house is read-only, and says so in one sentence", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       # No form at all, rather than one that could only ever be refused — the
       # call this page already makes about a house with nothing schedulable.
@@ -427,21 +435,21 @@ defmodule DobbyWeb.AdminLiveTest do
     # a ninth word on a board with eight — one letter from `NOT KNOWN`, which
     # means something else.
     test "a knob the file does not mention reads as a default", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
-      assert has_element?(view, ".system .setting .reading.unset", "default")
+      assert has_element?(view, ".system .field .reading.unset", "default")
 
       # A boolean always has a value, so it never reads that way.
-      assert has_element?(view, ".system .setting .reading", "no")
+      assert has_element?(view, ".system .field .reading", "no")
     end
 
     # The schema's `:doc` was written for whoever edits the file by hand. It has
     # a second reader now, which is the whole of "a new knob costs a schema
     # entry and nothing else".
     test "explains each knob in the schema's own words", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
-      assert has_element?(view, ".system .setting .hint", "capable")
+      assert has_element?(view, ".system .field .ask", "capable")
 
       # And without the Markdown it was written in: a backtick painted on this
       # board is a stray mark.
@@ -452,7 +460,7 @@ defmodule DobbyWeb.AdminLiveTest do
       Application.put_env(:dobby, :home_config_writer, :no_writer_here)
       on_exit(fn -> Application.delete_env(:dobby, :home_config_writer) end)
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       assert has_element?(view, ".system .note", "has not been read")
       refute has_element?(view, ".system .setting")
@@ -466,7 +474,7 @@ defmodule DobbyWeb.AdminLiveTest do
     setup :editable_house
 
     test "offers a box for every knob, typed by the schema", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       assert has_element?(view, "form#system")
       assert has_element?(view, "input[name='system[model]'][type=text]")
@@ -485,12 +493,12 @@ defmodule DobbyWeb.AdminLiveTest do
       previous = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       view |> form("form#system", system: %{"model" => "openai:gpt-5.6-luna"}) |> render_submit()
 
-      assert has_element?(view, ".setting .effect", "In effect now")
-      refute has_element?(view, ".setting .effect.waiting")
+      assert has_element?(view, ".field .effect", "In effect now")
+      refute has_element?(view, ".field .effect.waiting")
 
       assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "openai:gpt-5.6-luna"}
     end
@@ -499,13 +507,13 @@ defmodule DobbyWeb.AdminLiveTest do
     # amount of writing the file moves it. The panel says which, per field,
     # rather than one line underneath claiming the whole save worked.
     test "a change that cannot take effect yet says it is waiting", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       view
       |> form("form#system", system: %{"port" => "4100", "lan" => "true"})
       |> render_submit()
 
-      assert has_element?(view, ".setting .effect.waiting", "Waiting for a restart")
+      assert has_element?(view, ".field .effect.waiting", "Waiting for a restart")
 
       # Two fields waiting, and each says so where it is — the port and the LAN
       # binding are two settings, not one save.
@@ -520,7 +528,7 @@ defmodule DobbyWeb.AdminLiveTest do
       conn: conn,
       path: path
     } do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       view |> form("form#system", system: %{"hostname" => "greg.local"}) |> render_submit()
 
@@ -534,7 +542,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # should stop mentioning, so the built-in default comes back rather than an
     # empty string being written down as though somebody had chosen one.
     test "a box somebody emptied stops being mentioned in the file", %{conn: conn, path: path} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       view |> form("form#system", system: %{"hostname" => "greg.local"}) |> render_submit()
       view |> form("form#system", system: %{"hostname" => ""}) |> render_submit()
@@ -550,12 +558,12 @@ defmodule DobbyWeb.AdminLiveTest do
       conn: conn,
       path: path
     } do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
       original = File.read!(path)
 
       view |> form("form#system", system: %{"port" => "the kitchen one"}) |> render_submit()
 
-      assert has_element?(view, ".settings .why", "port")
+      assert has_element?(view, ".fields .why", "port")
       assert File.read!(path) == original
 
       # And what was typed stays where it was, beside the reason it was refused.
@@ -565,7 +573,7 @@ defmodule DobbyWeb.AdminLiveTest do
     # Always current with the applied configuration, which is what buys v1 out
     # of needing a file watcher: an open page follows a change made anywhere.
     test "follows a change made somewhere other than this browser", %{conn: conn, writer: writer} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :system)
 
       config = Writer.current(writer)
       system = struct!(config.system, hostname: "elsewhere.local")
@@ -575,7 +583,7 @@ defmodule DobbyWeb.AdminLiveTest do
                has_element?(view, "input[name='system[hostname]'][value='elsewhere.local']")
              end)
 
-      assert has_element?(view, ".setting .effect.waiting")
+      assert has_element?(view, ".field .effect.waiting")
     end
   end
 
@@ -589,7 +597,7 @@ defmodule DobbyWeb.AdminLiveTest do
           result: %{"online" => false}
         })
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :activity)
 
       # The kind is stored with an underscore and read as a label — see
       # `AdminLive.kind/1` and The Identifier Rule.
@@ -598,7 +606,7 @@ defmodule DobbyWeb.AdminLiveTest do
     end
 
     test "takes new entries as they land, newest first", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :activity)
 
       {:ok, entry} =
         Activity.record(%{kind: "control", actor: "greg, card", device: @thermostat})
@@ -629,13 +637,13 @@ defmodule DobbyWeb.AdminLiveTest do
     # The one panel that used to answer a heading with a void, while the two
     # above it both said something.
     test "the feed says it has recorded nothing", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :activity)
 
       assert has_element?(view, ".feed .note", "Nothing recorded yet")
     end
 
     test "the feed stops saying so at the first entry", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :activity)
 
       {:ok, entry} =
         Activity.record(%{kind: "control", device: @thermostat, action: "set_temperature"})
@@ -650,7 +658,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "a house with nothing schedulable is not offered the form", %{conn: conn} do
       boot_house!([])
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       refute has_element?(view, "form.new-sched")
       assert has_element?(view, ".panel .note", "Nothing in this house can be scheduled")
@@ -667,7 +675,7 @@ defmodule DobbyWeb.AdminLiveTest do
       create!(label: "weeknight heat")
       boot_house!([])
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       assert has_element?(view, ".sched .why", "this house has no devices")
       refute has_element?(view, ".sched .why", "this house has:")
@@ -680,7 +688,7 @@ defmodule DobbyWeb.AdminLiveTest do
       schedule = create!(label: "weeknight heat")
       boot_house!([])
 
-      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, view, _html} = open(conn, :schedules)
 
       view |> element("button[phx-value-id='#{schedule.id}']", "pause") |> render_click()
 
@@ -688,21 +696,102 @@ defmodule DobbyWeb.AdminLiveTest do
     end
   end
 
-  # The one part of the responsive work that lives in markup rather than in the
-  # stylesheet, and the coupling is easy to break by copying another route's
-  # header: admin is the only page with two columns of content, so it is the
-  # only page whose nameplate centres on the wider measure. Without the class
-  # the name floats in the middle of the panels beneath it.
-  test "admin's header is the wide one", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/admin")
+  # ── the rail ──────────────────────────────────────────────────────────────
+  #
+  # Five sections and one at a time. What this replaces is a page whose two
+  # columns shared a scroll container, so a hundred entries of log dragged the
+  # three panels you came to change off the top of the screen.
+  describe "the rail" do
+    test "opens on the map, and every section is one link away", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
 
-    assert has_element?(view, "header.board.board-admin")
+      # No section named, so the map — the thing the other four are asked
+      # about.
+      assert has_element?(view, ".rail a.on", "Topology")
+      assert has_element?(view, ".panel.topology")
 
-    {:ok, thread, _html} = live(conn, "/")
-    refute has_element?(thread, ".board-admin")
+      for section <- ~w(topology health schedules system activity) do
+        assert has_element?(view, ".rail a[href='/admin?section=#{section}']")
+      end
+    end
+
+    test "one section shows at a time", %{conn: conn} do
+      {:ok, view, _html} = open(conn, :schedules)
+
+      assert has_element?(view, "form#new-schedule")
+      refute has_element?(view, ".panel.topology")
+      refute has_element?(view, "#activity")
+    end
+
+    # The address carries it, not an assign — a LiveView that loses its socket
+    # remounts on the URL it is on, so a page left open on the feed comes back
+    # to the feed rather than to the map.
+    test "the section is in the address", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin")
+
+      view |> element(".rail a", "Activity") |> render_click()
+
+      assert_patched(view, "/admin?section=activity")
+      assert has_element?(view, ".rail a.on", "Activity")
+      assert has_element?(view, "#activity")
+    end
+
+    # A word nobody serves is the map, because that is the honest default for
+    # a page whose other four sections are questions asked about it.
+    test "a section nobody has is the map", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin?section=nonsense")
+
+      assert has_element?(view, ".rail a.on", "Topology")
+    end
+
+    # The rail carries every section name now, so a panel repeating its own
+    # would be the same heading printed twice on one screen.
+    test "no panel repeats the name the rail gave it", %{conn: conn} do
+      for section <- ~w(topology health schedules system activity) do
+        {:ok, _view, html} = live(conn, "/admin?section=#{section}")
+
+        refute html =~ "<h2>"
+      end
+    end
+  end
+
+  # The feed is in the DOM only while its own section is showing, so an entry
+  # arriving behind another section has nowhere to land. The section re-reads
+  # on the way in rather than a hundred rows being held open for nobody.
+  describe "the feed behind another section" do
+    test "an entry recorded elsewhere is there when the feed is opened", %{conn: conn} do
+      {:ok, view, _html} = open(conn, :health)
+
+      {:ok, entry} =
+        Activity.record(%{kind: "control", device: @thermostat, action: "set_temperature"})
+
+      ActivityEvents.recorded(entry)
+
+      view |> element(".rail a", "Activity") |> render_click()
+
+      assert has_element?(view, ".entry .what", "set_temperature")
+    end
+  end
+
+  # `delete` and `pause` sit in one row, a finger apart, and were drawn
+  # identically. The gap under a coarse pointer keeps a tap from landing on the
+  # wrong one; this keeps the eye from reading them as the same offer.
+  describe "what a verb looks like" do
+    test "deleting a schedule is drawn as taking something away", %{conn: conn} do
+      create!(label: "weeknight heat")
+
+      {:ok, view, _html} = open(conn, :schedules)
+
+      assert has_element?(view, ".sched .acts button.takes", "delete")
+      refute has_element?(view, ".sched .acts button.takes", "pause")
+    end
   end
 
   # -- helpers ---------------------------------------------------------------
+
+  # Which section this test is about. The page shows one at a time, so a test
+  # that does not say lands on the map and finds nothing it came for.
+  defp open(conn, section), do: live(conn, "/admin?section=#{section}")
 
   # A house Dobby can write, which the rig's Elixir home is not. The writer is
   # the test's own, pointed at a file in a temporary directory, and the panel
@@ -726,7 +815,7 @@ defmodule DobbyWeb.AdminLiveTest do
     view
     |> element(".system")
     |> render()
-    |> then(&Regex.scan(~r/class="setting"/, &1))
+    |> then(&Regex.scan(~r/class="field"/, &1))
     |> length()
   end
 

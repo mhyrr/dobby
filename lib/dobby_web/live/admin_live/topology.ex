@@ -65,8 +65,6 @@ defmodule DobbyWeb.AdminLive.Topology do
 
     ~H"""
     <section class="panel topology">
-      <h2>Topology</h2>
-
       <div class="topo">
         <div class="tier directors">
           <.part

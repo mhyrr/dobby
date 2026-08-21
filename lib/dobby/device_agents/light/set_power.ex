@@ -12,7 +12,7 @@ defmodule Dobby.DeviceAgents.Light.SetPower do
     name: "light_set_power",
     description: "Validates switching a light and emits the Home Assistant call",
     schema: [
-      on: [type: :boolean, required: true],
+      on: [type: :boolean, required: true, doc: "Whether to turn the light on."],
       ref: [type: :string, required: true]
     ]
 

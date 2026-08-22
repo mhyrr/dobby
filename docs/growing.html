@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Growing the house · Dobby</title>
-<meta name="description" content="Four ways to add a device, one file they all land in, and the whole house in one conversation.">
+<meta name="description" content="Four ways to add a device, and the whole house in one conversation.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -36,20 +36,20 @@
 
   <article>
     <h1>Growing the house</h1>
-    <p class="lede">Four ways to add a device, and one file they all land in. Nothing enters the house unblessed: a device is proposed, somebody says yes, and only then is it written down.</p>
+    <p class="lede">Four ways to add a device. They all end in the same file, and nothing enters the house until somebody says yes.</p>
 
-    <h2 id="four-ways">Four ways, one file</h2>
+    <h2 id="four-ways">Four ways</h2>
     <ol>
-      <li><strong>Say it.</strong> "What does Home Assistant have that we don't?" Dobby reads the entities Home Assistant knows and the house does not, and proposes an entry for the one you name. Nothing changes until you say yes.</li>
-      <li><strong>The cards.</strong> On <span class="arg">/house</span>, every card has <span class="arg">edit</span> and <span class="arg">remove</span>, and the foot of the list has <span class="arg">add a device</span>. The form's fields come from the device type's own schema, so a thermostat asks for its range and a light asks for nothing. A refused value is refused in the words the file would use, naming the field.</li>
-      <li><strong>The file.</strong> Edit <span class="arg">home.yaml</span> and restart Dobby. See <a href="house.html">The house file</a>.</li>
-      <li><strong>Send your own agent.</strong> Any MCP client holding a key minted on <span class="arg">/admin</span> can do everything the first way does. See <a href="agents.html">Your own agent</a>.</li>
+      <li><strong>Say it.</strong> "What does Home Assistant have that we don't?" Dobby lists what it found and proposes an entry for the one you name. Say yes, and it is added.</li>
+      <li><strong>The cards.</strong> On <span class="arg">/house</span>: <span class="arg">edit</span> and <span class="arg">remove</span> on each card, <span class="arg">add a device</span> at the foot. The form asks only what the device type needs.</li>
+      <li><strong>The file.</strong> Edit <span class="arg">home.yaml</span> and restart Dobby.</li>
+      <li><strong>Your own agent.</strong> Anything the first way can do, an agent over MCP can do. See <a href="agents.html">Your own agent</a>.</li>
     </ol>
-    <p>All four go through the same writer and the same validation. A device that would not boot from a hand-typed file is refused at the form, in the thread, and over MCP, in the same sentence.</p>
+    <p>Every way runs the same checks. An entry that would not boot from the file is refused at the form, in the thread, and over MCP, with the same sentence.</p>
 
     <h2 id="proposals">Proposed is not done</h2>
-    <p>When Dobby or an agent adds a device, it happens in two steps, and the gap between them is the point. A <em>proposal</em> is a row Dobby has validated (the entity exists, it is not already bound, the id is free, the type knows what to do with it) and written nowhere. It has a number. A <em>confirmation</em> is somebody saying yes to that number; only then does the writer put the entry in the file and restart the house into its new shape.</p>
-    <p>Dobby reports a proposal as proposed and an applied change as applied, and it will not blur them. "I've added the kitchen light" before the confirmation lands is the same lie as "the room is warm now", and the doctrine forbids both.</p>
+    <p>When Dobby or an agent adds a device, it happens in two steps. First a <em>proposal</em>: Dobby checks the entity exists, is not already in use, and the id is free, then gives the proposal a number. Nothing is written. Then a <em>confirmation</em>: somebody says yes to that number, and the entry goes into the file. The house restarts with the new device.</p>
+    <p>Dobby says "proposed" until the yes lands, and "added" only after. It does not blur the two.</p>
 
     <div class="proof">
       <p class="label">What you should see</p>
@@ -57,26 +57,25 @@
   "type":"light","status":"proposed","proposed_by":"Maya's walkthrough",
   "entry":{"id":"light:kitchen","type":"light","name":"kitchen lights",
            "aliases":["the kitchen light"],"bindings":{"light":"light.kitchen_lights"}}}}</p>
-      <p class="said">A proposal as the tool returns it: <b>applied: false</b>, a number, and the exact entry that would be written. In the thread, Dobby says it in a sentence; over MCP, your agent sees this.</p>
+      <p class="said">A proposal as the tool returns it: <b>applied: false</b>, a number, and the exact entry it would write. In the thread, Dobby says the same in a sentence.</p>
     </div>
 
     <h2 id="whole-house">The whole house in one breath</h2>
-    <p>You do not have to walk it one device per exchange. Stand next to a working Home Assistant and tell Dobby what you have: "the thermostat, these four lights, the vacuum, the printer, all on HA". It asks discovery once, proposes every entity it showed that matches what you named, and presents the proposals as one numbered list. One yes to the list is agreement to everything on it, and Dobby confirms each in turn.</p>
-    <p>Two things it will not do. It will not propose something discovery did not show. Anything you named that Home Assistant cannot see, it says it cannot see, because a yes to the list is not a yes to a guess. And it will not call the list done until every confirmation has applied; each entry stays proposed until its own yes lands.</p>
-    <p>However many devices are confirmed in one turn, the house restarts once. The writer coalesces.</p>
+    <p>You do not have to add devices one at a time. Tell Dobby what you have: "the thermostat, these four lights, the vacuum, the printer, all on Home Assistant." Dobby asks Home Assistant once, proposes every match as one numbered list, and one yes adopts the lot.</p>
+    <p>Anything you named that Home Assistant does not show, Dobby says it cannot see. It will not guess. And each entry stays "proposed" until its own confirmation applies. However many devices you confirm at once, the house restarts once.</p>
 
     <h2 id="not-known">The moment after</h2>
-    <p>After any of the four ways, the new device reads <span class="arg">NOT KNOWN</span> for a moment. That is honesty, not breakage: the house has a new agent and it has not yet heard from Home Assistant. The first state sync fills it in.</p>
+    <p>A new device reads <span class="arg">NOT KNOWN</span> for a moment. The house has a new device and has not heard from Home Assistant about it yet. The first sync fills it in.</p>
 
     <div class="proof">
       <p class="label">What you should see</p>
       <div class="row"><span class="name">kitchen lights</span><span class="val"></span><span class="st flap" data-st="silent">Not known</span></div>
       <div class="row"><span class="name">kitchen lights</span><span class="val">71%</span><span class="st flap" data-st="set">Set</span></div>
-      <p class="said">The same row a second or two apart: first the house admitting it does not know, then Home Assistant's answer.</p>
+      <p class="said">The same row a second or two apart.</p>
     </div>
 
     <h2 id="removing">Removing one</h2>
-    <p><span class="arg">remove</span> on a card asks once, in place (<span class="arg">Remove kitchen lights?</span>, with <span class="arg">remove</span> and <span class="arg">keep it</span>), and then the entry leaves the file and the house restarts without it. There is no undo line after a removal; adding the device back is the way back.</p>
+    <p><span class="arg">remove</span> on a card asks once, in place: <span class="arg">Remove kitchen lights?</span> with <span class="arg">remove</span> and <span class="arg">keep it</span>. Then the entry leaves the file and the house restarts without it. There is no undo; add it back if you change your mind.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
       <a class="prev" href="living.html"><small>Previous</small>Living with Dobby</a>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dobby · Guide</title>
-<meta name="description" content="How to set up and live with Dobby, a household agent for Home Assistant.">
+<meta name="description" content="A house elf for your house, running on top of Home Assistant. How to set it up and live with it.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -14,7 +14,7 @@ DIRECTION · seed 8ac72cfd
 THESIS: A user's guide that proves itself the way the board does — every section with an outcome ends on the instrument's own face, a word on a flap or the literal line the terminal printed — and refuses the docs-site default of a sidebar, a search box and a hero.
 OWN-WORLD: The departure board, read rather than operated: bronze plate, cool enamel flap cards, brass rules; Barlow for what a person reads, Barlow Condensed for the instrument talking; five state colours and nowhere else; square corners. Dark is the board at night; light is the printed manual on cream enamel.
 STORY: A person with a Home Assistant installs Dobby, describes their house, talks to it, grows it, sends their own agent at it — and at every step knows what they should see, so they never take the guide's word for it.
-FIRST VIEWPORT: Plate "Dobby · Guide" on a brass rule; the chapter rail; the mark beside "Dobby" at 3rem; the lede; what you need; the contents sheet. Signature interaction: a proof's flap lands on its word (420ms, ease-out) the first time it scrolls into view.
+FIRST VIEWPORT: Plate "Dobby · Guide" on a brass rule; the chapter rail; the mark beside "Dobby" at 3rem; the lede; the contents sheet. Signature interaction: a proof's flap lands on its word (420ms, ease-out) the first time it scrolls into view.
 FORM: The Ledger of Proofs — candidate 6 of 7, the roll. Code-led.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->
@@ -62,42 +62,47 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       </svg>
       <h1>Dobby</h1>
     </div>
-    <p class="lede">A house elf for your Home Assistant. Everyone at home talks to it in one shared thread, and it answers by doing things: reading the thermostat, dimming a light, starting the vacuum, setting a schedule for eight o'clock.</p>
+    <p class="lede">A house elf for your house, running on top of Home Assistant.</p>
 
-    <p>Dobby is a household agent. It runs on a machine in your house, next to Home Assistant, and the household reaches it from any phone or laptop on the Wi-Fi. You describe the house in one file, give it a voice in another, and it runs the house: it holds standing intentions, says plainly when a device refuses, and never claims something happened that did not.</p>
+    <p>Home Assistant already knows your devices. Dobby gives the household someone to talk to about them. Everyone at home shares one thread. You say "set the thermostat to 70" or "I want it at 70 by eight on weekdays", and Dobby does it, or tells you why it could not.</p>
 
-    <p>Underneath are two layers with a hard line between them. A deterministic layer of device agents owns every fact and every action. Above it sits a language model that can act only through the closed set of tools those agents offer. The model never touches Home Assistant, never does arithmetic, and never says a room got warm. It reports what it commanded; the house reports what actually happened. <a href="how-it-works.html">How it works</a> tells that story at the depth a user needs to predict Dobby's behaviour.</p>
+    <p>Three things make it worth adding on top of a working Home Assistant:</p>
+    <ul>
+      <li><strong>It tells the truth.</strong> Dobby reports what it commanded, never what it guesses happened. "Set to 70" means the thermostat accepted the command. Whether the room got warm, the board shows you when Home Assistant reports it.</li>
+      <li><strong>It keeps working when the AI is down.</strong> Tap a card, or let a schedule fire, and the device gets the command with no model in the loop.</li>
+      <li><strong>Your own AI can use it.</strong> Point Claude Code, or any MCP client, at Dobby and let it set your house up for you.</li>
+    </ul>
 
-    <p>This guide is for a person with a working Home Assistant and a weekend. Every page was written from a walk somebody actually took, and where a thing has not been walked yet, the page says so.</p>
+    <p>You describe the house in one file and give Dobby a voice in another. Home Assistant keeps running the devices. Dobby runs the house.</p>
 
     <h2 id="contents">Contents</h2>
     <ol class="sheet">
-      <li><a href="house.html"><span class="n">01</span><span class="t">The house file</span><span class="d">home.yaml section by section: the four device types, household policy, credentials as references, and the box's own settings.</span></a></li>
-      <li><a href="running.html"><span class="n">02</span><span class="t">Running it</span><span class="d">Verify before you trust, the environment, the soul, and the whole household on the Wi-Fi at dobby.local.</span></a></li>
-      <li><a href="box.html"><span class="n">03</span><span class="t">An always-on box</span><span class="d">Proposed hardware for a machine in a closet that runs Home Assistant and Dobby together. A proposal, not yet a walk.</span></a></li>
-      <li><a href="living.html"><span class="n">04</span><span class="t">Living with Dobby</span><span class="d">How to talk to it, what it will and will not say, the eight words on the board, the cards, the admin's rooms, and schedules.</span></a></li>
-      <li><a href="growing.html"><span class="n">05</span><span class="t">Growing the house</span><span class="d">Four ways to add a device, one file they all land in, and the whole house in one conversation.</span></a></li>
-      <li><a href="agents.html"><span class="n">06</span><span class="t">Your own agent</span><span class="d">Mint a key on /admin, point Claude Code at /mcp, and let the AI you already use set the house up. With a real transcript.</span></a></li>
-      <li><a href="how-it-works.html"><span class="n">07</span><span class="t">How it works</span><span class="d">Two layers and the hard line between them: why Dobby cannot lie about a room, why the house restarts, and what the model is for.</span></a></li>
-      <li><a href="developing.html"><span class="n">08</span><span class="t">Developing</span><span class="d">The local Home Assistant rig, the two test tiers, and the doors a developer's agent gets.</span></a></li>
+      <li><a href="house.html"><span class="n">01</span><span class="t">The house file</span><span class="d">One YAML file: your devices, your rules, and the box's settings.</span></a></li>
+      <li><a href="running.html"><span class="n">02</span><span class="t">Running it</span><span class="d">Check the wiring, start Dobby, put it on the Wi-Fi as dobby.local.</span></a></li>
+      <li><a href="box.html"><span class="n">03</span><span class="t">An always-on box</span><span class="d">Hardware we propose for a machine in a closet running both. Not yet walked.</span></a></li>
+      <li><a href="living.html"><span class="n">04</span><span class="t">Living with Dobby</span><span class="d">How to talk to it, what it says back, the board, the cards, the admin, schedules.</span></a></li>
+      <li><a href="growing.html"><span class="n">05</span><span class="t">Growing the house</span><span class="d">Four ways to add a device, and the whole house in one conversation.</span></a></li>
+      <li><a href="agents.html"><span class="n">06</span><span class="t">Your own agent</span><span class="d">Mint a token, connect Claude Code, let it do the setup. With a real session.</span></a></li>
+      <li><a href="how-it-works.html"><span class="n">07</span><span class="t">How it works</span><span class="d">The short version: what Dobby can and cannot do, and why you can trust it.</span></a></li>
+      <li><a href="developing.html"><span class="n">08</span><span class="t">Developing</span><span class="d">A local Home Assistant with fake devices, the tests, and Tidewave.</span></a></li>
     </ol>
 
     <h2 id="need">What you need</h2>
     <ul>
-      <li><strong>A Home Assistant you can reach</strong>, and a long-lived access token for it. In HA, open your profile → <span class="arg">Security</span> → <span class="arg">Long-lived access tokens</span> and create one. It is shown once; put it straight into your environment.</li>
-      <li><strong>Elixir 1.18 or later and PostgreSQL.</strong> <code>mix setup</code> installs the dependencies and creates the database.</li>
-      <li><strong>A model API key.</strong> Unset, Dobby uses the committed default, which needs an Anthropic key. <code>system.model</code> in the house file swaps providers without a rebuild, to any <span class="arg">provider:model</span> ReqLLM speaks.</li>
-      <li><strong>mDNS on the box</strong>, for the household name. macOS has <code>dns-sd</code> built in. On Linux, install and run Avahi (<code>avahi-daemon</code> and <code>avahi-utils</code>) so Dobby can publish <span class="arg">dobby.local</span>.</li>
+      <li><strong>A Home Assistant you can reach</strong>, and a long-lived access token. In HA: your profile → <span class="arg">Security</span> → <span class="arg">Long-lived access tokens</span>. It is shown once. Copy it straight into your environment.</li>
+      <li><strong>Elixir 1.18 or later, and PostgreSQL.</strong> <code>mix setup</code> installs the rest.</li>
+      <li><strong>A model API key.</strong> An Anthropic key works out of the box. <code>system.model</code> in the house file switches to any other provider.</li>
+      <li><strong>mDNS</strong>, so the house can open <span class="arg">dobby.local</span>. macOS has it. On Linux, install Avahi (<code>avahi-daemon</code> and <code>avahi-utils</code>).</li>
     </ul>
 
     <h2 id="five-minutes">The five-minute path</h2>
-    <p>Clone the repo, copy the example house, and make it yours. The example explains itself: every section carries the comment you would otherwise look up in <a href="house.html">The house file</a>.</p>
+    <p>Clone, set up, copy the example house file, and edit it. The example has a comment on every line you might change.</p>
 <pre><code>git clone https://github.com/mhyrr/dobby.git &amp;&amp; cd dobby
 mix setup
 cp config/homes/example.yaml config/homes/my-house.yaml
 <span class="c"># edit it: your HA's address, your devices</span></code></pre>
 
-    <p>Export the credentials the file refers to, then verify before you trust. <code>mix dobby.ha.verify</code> boots the real client against your HA and prints every device's snapshot once the first state sync lands.</p>
+    <p>Export the credentials, then check the wiring before you trust it with an evening.</p>
 <pre><code>export DOBBY_HA_URL=http://homeassistant.local:8123
 export DOBBY_HA_TOKEN=...
 export ANTHROPIC_API_KEY=...
@@ -130,10 +135,10 @@ home "my-house" with 2 device(s)
 }
 
 initial state sync: ok</p>
-      <p class="said"><b>available: true</b> with readings proves connection, authentication, subscription, routing and interpretation in one line per device. A device that stays unavailable has a wrong entity id, and the task names it.</p>
+      <p class="said">Every device <b>available: true</b> with readings. If one stays unavailable, its entity id is wrong, and the task names it.</p>
     </div>
 
-    <p>Then run it, and open it.</p>
+    <p>Start it and open it.</p>
 <pre><code>DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server</code></pre>
 
     <div class="proof">
@@ -141,11 +146,8 @@ initial state sync: ok</p>
       <div class="row"><span class="name">hall thermostat</span><span class="val">70°</span><span class="st flap" data-st="acting">Cooling</span></div>
       <div class="row"><span class="name">living room light</span><span class="val">71%</span><span class="st flap" data-st="set">Set</span></div>
       <div class="row"><span class="name">office printer</span><span class="val"></span><span class="st flap" data-st="acting">Awake</span></div>
-      <p class="said">At <span class="arg">http://localhost:4000/</span>: the board with your devices on it, each one a reading and a word on a flap, and the thread beneath. The reading is what was set; the word is what the house reported. For a moment after boot a device reads <span class="arg">NOT KNOWN</span>, which is the house learning what it has; the first state sync fills it in.</p>
+      <p class="said">At <span class="arg">http://localhost:4000/</span>: your devices on the board, each with a reading and a word, and the thread below. For a moment after boot a device reads <span class="arg">NOT KNOWN</span>. The first sync from Home Assistant fills it in.</p>
     </div>
-
-    <p>The rest of the guide is the long version, in the order above.</p>
-
 
     <p class="colophon">Hand-written HTML, served as committed. <a href="https://github.com/mhyrr/dobby/tree/main/docs">The source is the page.</a></p>
 

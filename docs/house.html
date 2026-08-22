@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The house file · Dobby</title>
-<meta name="description" content="home.yaml section by section: the four device types, household policy, credentials as references, and the box's own settings.">
+<meta name="description" content="One YAML file: your devices, your rules, and the box's settings.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -36,15 +36,14 @@
 
   <article>
     <h1>The house file</h1>
-    <p class="lede">One YAML file says what the house contains and what the box it runs on should do. You own it, Dobby writes it too, and it stays safe to share because no secret ever appears in it.</p>
+    <p class="lede">One YAML file tells Dobby what the house contains and how the box should behave. You own it. Dobby writes to it too. It never holds a secret, so you can share it.</p>
 
-    <p>In development it is whichever file <code>DOBBY_HOME_MANIFEST</code> names. In an install it is <span class="arg">/opt/dobby/config/home.yaml</span>, so it needs no path override. Start from the example, which carries a comment on every section:</p>
+    <p>In development, <code>DOBBY_HOME_MANIFEST</code> names the file. In an install it is <span class="arg">/opt/dobby/config/home.yaml</span>. Start from the example:</p>
 <pre><code>cp config/homes/example.yaml config/homes/my-house.yaml</code></pre>
 
-    <p>The file has two top-level sections. <code>house:</code> is the house; <code>system:</code> is the box. This page walks the shape; the example walks the words.</p>
+    <p>Two sections. <code>house:</code> is your house. <code>system:</code> is the box Dobby runs on.</p>
 
     <h2 id="house">The house</h2>
-    <p>A short id and a name, the timezone every clock in the thread is read in, where Home Assistant is, and one entry per device.</p>
 <pre><code><span class="k">house:</span>
   <span class="k">id:</span> my-house
   <span class="k">name:</span> Our House
@@ -57,29 +56,29 @@
   <span class="k">devices:</span>
     <span class="c"># …one entry per device, below…</span></code></pre>
 
-    <p><strong>Credentials are references, never values.</strong> <code>token: env:DOBBY_HA_TOKEN</code> names an environment variable; Dobby reads it at boot. A variable that is missing stops the boot with a sentence naming exactly which one; it does not start a house that cannot reach anything. That one rule is what keeps the file shareable: you can commit it, post it, hand it to an agent.</p>
+    <p><strong>Credentials are references.</strong> <code>token: env:DOBBY_HA_TOKEN</code> names an environment variable. Dobby reads it at boot. If the variable is missing, Dobby stops and names it instead of starting a house that cannot reach anything.</p>
 
     <h2 id="devices">A device entry</h2>
-    <p>Every device has the same six parts, and the device's own type decides what <code>bindings</code> and <code>settings</code> may contain.</p>
+    <p>Every device has the same six parts.</p>
 
     <div class="table-wrap">
     <table>
       <tr><th>Key</th><th>What it is</th></tr>
-      <tr><td><code>id</code></td><td>How Dobby refers to it, forever. Convention is <span class="arg">type:place</span>: <span class="arg">thermostat:hall</span>, <span class="arg">light:kitchen</span>. Renaming a device is making a new one.</td></tr>
-      <tr><td><code>type</code></td><td>One of the types the house knows: <span class="arg">thermostat</span>, <span class="arg">light</span>, <span class="arg">vacuum</span>, <span class="arg">wifi_endpoint</span>.</td></tr>
-      <tr><td><code>name</code></td><td>What the household calls it, in the words they actually say.</td></tr>
-      <tr><td><code>aliases</code></td><td>The other words they use for the same thing. "The thermostat", "downstairs".</td></tr>
-      <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of this device. The keys are the type's; the values are HA's entity ids, copied exactly.</td></tr>
-      <tr><td><code>settings</code></td><td>Household policy: what this house is willing to have asked for. Optional, and it can only narrow what the hardware already allows.</td></tr>
+      <tr><td><code>id</code></td><td>How Dobby refers to it, forever. Convention: <span class="arg">type:place</span>, like <span class="arg">thermostat:hall</span>.</td></tr>
+      <tr><td><code>type</code></td><td><span class="arg">thermostat</span>, <span class="arg">light</span>, <span class="arg">vacuum</span>, or <span class="arg">wifi_endpoint</span>.</td></tr>
+      <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
+      <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
+      <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity ids exactly.</td></tr>
+      <tr><td><code>settings</code></td><td>House rules. Optional. They can narrow what the hardware allows, never widen it.</td></tr>
     </table>
     </div>
 
-    <p>Entity ids live in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. Use them exactly as HA names them. A device bound to an entity that does not exist boots as <span class="arg">NOT KNOWN</span> and stays that way; <a href="running.html#verify">the verify task</a> names it.</p>
+    <p>Entity ids are in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. A device bound to a wrong id shows <span class="arg">NOT KNOWN</span> and stays that way. <a href="running.html#verify">Verify</a> names it.</p>
 
     <h2 id="types">The four types</h2>
 
     <h3 id="thermostat">thermostat</h3>
-    <p>A thermostat Dobby can read and set. One binding, <code>climate</code>, pointing at a <span class="arg">climate.*</span> entity. The range the hardware allows is discovered from the device itself (HA reports it), and <code>settings</code> only narrows that to what this household wants askable.</p>
+    <p>Dobby reads it and sets it. The hardware's range comes from Home Assistant. <code>settings</code> narrows that range to what your house allows anyone to ask for.</p>
 <pre><code>- <span class="k">id:</span> thermostat:hall
   <span class="k">type:</span> thermostat
   <span class="k">name:</span> hall thermostat
@@ -89,10 +88,10 @@
   <span class="k">settings:</span>
     <span class="k">min_temperature_f:</span> 60
     <span class="k">max_temperature_f:</span> 78</code></pre>
-    <p>Policy narrows and never widens. With the range above, nobody can set the hall to 90: not a person at a card, not the model, not an agent over MCP. The refusal comes from the device agent in the same words whoever asked will read: the device says <span class="arg">HELD</span>, and the reason beside it names the range.</p>
+    <p>With this range, nobody can set the hall to 90. Not a person at a card, not the model, not an agent over MCP. The thermostat shows <span class="arg">HELD</span> with the reason beside it.</p>
 
     <h3 id="light">light</h3>
-    <p>A light Dobby can switch, and dim if the bulb says it dims. One binding, <code>light</code>. Whether it dims is discovered from the bulb's supported colour modes, never declared here, so there is nothing to set.</p>
+    <p>Dobby switches it, and dims it if the bulb can dim. The bulb reports that itself. Nothing to set.</p>
 <pre><code>- <span class="k">id:</span> light:living_room
   <span class="k">type:</span> light
   <span class="k">name:</span> living room light
@@ -101,7 +100,7 @@
     <span class="k">light:</span> light.living_room</code></pre>
 
     <h3 id="vacuum">vacuum</h3>
-    <p>A robot vacuum Dobby can start and send home. One binding, <code>vacuum</code>.</p>
+    <p>Dobby starts it and sends it home.</p>
 <pre><code>- <span class="k">id:</span> vacuum:downstairs
   <span class="k">type:</span> vacuum
   <span class="k">name:</span> robot vacuum
@@ -110,7 +109,7 @@
     <span class="k">vacuum:</span> vacuum.downstairs</code></pre>
 
     <h3 id="wifi">wifi_endpoint</h3>
-    <p>Something on the network Dobby can tell you the reachability of, and only that: a printer, a television, a speaker. Read-only on purpose. One binding, <code>connectivity</code>, usually a <span class="arg">binary_sensor.*</span> from HA's ping integration. That is what <code>ha_integration</code> records: a note for whoever reads the file, not a switch.</p>
+    <p>Something on the network Dobby can report as reachable or not: a printer, a TV, a speaker. Read only. The usual source is a <span class="arg">binary_sensor</span> from Home Assistant's ping integration.</p>
 <pre><code>- <span class="k">id:</span> wifi:office_printer
   <span class="k">type:</span> wifi_endpoint
   <span class="k">name:</span> office printer
@@ -118,41 +117,33 @@
   <span class="k">ha_integration:</span> ping
   <span class="k">bindings:</span>
     <span class="k">connectivity:</span> binary_sensor.office_printer</code></pre>
-    <p>An endpoint going quiet at three in the morning is weather, not an event. It shows on the card and in the log, and it does not post a line into a thread somebody reads over breakfast.</p>
+    <p>A printer that drops off at three in the morning shows on its card and in the log. It does not post into the thread.</p>
 
     <h2 id="system">The system section</h2>
-    <p>The box rather than the house. Everything here is optional, and three of the four have a matching environment variable that wins while it is exported, so a one-off experiment never means editing the file.</p>
+    <p>All four settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
 <pre><code><span class="k">system:</span>
-  <span class="c"># Which model answers. Unset means the committed default, which needs an</span>
-  <span class="c"># Anthropic key. Any provider ReqLLM speaks, as provider:model.</span>
   <span class="k">model:</span> openai:gpt-5.6-luna
-
-  <span class="c"># The port the surface is served on.</span>
   <span class="k">port:</span> 4000
-
-  <span class="c"># Bind every interface and advertise the name below, so anyone at home</span>
-  <span class="c"># can open http://dobby.local:4000/.</span>
   <span class="k">lan:</span> true
   <span class="k">hostname:</span> dobby.local</code></pre>
 
     <div class="table-wrap">
     <table>
       <tr><th>Key</th><th>Override</th><th>Takes effect</th></tr>
-      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. No restart.</td></tr>
-      <tr><td><code>port</code></td><td><code>PORT</code></td><td>When Dobby restarts.</td></tr>
-      <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>When Dobby restarts.</td></tr>
-      <tr><td><code>hostname</code></td><td>—</td><td>When Dobby restarts. One DNS label and <span class="arg">.local</span>; it belongs to the LAN advertisement, not to Phoenix's public URL.</td></tr>
+      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. Any <span class="arg">provider:model</span> ReqLLM speaks.</td></tr>
+      <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
+      <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
+      <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>
     </table>
     </div>
 
-    <p>The same four knobs are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>, drawn from this section's own schema. A save there says, per field, whether it took effect now or is waiting for a restart.</p>
+    <p>The same four settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
 
     <h2 id="written">Dobby writes this file too</h2>
-    <p>Four surfaces end in this one file: an editor, the forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, Dobby proposing a device in the thread, and an agent of yours over MCP. All of them go through one writer, so the file has a single author and two people saving at once is a queue rather than a race. The write is a temporary file beside the real one and an atomic rename: the next boot sees the old file or the new one, never half of either.</p>
-    <p>Two consequences worth knowing before you hand-edit:</p>
+    <p>The forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, a device Dobby proposes in the thread, and an agent over MCP all write to this file. One writer handles every change, so two saves at once queue instead of colliding. Two things to know before you edit by hand:</p>
     <ul>
-      <li><strong>Hand edits are welcome, and take effect when Dobby restarts.</strong> Dobby does not watch the file.</li>
-      <li><strong>When Dobby writes, it rewrites the whole file.</strong> Your comments and key order do not survive; the file is the record, not the document. Keep your own notes somewhere else, or accept that the first save from a form will tidy them away.</li>
+      <li>Hand edits take effect when Dobby restarts.</li>
+      <li>When Dobby writes, it rewrites the whole file. Your comments and key order do not survive.</li>
     </ul>
 
     <div class="proof">
@@ -160,10 +151,8 @@
       <p class="line"><span class="c"># This file is written by Dobby, and rewritten in full every time the
 # house or the system panel is changed. Comments and key order do not
 # survive that — the file is the record, not the document.</span></p>
-      <p class="said">The header Dobby puts on a file it has written, verbatim. If your file starts with it, something other than your editor has saved it since.</p>
+      <p class="said">The header Dobby puts on a file it has written. If your file starts with it, something other than your editor has saved it.</p>
     </div>
-
-    <p>Keep it a data file. A house described in Elixir (<span class="arg">.exs</span>) still boots (the test rig is one), but Dobby will not write one back, and every editing surface will say so rather than offer a form that could only be refused.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
       <a class="prev" href="index.html"><small>Previous</small>Start</a>

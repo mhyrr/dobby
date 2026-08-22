@@ -183,6 +183,10 @@ mix reach.check --smells      # advisory review leads (see the elixir-reach skil
 `mix precommit` before you call anything done. Run the verification and read the
 output — a type check is not a feature check.
 
+In dev the running server also serves Tidewave at `/tidewave/mcp` (loopback
+only): evaluate code in the live node, read its logs, query the Repo. Register
+it once with `claude mcp add --transport http tidewave http://localhost:<PORT>/tidewave/mcp`.
+
 ## Conventions
 
 - **Commit messages are sentences about what changed for the house**, not

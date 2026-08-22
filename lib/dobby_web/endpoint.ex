@@ -29,7 +29,13 @@ defmodule DobbyWeb.Endpoint do
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
+  #
+  # Tidewave rides the same flag rather than `Mix.env()`: the dependency is
+  # dev-only and so is code reloading, and a config-derived compile-time flag
+  # is the house's one way of telling environments apart. First in the block
+  # so its MCP endpoint answers even when a reload fails to compile.
   if code_reloading? do
+    plug Tidewave
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader

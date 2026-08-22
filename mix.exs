@@ -83,7 +83,12 @@ defmodule Dobby.MixProject do
       # input reach a sink, did this branch cross a layer boundary. Advisory by
       # default. Dev/test only, never loaded at runtime. `jason` above already
       # unlocks `--format json`.
-      {:reach, "~> 2.8", only: [:dev, :test], runtime: false}
+      {:reach, "~> 2.8", only: [:dev, :test], runtime: false},
+      # The other door, for the agent working *on* Dobby rather than through
+      # it: an MCP endpoint at /tidewave/mcp that can evaluate code in the
+      # running node, read logs, and query the Repo. Dev only, and loopback
+      # only by its own default — a LAN-bound dev server does not expose it.
+      {:tidewave, "~> 0.9", only: :dev}
     ]
   end
 

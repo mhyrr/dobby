@@ -5,14 +5,17 @@ The developer path — a local HA in a container, virtual entities, no hardware
 — is [local-ha.md](local-ha.md).
 
 The destination: a talking Dobby that the whole household reaches at
-`http://dobby.local/`, described by two files you own — `home.yaml` and
+`http://dobby.local:4000/`, described by two files you own — `home.yaml` and
 `soul.md` — with `mix dobby.ha.verify` proving the wiring before you trust an
 evening to it.
 
 ## What you need
 
-- **Elixir** (1.19+) and **PostgreSQL**. `mix setup` installs dependencies and
+- **Elixir** (1.18+) and **PostgreSQL**. `mix setup` installs dependencies and
   creates the database.
+- **mDNS publishing for the household name.** macOS includes `dns-sd`. On
+  Linux, install and run Avahi plus its utilities (`avahi-daemon` and
+  `avahi-utils`) so Dobby can publish `dobby.local`.
 - **A Home Assistant you can reach**, and a long-lived access token for it:
   in HA, open your profile → **Security** → **Long-lived access tokens** →
   create one. It is shown once; put it straight into your environment.
@@ -40,9 +43,11 @@ otherwise look up here. The shape:
   is allowed to ask for. Policy can narrow what the hardware allows, never
   widen it.
 - **`system:`** — the box Dobby runs on rather than the house it looks after:
-  `model`, `port`, `lan`, `hostname`. All optional, and an exported
-  environment variable always wins over the file, so a one-off experiment
-  never means editing it.
+  `model`, `port`, `lan`, `hostname`. All are optional. The existing boot
+  overrides — `DOBBY_MODEL`, `PORT`, and `DOBBY_LAN` — win while they remain
+  exported, so a one-off experiment never means editing the file. Hostname is
+  set in the file because it belongs to the LAN advertisement, not Phoenix's
+  public URL.
 
 Two rules keep the file shareable and honest:
 
@@ -83,7 +88,8 @@ thermostat in the manifest unless you name one, and it is a real change to
 whatever that entity controls, so name a virtual one if you have any doubt:
 
 ```sh
-mix dobby.ha.verify --round-trip thermostat:demo
+DOBBY_HOME_MANIFEST=config/homes/my-house.yaml \
+  mix dobby.ha.verify --round-trip thermostat:demo
 ```
 
 Then:
@@ -100,8 +106,9 @@ every one of these variables by design.
 
 `system.lan: true` (or `DOBBY_LAN=1`) binds every interface and advertises the
 machine as `dobby.local` for as long as the server runs, so every phone and
-tablet on the Wi-Fi can open it. Pair it with `port: 80` so the address is
-just `http://dobby.local/`. Flat trust, deliberately: the Wi-Fi password is
+tablet on the Wi-Fi can open `http://dobby.local:4000/`. Port 4000 is the
+portable default; a bare `http://dobby.local/` needs a real port-80 reverse
+proxy or service capability. Flat trust, deliberately: the Wi-Fi password is
 the boundary, and `/admin` is a room in the house, not a privilege level.
 
 ## Growing the house
@@ -142,12 +149,12 @@ you already use can do the work.
 2. **Connect your agent.** For Claude Code:
 
    ```sh
-   claude mcp add --transport http dobby http://dobby.local/mcp \
+   claude mcp add --transport http dobby http://dobby.local:4000/mcp \
      --header "Authorization: Bearer <the token>"
    ```
 
    Any MCP client that speaks streamable HTTP connects the same way.
-3. **Tell it what you have.** "Dobby at dobby.local runs my house. I have a
+3. **Tell it what you have.** "Dobby at dobby.local:4000 runs my house. I have a
    thermostat, three lights, and a robot vacuum, all on Home Assistant — set
    them up." The agent discovers what HA sees, proposes each device, and
    confirms them into `home.yaml`; the house restarts into its new shape and
@@ -161,6 +168,10 @@ of who asked is the token's real job.
 ## Running as an installed service
 
 A release looks for the two files at `/opt/dobby/config/home.yaml` and
-`/opt/dobby/config/soul.md` — no environment variables needed for either.
-`DATABASE_URL` and `SECRET_KEY_BASE` are the operator's side of the line and
-stay in the environment; see `config/runtime.exs`.
+`/opt/dobby/config/soul.md`, so it needs no path override for either.
+Referenced HA and model credentials, `DATABASE_URL`, and `SECRET_KEY_BASE`
+stay in the service environment; see `config/runtime.exs`. The release keeps
+the same HTTP household contract as development. It binds loopback unless
+`system.lan` is true, and then serves the trusted LAN at the hostname and port in
+`home.yaml`. Put a real TLS reverse proxy in front before exposing it beyond
+that network; Dobby does not pretend an HTTPS listener exists.

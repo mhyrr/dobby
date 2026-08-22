@@ -574,6 +574,18 @@ defmodule DobbyWeb.AdminLiveTest do
       assert has_element?(view, "input[name='system[port]'][value='the kitchen one']")
     end
 
+    test "a hostname that could become shell syntax is refused", %{conn: conn, path: path} do
+      {:ok, view, _html} = open(conn, :system)
+      original = File.read!(path)
+
+      view
+      |> form("form#system", system: %{"hostname" => "dobby.local'; touch /tmp/nope; '"})
+      |> render_submit()
+
+      assert has_element?(view, ".fields .why", "system.hostname")
+      assert File.read!(path) == original
+    end
+
     # Always current with the applied configuration, which is what buys v1 out
     # of needing a file watcher: an open page follows a change made anywhere.
     test "follows a change made somewhere other than this browser", %{conn: conn, writer: writer} do
@@ -618,12 +630,21 @@ defmodule DobbyWeb.AdminLiveTest do
 
       assert has_element?(view, ".tokens .row .name", "the kitchen laptop")
 
+      # Leaving the system room is the revisit boundary promised beside the
+      # plaintext. Coming back can list the label but cannot reveal the key.
+      view |> element(".rail a", "Activity") |> render_click()
+      assert_patched(view, "/admin?section=activity")
+      view |> element(".rail a", "System") |> render_click()
+      assert_patched(view, "/admin?section=system")
+      refute render(view) =~ plaintext
+
       # A label names exactly one key, and the refusal is the row's own words.
       view
       |> form("#new-token", %{"token" => %{"label" => "the kitchen laptop"}})
       |> render_submit()
 
       assert has_element?(view, ".tokens .why", "already a token")
+      refute render(view) =~ plaintext
 
       [token] = Dobby.MCP.list()
 
@@ -635,6 +656,21 @@ defmodule DobbyWeb.AdminLiveTest do
       assert has_element?(view, ".tokens .note", "No tokens")
       assert Dobby.MCP.list() == []
       assert Dobby.MCP.verify(plaintext) == :error
+    end
+
+    test "refuses an overlong label and a malformed revoke id", %{conn: conn} do
+      {:ok, view, _html} = open(conn, :system)
+
+      view
+      |> form("#new-token", %{"token" => %{"label" => String.duplicate("a", 121)}})
+      |> render_submit()
+
+      assert has_element?(view, ".tokens .why", "at most 120")
+      assert Dobby.MCP.list() == []
+
+      render_click(view, "revoke", %{"id" => "not-an-id"})
+
+      assert has_element?(view, ".tokens .why", "not a token id")
     end
   end
 
@@ -859,6 +895,7 @@ defmodule DobbyWeb.AdminLiveTest do
     timezone: America/New_York
     home_assistant:
       url: http://fake.invalid:8123
+      token: env:DOBBY_ADMIN_LIVE_TEST_HA_TOKEN
     devices: []
   """
 
@@ -871,6 +908,17 @@ defmodule DobbyWeb.AdminLiveTest do
   end
 
   defp editable_house(_context) do
+    previous_token = System.get_env("DOBBY_ADMIN_LIVE_TEST_HA_TOKEN")
+    System.put_env("DOBBY_ADMIN_LIVE_TEST_HA_TOKEN", "fake")
+
+    on_exit(fn ->
+      if previous_token do
+        System.put_env("DOBBY_ADMIN_LIVE_TEST_HA_TOKEN", previous_token)
+      else
+        System.delete_env("DOBBY_ADMIN_LIVE_TEST_HA_TOKEN")
+      end
+    end)
+
     path = Path.join(System.tmp_dir!(), "admin-#{System.unique_integer([:positive])}.yaml")
     File.write!(path, @editable_house)
 

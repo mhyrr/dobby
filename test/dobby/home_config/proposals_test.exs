@@ -18,13 +18,16 @@ defmodule Dobby.HomeConfig.ProposalsTest do
   alias Dobby.HomeConfig
   alias Dobby.HomeConfig.Proposals
   alias Dobby.HomeConfig.Writer
+  alias Dobby.HomeAssistant.Fake
 
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
+  @candidate "climate.dining_room"
 
   setup do
     boot_house!([thermostat_device(@thermostat, "main thermostat", entity: @entity)])
     seed_house(%{@entity => thermostat_entity()})
+    Fake.put_entity(@candidate, thermostat_entity())
     :ok
   end
 
@@ -35,7 +38,7 @@ defmodule Dobby.HomeConfig.ProposalsTest do
         "type" => "thermostat",
         "name" => "dining room thermostat",
         "aliases" => ["the nest"],
-        "bindings" => %{"climate" => "climate.dining_room"}
+        "bindings" => %{"climate" => @candidate}
       },
       overrides
     )
@@ -116,6 +119,26 @@ defmodule Dobby.HomeConfig.ProposalsTest do
 
       assert reason =~ "duplicate device names"
     end
+
+    test "an entity Home Assistant did not report is refused before it becomes a proposal" do
+      assert {:error, reason} =
+               Proposals.propose(entry(%{"bindings" => %{"climate" => "climate.invented"}}))
+
+      assert reason =~ "does not currently report"
+      assert reason =~ "climate.invented"
+      assert reason =~ "discover_entities"
+      assert Proposals.outstanding() == []
+    end
+
+    test "an existing entity cannot be proposed as the wrong device type" do
+      Fake.put_entity("light.dining_room", light_entity())
+
+      assert {:error, reason} =
+               Proposals.propose(entry(%{"bindings" => %{"climate" => "light.dining_room"}}))
+
+      assert reason =~ "unbound thermostat"
+      assert Proposals.outstanding() == []
+    end
   end
 
   describe "supersession and expiry" do
@@ -140,6 +163,8 @@ defmodule Dobby.HomeConfig.ProposalsTest do
 
     test "a different device proposed alongside it stays outstanding" do
       assert {:ok, first} = Proposals.propose(entry())
+
+      Fake.put_entity("light.porch", light_entity())
 
       assert {:ok, second} =
                Proposals.propose(
@@ -274,6 +299,54 @@ defmodule Dobby.HomeConfig.ProposalsTest do
 
       assert {:error, reason} = Proposals.confirm(proposal.id)
       assert reason =~ "already has a device called"
+    end
+
+    test "an entity that vanished after proposal is refused at confirm time", %{config: config} do
+      assert {:ok, proposal} = Proposals.propose(entry())
+      original = File.read!(config.path)
+
+      Fake.reset()
+
+      assert {:error, reason} = Proposals.confirm(proposal.id)
+      assert reason =~ "does not currently report"
+      assert File.read!(config.path) == original
+      assert {:ok, %{status: :proposed}} = Proposals.fetch(proposal.id)
+    end
+
+    test "concurrent confirmations retain both devices in one house", %{config: config} do
+      Fake.put_entity("light.porch", light_entity())
+
+      assert {:ok, thermostat} = Proposals.propose(entry())
+
+      assert {:ok, light} =
+               Proposals.propose(
+                 entry(%{
+                   "id" => "light:porch",
+                   "type" => "light",
+                   "name" => "porch light",
+                   "aliases" => [],
+                   "bindings" => %{"light" => "light.porch"}
+                 })
+               )
+
+      results =
+        [thermostat.id, light.id]
+        |> Task.async_stream(&Proposals.confirm/1,
+          max_concurrency: 2,
+          ordered: false,
+          timeout: :infinity
+        )
+        |> Enum.map(fn {:ok, result} -> result end)
+
+      assert Enum.all?(results, &match?({:ok, _proposal, _applied}, &1))
+
+      ids = Writer.current().house |> Keyword.fetch!(:devices) |> Enum.map(& &1.id)
+      assert "thermostat:dining_room" in ids
+      assert "light:porch" in ids
+
+      written = File.read!(config.path)
+      assert written =~ "thermostat:dining_room"
+      assert written =~ "light:porch"
     end
 
     test "a model id that arrived as a string still resolves" do

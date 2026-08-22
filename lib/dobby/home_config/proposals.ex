@@ -52,6 +52,7 @@ defmodule Dobby.HomeConfig.Proposals do
   import Ecto.Query
 
   alias Dobby.HomeConfig
+  alias Dobby.HomeConfig.Discovery
   alias Dobby.HomeConfig.Proposal
   alias Dobby.HomeConfig.Writer
   alias Dobby.Repo
@@ -184,7 +185,8 @@ defmodule Dobby.HomeConfig.Proposals do
 
     with :ok <- Writer.writable(config),
          {:ok, proposed} <- HomeConfig.add_device(config, entry),
-         {:ok, _manifest} <- HomeConfig.validate(proposed) do
+         {:ok, _manifest} <- HomeConfig.validate(proposed),
+         :ok <- Discovery.validate_entry(entry) do
       store(entry, config, opts)
     end
   end
@@ -232,23 +234,32 @@ defmodule Dobby.HomeConfig.Proposals do
   Applies a proposal somebody agreed to, through the one writer.
 
   Validated a second time, against the house as it is at this moment rather
-  than as it was when the words were said. That is the load-bearing check: a
+  than as it was when the words were said. That check carries the guarantee: a
   proposal is a sentence somebody remembered, and between the sentence and the
   yes another device may have taken the id or claimed the entity.
 
-  The house is restarted a moment late, not immediately — see
-  `Dobby.HomeConfig.Writer.catch_up/1`. The file is written and the manifest is
-  applied before this returns, so "applied" is true when it is said.
+  The household thread restarts the house a moment late — see
+  `Dobby.HomeConfig.Writer.catch_up/1` — so its own reply can land first. An
+  external request passes `defer_house: false` because its process survives a
+  house restart and its success must mean the running house took the device on.
   """
   @spec confirm(integer() | String.t(), keyword()) ::
           {:ok, Proposal.t(), Dobby.HomeConfig.Applied.t()} | {:error, String.t()}
   def confirm(id, opts \\ []) do
     with {:ok, proposal} <- fetch(id),
          :ok <- confirmable(proposal),
-         config = Writer.current(),
-         :ok <- Writer.writable(config),
-         {:ok, incoming} <- HomeConfig.add_device(config, proposal.entry),
-         {:ok, applied} <- Writer.save(Writer, incoming, defer_house: true) do
+         {:ok, applied} <-
+           Writer.update(
+             Writer.server(),
+             fn config ->
+               with :ok <- Writer.writable(config),
+                    {:ok, incoming} <- HomeConfig.add_device(config, proposal.entry),
+                    :ok <- Discovery.validate_entry(proposal.entry) do
+                 {:ok, incoming}
+               end
+             end,
+             defer_house: Keyword.get(opts, :defer_house, true)
+           ) do
       {:ok, mark_applied(proposal, opts), applied}
     end
   end

@@ -6,7 +6,7 @@ defmodule Dobby.HomeConfig.Discovery do
   twice today — once in Home Assistant, where the integration and the
   credentials live, and once in Dobby, where the id, the household's own words
   for it, and its policy live. The first half is unavoidably HA's job. The
-  second half is load-bearing and stays. What is neither is the *retyping*:
+  second half is necessary and stays. What is neither is the *retyping*:
   copying `climate.dining_room` out of one screen and into a file, and
   deciding again that a climate entity is a thermostat.
 
@@ -77,6 +77,39 @@ defmodule Dobby.HomeConfig.Discovery do
   end
 
   @doc """
+  Proves that a proposed file entry still names a candidate HA reported.
+
+  File validation answers whether the entry has the right shape. This answers
+  the other question the proposal path must not leave to a model: whether the
+  entity exists, is unbound, and belongs to the device type the entry names.
+  The check runs both when the proposal is made and when it is confirmed,
+  because HA and the house can change between those two moments.
+  """
+  @spec validate_entry(map()) :: :ok | {:error, String.t()}
+  def validate_entry(entry) when is_map(entry) do
+    type = Map.get(entry, "type")
+
+    with {:ok, module} <- fetch_type(type),
+         {:ok, binding} <- only_binding(module),
+         entity_id when is_binary(entity_id) <-
+           get_in(entry, ["bindings", Atom.to_string(binding)]),
+         {:ok, candidates} <- candidates(type: type) do
+      if Enum.any?(candidates, &(&1.entity_id == entity_id)) do
+        :ok
+      else
+        {:error,
+         "Home Assistant does not currently report #{inspect(entity_id)} as an unbound #{type}; run discover_entities again"}
+      end
+    else
+      {:error, reason} ->
+        {:error, reason}
+
+      _missing_or_unrecognized ->
+        {:error, "the proposed device does not name the entity binding for #{type}"}
+    end
+  end
+
+  @doc """
   Whether a manifest binding already claims this entity.
 
   The question the propose path asks a second time, because a house can change
@@ -85,6 +118,23 @@ defmodule Dobby.HomeConfig.Discovery do
   @spec bound?(String.t()) :: boolean()
   def bound?(entity_id) when is_binary(entity_id),
     do: MapSet.member?(bound_entities(), entity_id)
+
+  defp fetch_type(type) do
+    case Types.fetch(type) do
+      {:ok, module} -> {:ok, module}
+      :error -> {:error, "unknown device type #{inspect(type)}; #{Types.roll_call()}"}
+    end
+  end
+
+  defp only_binding(module) do
+    case module.subscribed_bindings() do
+      [binding] ->
+        {:ok, binding}
+
+      _other ->
+        {:error, "#{module.config_type()} cannot be proposed from one Home Assistant entity"}
+    end
+  end
 
   # Every entity id any device points at, not merely the routed ones. A binding
   # a device type does not subscribe to is still a claim on that entity, and

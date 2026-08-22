@@ -301,14 +301,22 @@ defmodule Dobby.HomeConfig do
   defp yaml_home_assistant(raw) when is_map(raw) do
     with :ok <- only_known(raw, @home_assistant_keys, "home_assistant"),
          {:ok, url} <- fetch_string(raw, "url", "home_assistant"),
-         {:ok, token} <- optional_string(raw, "token", "home_assistant") do
-      token_option = if token, do: [token: token], else: []
-      {:ok, [client: Dobby.HomeAssistant.Client, url: url] ++ token_option}
+         {:ok, token} <- fetch_string(raw, "token", "home_assistant"),
+         :ok <- credential_reference(token, "home_assistant.token") do
+      {:ok, [client: Dobby.HomeAssistant.Client, url: url, token: token]}
     end
   end
 
   defp yaml_home_assistant(other),
     do: {:error, "home_assistant must be a mapping, got: #{inspect(other)}"}
+
+  defp credential_reference(value, field) do
+    if Resolver.reference?(value) do
+      :ok
+    else
+      {:error, "#{field} must be an env:VARIABLE reference, never a credential value"}
+    end
+  end
 
   defp yaml_network(raw) when is_map(raw) do
     with :ok <- only_known(raw, @network_keys, "network"),
@@ -536,8 +544,13 @@ defmodule Dobby.HomeConfig do
   end
 
   defp home_assistant_yaml(home_assistant) do
-    %{"url" => Keyword.get(home_assistant, :url)}
-    |> put_present("token", Keyword.get(home_assistant, :token))
+    %{
+      "url" => Keyword.get(home_assistant, :url),
+      # An Elixir rig can use the Fake with no credential. Its YAML migration
+      # is a real-client house, so the conventional reference belongs in the
+      # file rather than an invalid omission or a made-up token value.
+      "token" => Keyword.get(home_assistant, :token) || Resolver.reference("DOBBY_HA_TOKEN")
+    }
   end
 
   defp networks_yaml([]), do: nil

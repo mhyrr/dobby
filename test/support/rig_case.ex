@@ -76,16 +76,34 @@ defmodule Dobby.RigCase do
   """
   @spec writable_house!() :: Dobby.HomeConfig.t()
   def writable_house! do
+    variable = "DOBBY_RIG_HA_TOKEN"
+    previous_token = System.get_env(variable)
+    System.put_env(variable, "fake")
+
+    ExUnit.Callbacks.on_exit(fn ->
+      if previous_token do
+        System.put_env(variable, previous_token)
+      else
+        System.delete_env(variable)
+      end
+    end)
+
     path =
       Path.join(
         System.tmp_dir!(),
         "dobby-rig-house-#{System.unique_integer([:positive])}.yaml"
       )
 
+    house =
+      Application.get_env(:dobby, Dobby.Home, [])
+      |> Keyword.update!(:home_assistant, fn options ->
+        Keyword.put(options, :token, Dobby.HomeConfig.Resolver.reference(variable))
+      end)
+
     config = %Dobby.HomeConfig{
       path: path,
       format: :yaml,
-      house: Application.get_env(:dobby, Dobby.Home, [])
+      house: house
     }
 
     File.write!(path, Dobby.HomeConfig.to_yaml(config))

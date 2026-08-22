@@ -29,6 +29,7 @@ defmodule Dobby.HomeConfig.WriterTest do
     timezone: America/New_York
     home_assistant:
       url: http://fake.invalid:8123
+      token: env:DOBBY_WRITER_TEST_HA_TOKEN
     devices:
       - id: thermostat:main
         type: thermostat
@@ -42,6 +43,17 @@ defmodule Dobby.HomeConfig.WriterTest do
   """
 
   setup do
+    previous_token = System.get_env("DOBBY_WRITER_TEST_HA_TOKEN")
+    System.put_env("DOBBY_WRITER_TEST_HA_TOKEN", "fake")
+
+    on_exit(fn ->
+      if previous_token do
+        System.put_env("DOBBY_WRITER_TEST_HA_TOKEN", previous_token)
+      else
+        System.delete_env("DOBBY_WRITER_TEST_HA_TOKEN")
+      end
+    end)
+
     path =
       Path.join(System.tmp_dir!(), "writer-#{System.unique_integer([:positive])}.yaml")
 
@@ -249,6 +261,36 @@ defmodule Dobby.HomeConfig.WriterTest do
       assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "openai:gpt-5.6-luna"}
     end
 
+    test "an exported model remains in effect when the file changes", %{writer: writer} do
+      previous_aliases = Application.get_env(:jido_ai, :model_aliases)
+      previous_export = System.get_env("DOBBY_MODEL")
+
+      on_exit(fn ->
+        Application.put_env(:jido_ai, :model_aliases, previous_aliases)
+
+        if previous_export do
+          System.put_env("DOBBY_MODEL", previous_export)
+        else
+          System.delete_env("DOBBY_MODEL")
+        end
+      end)
+
+      System.put_env("DOBBY_MODEL", "anthropic:exported")
+      Application.put_env(:jido_ai, :model_aliases, %{capable: "anthropic:exported"})
+
+      assert {:ok, applied} =
+               Writer.save(
+                 writer,
+                 with_system(current(writer), model: "openai:file-value")
+               )
+
+      assert applied.applied == []
+      assert applied.on_restart == []
+      assert applied.overridden == [:model]
+      assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "anthropic:exported"}
+      assert current(writer).system.model == "openai:file-value"
+    end
+
     test "the port and the LAN wait for a restart, and say so", %{writer: writer} do
       config = current(writer)
 
@@ -382,6 +424,20 @@ defmodule Dobby.HomeConfig.WriterTest do
 
       assert {:ok, _applied} = Writer.catch_up(writer)
       assert Writer.catch_up(writer) == :idle
+    end
+
+    test "a later system save stays on the catch-up result", %{writer: writer} do
+      devices = [thermostat("thermostat:attic", "attic thermostat", "climate.attic")]
+
+      assert {:ok, _deferred} =
+               Writer.save(writer, with_devices(current(writer), devices), defer_house: true)
+
+      assert {:ok, _system} =
+               Writer.save(writer, with_system(current(writer), port: 4100))
+
+      assert {:ok, applied} = Writer.catch_up(writer)
+      assert applied.config.system.port == 4100
+      assert Writer.current(writer).system.port == 4100
     end
 
     test "a writer with nothing waiting is idle, which is every turn but one", %{writer: writer} do

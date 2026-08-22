@@ -37,6 +37,7 @@ defmodule DobbyWeb.HouseLiveTest do
     timezone: America/New_York
     home_assistant:
       url: http://fake.invalid:8123
+      token: env:DOBBY_HOUSE_LIVE_TEST_HA_TOKEN
     devices:
       - id: thermostat:main
         type: thermostat
@@ -642,6 +643,17 @@ defmodule DobbyWeb.HouseLiveTest do
   # so the file on disk and the house on the board are the same house, which is
   # what a boot means.
   defp editable_house(_context) do
+    previous_token = System.get_env("DOBBY_HOUSE_LIVE_TEST_HA_TOKEN")
+    System.put_env("DOBBY_HOUSE_LIVE_TEST_HA_TOKEN", "fake")
+
+    on_exit(fn ->
+      if previous_token do
+        System.put_env("DOBBY_HOUSE_LIVE_TEST_HA_TOKEN", previous_token)
+      else
+        System.delete_env("DOBBY_HOUSE_LIVE_TEST_HA_TOKEN")
+      end
+    end)
+
     path = Path.join(System.tmp_dir!(), "house-#{System.unique_integer([:positive])}.yaml")
     File.write!(path, @editable)
     on_exit(fn -> File.rm(path) end)

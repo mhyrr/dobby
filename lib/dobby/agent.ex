@@ -141,7 +141,10 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.ConfirmDevice
     ],
     system_prompt: @doctrine,
-    max_iterations: 5,
+    # A whole-house adoption turn can spend one iteration on discovery and one
+    # per proposed device before it answers. Thirty-two covers a practical
+    # spoken inventory while retaining a firm stop for a model that loops.
+    max_iterations: 32,
     streaming: true,
     # The ReAct config always sends `temperature` and `max_tokens` — schema
     # defaults with no way to unset them — and req_llm adapts both per model,
@@ -219,7 +222,10 @@ defmodule Dobby.DobbyAgent do
   # could get wrong (§6.4).
   defp request_opts(%Utterance{} = utterance, opts) do
     Keyword.merge(
-      [tools: Dobby.Home.tools(), tool_context: %{speaker: utterance.speaker}],
+      [
+        tools: Dobby.Home.tools(),
+        tool_context: %{speaker: utterance.speaker, via: :conversation}
+      ],
       opts
     )
   end

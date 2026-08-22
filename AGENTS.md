@@ -4,7 +4,7 @@ A household agent for Home Assistant. Everyone in the house talks to it in one
 shared thread, and it answers by doing things: reading a thermostat, dimming a
 light, starting the vacuum, setting a schedule for eight o'clock.
 
-One Phoenix application, not an umbrella. Elixir 1.17+, Phoenix 1.8, LiveView
+One Phoenix application, not an umbrella. Elixir 1.18+, Phoenix 1.8, LiveView
 1.2, PostgreSQL, and Jido 2.3 for agents.
 
 | Read this | For |
@@ -176,7 +176,7 @@ does production do this, or am I faking it?
 mix precommit                 # compile --warnings-as-errors, unused deps, format, test
 mix setup                     # deps, database, assets
 mix phx.server                # needs DOBBY_HOME_MANIFEST
-mix dobby.ha.verify           # prove a real HA connection and the round trip
+mix dobby.ha.verify           # prove a real HA connection and initial state sync
 mix reach.check --smells      # advisory review leads (see the elixir-reach skill)
 ```
 

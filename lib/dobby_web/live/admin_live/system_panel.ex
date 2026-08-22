@@ -56,7 +56,11 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   """
   attr :config, :any, required: true, doc: "the applied configuration, or nil when there is none"
   attr :form, :map, required: true, doc: "field name => what is in the box"
-  attr :effects, :map, default: %{}, doc: "field => :applied | :on_restart, from the saves so far"
+
+  attr :effects, :map,
+    default: %{},
+    doc: "field => :applied | :on_restart | :overridden, from the saves so far"
+
   attr :error, :string, default: nil
 
   def system(assigns) do
@@ -98,7 +102,10 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
           />
 
           <:note>
-            <p :if={field.effect} class={["effect", field.effect == :on_restart && "waiting"]}>
+            <p
+              :if={field.effect}
+              class={["effect", field.effect in [:on_restart, :overridden] && "waiting"]}
+            >
               {effect(field.effect)}
             </p>
           </:note>
@@ -185,7 +192,13 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   @spec save(HomeConfig.t(), map()) :: {:ok, Applied.t()} | {:error, String.t()}
   def save(%HomeConfig{} = config, params) do
     with {:ok, system} <- section(params) do
-      Writer.save(Writer.server(), %{config | system: system})
+      Writer.update(Writer.server(), fn current ->
+        if current.system == config.system do
+          {:ok, %{current | system: system}}
+        else
+          {:error, "system settings changed while this form was open; review them and try again"}
+        end
+      end)
     end
   end
 
@@ -228,11 +241,12 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   not what this panel is about.
   """
   @spec effects(map(), Applied.t()) :: map()
-  def effects(previous, %Applied{applied: applied, on_restart: later}) do
+  def effects(previous, %Applied{applied: applied, on_restart: later, overridden: overridden}) do
     previous
-    |> Map.drop(applied ++ later)
+    |> Map.drop(applied ++ later ++ overridden)
     |> Map.merge(mark(applied, :applied))
     |> Map.merge(mark(later, :on_restart))
+    |> Map.merge(mark(overridden, :overridden))
   end
 
   defp mark(fields, effect) do
@@ -286,4 +300,5 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   # and not a state colour — it is the record voice, on the field it is about.
   defp effect(:applied), do: "In effect now"
   defp effect(:on_restart), do: "Waiting for a restart"
+  defp effect(:overridden), do: "The environment override is in effect"
 end

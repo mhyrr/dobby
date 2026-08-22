@@ -32,7 +32,8 @@ defmodule DobbyWeb.AdminLive.TokensPanel do
   @doc """
   The panel: the tokens that exist, the one just minted, and the mint form.
   """
-  attr :tokens, :list, required: true
+  attr :tokens, :any, required: true, doc: "the LiveView stream of token rows"
+  attr :tokens_empty?, :boolean, required: true
   attr :minted, :any, default: nil, doc: "%{label: ..., token: plaintext} shown exactly once"
   attr :label, :string, default: ""
   attr :error, :string, default: nil
@@ -42,19 +43,21 @@ defmodule DobbyWeb.AdminLive.TokensPanel do
     <section class="panel tokens">
       <%!-- Not a heading over a void: an empty list says what it means — the
             only agent that can reach the house's tools is Dobby's own. --%>
-      <p :if={@tokens == []} class="note">
+      <p :if={@tokens_empty?} class="note">
         No tokens; no agent but Dobby can use the house's tools.
       </p>
 
-      <div :for={token <- @tokens} class="sched">
-        <div class="row">
-          <span class="name">{token.label}</span>
-          <span class="val">minted {minted_on(token)}</span>
-        </div>
-        <div class="acts">
-          <button type="button" class="takes" phx-click="revoke" phx-value-id={token.id}>
-            revoke
-          </button>
+      <div id="mcp-tokens" phx-update="stream">
+        <div :for={{dom_id, token} <- @tokens} id={dom_id} class="sched">
+          <div class="row">
+            <span class="name">{token.label}</span>
+            <span class="val">minted {minted_on(token)}</span>
+          </div>
+          <div class="acts">
+            <button type="button" class="takes" phx-click="revoke" phx-value-id={token.id}>
+              revoke
+            </button>
+          </div>
         </div>
       </div>
 
@@ -77,6 +80,7 @@ defmodule DobbyWeb.AdminLive.TokensPanel do
             name="token[label]"
             value={@label}
             autocomplete="off"
+            maxlength="120"
             placeholder="Ann's laptop"
           />
         </.field>

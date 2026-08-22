@@ -1040,11 +1040,12 @@ scroll to a log rather than being handed it.
 
 ### The Form
 
-One drawing, on both routes that have one: the device on `/house`, the schedule
-and the box's own settings on `/admin`. There were three before, and one of them
-printed labels in three voices on a single screen — a written word in capitals,
-a schema key in lower case with dots in it, and a sentence demoted to a footnote
-under the box it belonged above.
+One drawing, on both routes that have one: the device on `/house`; the schedule,
+the box's own settings, and the MCP token label on `/admin`. These four uses
+share the same field grammar. Before that grammar, one form printed labels in
+three voices on a single screen — a written word in capitals, a schema key in
+lower case with dots in it, and a sentence demoted to a footnote under the box
+it belonged above.
 
 - **The label is the question, and the key is the receipt.** The question sits
   at one end of the label line and the key at the other, small, for whoever will

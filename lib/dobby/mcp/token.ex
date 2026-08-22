@@ -31,6 +31,7 @@ defmodule Dobby.MCP.Token do
     |> cast(attrs, [:label, :token_hash])
     |> update_change(:label, &String.trim/1)
     |> validate_required([:label, :token_hash])
+    |> validate_length(:label, min: 1, max: 120)
     |> unique_constraint(:label, message: "is already a token's name; revoke that one first")
     |> unique_constraint(:token_hash)
   end

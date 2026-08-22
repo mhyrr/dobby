@@ -230,7 +230,7 @@ defmodule DobbyWeb.HouseLive do
     previous = if editing == :new, do: %{}, else: entry(socket.assigns.config, editing) || %{}
 
     with {:ok, entry} <- Editor.entry(form, previous),
-         {:ok, applied} <- write(socket, devices(socket.assigns.config, editing, entry)) do
+         {:ok, applied} <- write(socket, {:put, editing, entry}) do
       {:noreply, socket |> closed() |> put_config(applied.config) |> reload()}
     else
       {:error, reason} ->
@@ -247,9 +247,7 @@ defmodule DobbyWeb.HouseLive do
   end
 
   def handle_event("remove_confirm", %{"device" => id}, %{assigns: %{editable: true}} = socket) do
-    remaining = Enum.reject(config_devices(socket.assigns.config), &(&1.id == id))
-
-    case write(socket, remaining) do
+    case write(socket, {:remove, id}) do
       {:ok, applied} ->
         {:noreply, socket |> closed() |> put_config(applied.config) |> reload()}
 
@@ -332,13 +330,37 @@ defmodule DobbyWeb.HouseLive do
     |> assign(:removing, nil)
   end
 
-  defp write(socket, devices) do
-    config = socket.assigns.config
+  defp write(socket, operation) do
+    expected = socket.assigns.config
 
-    Writer.save(Writer.server(), %{config | house: Keyword.put(config.house, :devices, devices)})
+    Writer.update(Writer.server(), fn current ->
+      with {:ok, devices} <- update_devices(current, expected, operation) do
+        {:ok, %{current | house: Keyword.put(current.house, :devices, devices)}}
+      end
+    end)
   end
 
-  defp devices(config, :new, entry), do: config_devices(config) ++ [entry]
+  defp update_devices(current, _expected, {:put, :new, entry}),
+    do: {:ok, config_devices(current) ++ [entry]}
+
+  defp update_devices(current, expected, {:put, id, replacement}) do
+    if entry(current, id) == entry(expected, id) and entry(current, id) != nil do
+      {:ok, devices(current, id, replacement)}
+    else
+      changed_device(id)
+    end
+  end
+
+  defp update_devices(current, expected, {:remove, id}) do
+    if entry(current, id) == entry(expected, id) and entry(current, id) != nil do
+      {:ok, Enum.reject(config_devices(current), &(&1.id == id))}
+    else
+      changed_device(id)
+    end
+  end
+
+  defp changed_device(id),
+    do: {:error, "#{id} changed while this form was open; review it and try again"}
 
   defp devices(config, id, entry) do
     Enum.map(config_devices(config), fn existing ->

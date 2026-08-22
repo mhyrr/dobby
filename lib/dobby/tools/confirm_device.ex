@@ -15,11 +15,10 @@ defmodule Dobby.Tools.ConfirmDevice do
   refusal a home file would get, which is what makes it something a person can
   act on.
 
-  What comes back is a change *applied*: the file on disk says so and the
-  manifest in effect says so. The house itself finishes catching up a moment
-  later — its agents restart, and the cards honestly blink NOT KNOWN until Home
-  Assistant's state sync heals them. That is the design's own answer to
-  changing a house (§2.4), now reachable without a shell.
+  What comes back is a change *applied*. The household thread defers the agent
+  restart until its reply lands. MCP applies it inside the request because the
+  endpoint survives that restart. The channel comes from trusted tool context,
+  so a caller cannot choose the easier meaning of "applied."
   """
 
   use Jido.Action,
@@ -53,7 +52,10 @@ defmodule Dobby.Tools.ConfirmDevice do
 
   @impl true
   def run(params, context) do
-    case Proposals.confirm(params.id, confirmed_by: speaker(context)) do
+    case Proposals.confirm(params.id,
+           confirmed_by: speaker(context),
+           defer_house: defer_house?(context)
+         ) do
       {:ok, proposal, _applied} ->
         {:ok,
          %{
@@ -75,4 +77,6 @@ defmodule Dobby.Tools.ConfirmDevice do
       _other -> "the household"
     end
   end
+
+  defp defer_house?(context), do: Map.get(context || %{}, :via) != :mcp
 end

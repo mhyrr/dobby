@@ -72,15 +72,32 @@ defmodule Dobby.MCP do
   """
   @spec revoke(integer() | String.t()) :: {:ok, Token.t()} | {:error, String.t()}
   def revoke(id) do
-    case Repo.get(Token, id) do
-      nil ->
-        {:error, "there is no token #{id}"}
+    case cast_id(id) do
+      {:ok, id} ->
+        case Repo.get(Token, id) do
+          nil ->
+            {:error, "there is no token #{id}"}
 
-      token ->
-        {:ok, _deleted} = Repo.delete(token)
-        {:ok, token}
+          token ->
+            {:ok, _deleted} = Repo.delete(token)
+            {:ok, token}
+        end
+
+      :error ->
+        {:error, "#{inspect(id)} is not a token id"}
     end
   end
+
+  defp cast_id(id) when is_integer(id), do: {:ok, id}
+
+  defp cast_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed, ""} -> {:ok, parsed}
+      _other -> :error
+    end
+  end
+
+  defp cast_id(_other), do: :error
 
   defp digest(plaintext), do: :crypto.hash(:sha256, plaintext)
 

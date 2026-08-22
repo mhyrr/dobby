@@ -105,10 +105,11 @@ Note the `vacuum.*` entity id HA creates, fill it into the commented
 ## Household access
 
 `DOBBY_LAN=1` (see `.env.example`) binds the dev server to every interface
-and advertises this machine as `http://dobby.local/` for exactly as long as
-the server runs. With `PORT=80` the address needs no port number. Anyone on
-the Wi-Fi can then open the thread by name — which is the point: the second
-household speaker is what the multi-speaker design exists for.
+and advertises this machine as `http://dobby.local:4000/` for exactly as long
+as the server runs. A bare hostname needs a port-80 reverse proxy or service
+capability. Anyone on the Wi-Fi can then open the thread by name — which is
+the point: the second household speaker is what the multi-speaker design
+exists for.
 
 ## Entity IDs
 

@@ -36,6 +36,8 @@ defmodule Dobby.HomeConfig.System do
     ]
   ]
 
+  @mdns_hostname ~r/\A[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.local\z/
+
   defstruct model: nil, port: nil, lan: false, hostname: nil
 
   @type t :: %__MODULE__{
@@ -66,7 +68,8 @@ defmodule Dobby.HomeConfig.System do
     known = Map.new(@schema, fn {key, _spec} -> {Atom.to_string(key), key} end)
 
     with {:ok, pairs} <- known_pairs(raw, known),
-         {:ok, options} <- validate(pairs) do
+         {:ok, options} <- validate(pairs),
+         :ok <- validate_hostname(options[:hostname]) do
       {:ok, struct!(__MODULE__, options)}
     end
   end
@@ -89,6 +92,17 @@ defmodule Dobby.HomeConfig.System do
     case NimbleOptions.validate(pairs, @schema) do
       {:ok, options} -> {:ok, options}
       {:error, %NimbleOptions.ValidationError{message: message}} -> {:error, "system: #{message}"}
+    end
+  end
+
+  defp validate_hostname(nil), do: :ok
+
+  defp validate_hostname(hostname) do
+    if Regex.match?(@mdns_hostname, hostname) do
+      :ok
+    else
+      {:error,
+       "system.hostname must be one DNS label followed by .local, for example dobby.local"}
     end
   end
 

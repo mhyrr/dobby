@@ -26,7 +26,9 @@ defmodule DobbyWeb.MCPTest do
   alias Dobby.Activity
   alias Dobby.HomeConfig.Proposal
   alias Dobby.HomeConfig.Proposals
+  alias Dobby.HomeConfig.Writer
   alias Dobby.Repo
+  alias Dobby.Schedules
 
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
@@ -69,24 +71,48 @@ defmodule DobbyWeb.MCPTest do
 
       assert rpc(ctx.base, plaintext, "tools/list", %{}).status == 401
     end
+
+    test "a foreign browser origin is refused and a local one may enter", ctx do
+      token = mint!("the kitchen laptop")
+
+      foreign =
+        rpc(ctx.base, token, "tools/list", %{}, [{"origin", "https://outside.example"}])
+
+      assert foreign.status == 403
+
+      local = rpc(ctx.base, token, "tools/list", %{}, [{"origin", "http://localhost:4000"}])
+      assert %{"tools" => _tools} = result!(local)
+    end
   end
 
   describe "the roster" do
     test "initialize answers as Dobby, and tools/list is exactly this house's tools", ctx do
       token = mint!("Ann's laptop")
 
-      init =
-        result!(
-          rpc(ctx.base, token, "initialize", %{
-            protocolVersion: "2025-06-18",
-            capabilities: %{},
-            clientInfo: %{name: "test", version: "0"}
-          })
-        )
+      initialized =
+        initialize_stream(ctx.base, token, %{
+          protocolVersion: "2025-06-18",
+          capabilities: %{},
+          clientInfo: %{name: "test", version: "0"}
+        })
+
+      init = result!(initialized)
 
       assert init["serverInfo"]["name"] == "Dobby"
 
-      tools = result!(rpc(ctx.base, token, "tools/list", %{}))["tools"]
+      assert [session_id] = initialized.headers["mcp-session-id"]
+      session_header = [{"mcp-session-id", session_id}]
+
+      notification =
+        Req.post!(ctx.base <> "/mcp",
+          json: %{jsonrpc: "2.0", method: "notifications/initialized", params: %{}},
+          headers: headers(token) ++ session_header,
+          retry: false
+        )
+
+      assert notification.status == 202
+
+      tools = result!(rpc(ctx.base, token, "tools/list", %{}, session_header))["tools"]
       names = tools |> Enum.map(& &1["name"]) |> Enum.sort()
 
       # Exactly the house's set: the same modules the chat path is narrowed
@@ -159,6 +185,7 @@ defmodule DobbyWeb.MCPTest do
       # time the reply was readable the house had already taken the device on.
       assert "thermostat:dining_room" in Enum.map(Dobby.Home.devices(), & &1.id)
       assert is_pid(Dobby.Jido.whereis("thermostat:dining_room"))
+      assert Writer.catch_up() == :idle
 
       # Every call is on the record with the token's label as the speaker.
       calls =
@@ -170,6 +197,26 @@ defmodule DobbyWeb.MCPTest do
                ["discover_entities", "propose_device", "confirm_device"]
 
       assert Enum.all?(calls, &(&1.actor == "Ann's laptop"))
+    end
+  end
+
+  describe "attribution through the door" do
+    test "a schedule records both the token label and the MCP channel", ctx do
+      token = mint!("Ann's laptop")
+
+      created =
+        call_tool(ctx.base, token, "create_schedule", %{
+          "label" => "weekday heat",
+          "cron" => "0 20 * * 1-5",
+          "device" => @thermostat,
+          "action" => "set_temperature",
+          "args" => %{"temperature_f" => 70}
+        })
+
+      refute created["isError"]
+      assert [schedule] = Schedules.list_schedules()
+      assert schedule.created_by == "Ann's laptop"
+      assert schedule.created_via == :mcp
     end
   end
 
@@ -222,13 +269,47 @@ defmodule DobbyWeb.MCPTest do
   # POST keeps its stream open on purpose (it becomes the session stream), and
   # every closing POST appends an `event: closed` frame whose data is a word,
   # not JSON.
-  defp rpc(base, token, method, params) do
+  defp rpc(base, token, method, params, extra_headers \\ []) do
     Req.post!(base <> "/mcp",
       json: %{jsonrpc: "2.0", id: 1, method: method, params: params},
-      headers: headers(token),
+      headers: headers(token) ++ extra_headers,
       retry: false,
       into: &collect/2
     )
+  end
+
+  # Initialize owns the session's long-lived response stream. Keep that
+  # request alive while the client sends its initialized notification and
+  # later RPCs with the returned session id. Halting at the first frame, as the
+  # one-shot helper does, proves only a sequence of unrelated POSTs.
+  defp initialize_stream(base, token, params) do
+    test = self()
+    ref = make_ref()
+
+    child_spec =
+      Task.child_spec(fn ->
+        Req.post!(base <> "/mcp",
+          json: %{jsonrpc: "2.0", id: 1, method: "initialize", params: params},
+          headers: headers(token),
+          retry: false,
+          into: fn {:data, chunk}, {request, response} ->
+            body = if(is_binary(response.body), do: response.body, else: "") <> chunk
+            response = %{response | body: body}
+
+            if is_nil(Process.get(ref)) and Regex.match?(~r/^data: .*\n\n/m, body) do
+              Process.put(ref, :sent)
+              send(test, {ref, response})
+            end
+
+            {:cont, {request, response}}
+          end
+        )
+      end)
+      |> Map.put(:id, {:mcp_initialize_stream, ref})
+
+    _pid = start_supervised!(child_spec)
+    assert_receive {^ref, response}, 2_000
+    response
   end
 
   defp collect({:data, chunk}, {request, response}) do

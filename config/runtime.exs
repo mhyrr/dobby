@@ -91,6 +91,16 @@ config :dobby, :soul_path, soul_path
 # environment is sourced last, so a variable somebody actually exported beats
 # the file — which keeps `DOBBY_MODEL=… mix phx.server` working for the one-off
 # it is good at, without it being the only way.
+runtime_port =
+  if test? do
+    nil
+  else
+    case System.get_env("PORT") do
+      nil -> home.system.port || 4000
+      exported -> String.to_integer(exported)
+    end
+  end
+
 if not test? do
   # The `:capable` alias, which is the swap design §2.1 says an alias exists to
   # make: the agent names the alias, never the provider. Unset on both sides
@@ -99,26 +109,21 @@ if not test? do
     config :jido_ai, :model_aliases, %{capable: model}
   end
 
-  port =
-    case System.get_env("PORT") do
-      nil -> home.system.port || 4000
-      exported -> String.to_integer(exported)
-    end
-
-  config :dobby, DobbyWeb.Endpoint, http: [port: port]
-
   # Opening Dobby to the household: bind every interface and advertise this
   # machine on the LAN for as long as the server runs (Dobby.LanBeacon). Off by
-  # default — dev.exs binds loopback, and putting a machine on the network is a
-  # choice, not a side effect.
+  # default — loopback is explicit in every environment, and putting a machine
+  # on the network is a choice, not a server adapter's default.
   lan? =
     case System.get_env("DOBBY_LAN") do
       nil -> home.system.lan
       exported -> exported in ~w(1 true)
     end
 
+  ip = if lan?, do: {0, 0, 0, 0}, else: {127, 0, 0, 1}
+
+  config :dobby, DobbyWeb.Endpoint, http: [ip: ip, port: runtime_port]
+
   if lan? do
-    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
     config :dobby, :lan_beacon, hostname: home.system.hostname || "dobby.local"
   end
 end
@@ -168,50 +173,13 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || home.system.hostname || "dobby.local"
 
   config :dobby, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :dobby, DobbyWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
-    ],
+    # One scheme, matching the listener above and the address the household
+    # opens. A reverse proxy that changes this contract owns its public URL too.
+    url: [host: host, port: runtime_port, scheme: "http"],
     secret_key_base: secret_key_base
-
-  # ## SSL Support
-  #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
-  #
-  #     config :dobby, DobbyWeb.Endpoint,
-  #       https: [
-  #         ...,
-  #         port: 443,
-  #         cipher_suite: :strong,
-  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
-  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
-  #       ]
-  #
-  # The `cipher_suite` is set to `:strong` to support only the
-  # latest and more secure SSL ciphers. This means old browsers
-  # and clients may not be supported. You can set it to
-  # `:compatible` for wider support.
-  #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
-  # and cert in disk or a relative path inside priv, for example
-  # "priv/ssl/server.key". For all supported SSL configuration
-  # options, see https://plug.hexdocs.pm/Plug.SSL.html#configure/1
-  #
-  # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
-  #
-  #     config :dobby, DobbyWeb.Endpoint,
-  #       force_ssl: [hsts: true]
-  #
-  # Check `Plug.SSL` for all available options in `force_ssl`.
 end

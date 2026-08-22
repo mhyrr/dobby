@@ -135,6 +135,7 @@ defmodule Dobby.HomeConfigTest do
         timezone: America/New_York
         home_assistant:
           url: http://ha.invalid:8123
+          token: env:PROBE_TOKEN
         devices:
           - id: thermostat:hall
             type: thermostat
@@ -236,6 +237,7 @@ defmodule Dobby.HomeConfigTest do
         timezone: America/New_York
         home_assistant:
           url: http://ha.invalid:8123
+          token: env:PROBE_TOKEN
         devices:
           - id: light:lamp
             type: light
@@ -272,6 +274,7 @@ defmodule Dobby.HomeConfigTest do
         timezone: America/New_York
         home_assistant:
           url: http://ha.invalid:8123
+          token: env:PROBE_TOKEN
         devices:
           - id: thermostat:hall
             type: thermostat
@@ -291,6 +294,7 @@ defmodule Dobby.HomeConfigTest do
         timezone: America/New_York
         home_assistant:
           url: http://ha.invalid:8123
+          token: env:PROBE_TOKEN
         devices:
           - type: thermostat
             name: hall thermostat
@@ -306,6 +310,13 @@ defmodule Dobby.HomeConfigTest do
 
       assert {:error, message} = load(yaml)
       assert message =~ ~s(home_assistant is missing required field "url")
+    end
+
+    test "Home Assistant needs a credential reference" do
+      yaml = String.replace(@house, "    token: env:PROBE_TOKEN\n", "")
+
+      assert {:error, message} = load(yaml)
+      assert message =~ ~s(home_assistant is missing required field "token")
     end
 
     test "an Elixir home naming a module Dobby does not offer is refused" do
@@ -343,6 +354,14 @@ defmodule Dobby.HomeConfigTest do
       assert {:error, message} = load(@house <> "system:\n  port: four thousand\n")
       assert message =~ "system:"
       assert message =~ ":port"
+    end
+
+    test "a hostname is one safe mDNS name" do
+      dangerous = @house <> "system:\n  hostname: \"dobby.local'; touch /tmp/nope; '\"\n"
+
+      assert {:error, message} = load(dangerous)
+      assert message =~ "system.hostname"
+      assert message =~ "one DNS label followed by .local"
     end
 
     test "an absent system section is a system section of defaults" do
@@ -383,6 +402,15 @@ defmodule Dobby.HomeConfigTest do
       assert {:ok, config} = load(yaml)
       assert config.house[:home_assistant][:token] == "env:#{variable}"
       assert HomeConfig.manifest(config)[:home_assistant][:token] == "a-real-token"
+    end
+
+    test "a literal Home Assistant token is refused by field name" do
+      yaml = String.replace(@house, "env:PROBE_TOKEN", "a-long-lived-access-token")
+
+      assert {:error, message} = load(yaml)
+      assert message =~ "home_assistant.token"
+      assert message =~ "env:VARIABLE"
+      assert message =~ "never a credential value"
     end
 
     test "an unset variable raises once, naming the variable" do
@@ -449,9 +477,21 @@ defmodule Dobby.HomeConfigTest do
     end
 
     test "the rig's Elixir house can be written as the YAML it is becoming" do
+      previous_token = System.get_env("DOBBY_HA_TOKEN")
+      System.put_env("DOBBY_HA_TOKEN", "fake")
+
+      on_exit(fn ->
+        if previous_token do
+          System.put_env("DOBBY_HA_TOKEN", previous_token)
+        else
+          System.delete_env("DOBBY_HA_TOKEN")
+        end
+      end)
+
       {:ok, config} = HomeConfig.load("config/homes/rig.exs")
 
       assert {:ok, migrated} = load(HomeConfig.to_yaml(config))
+      assert migrated.house[:home_assistant][:token] == "env:DOBBY_HA_TOKEN"
 
       assert Enum.map(migrated.house[:devices], & &1.id) ==
                Enum.map(config.house[:devices], & &1.id)

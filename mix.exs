@@ -5,7 +5,7 @@ defmodule Dobby.MixProject do
     [
       app: :dobby,
       version: "0.1.0",
-      elixir: "~> 1.17",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -78,7 +78,7 @@ defmodule Dobby.MixProject do
       # plug-native, MIT, raw `input_schema:` so the Jido tool mapping stays
       # ours, and a `connect/2` callback that is exactly the bearer-token seam
       # the trust model needs.
-      {:phantom_mcp, "~> 0.5"},
+      {:phantom_mcp, "~> 0.5.2"},
       # Program dependence graph: what breaks if I change this function, can
       # input reach a sink, did this branch cross a layer boundary. Advisory by
       # default. Dev/test only, never loaded at runtime. `jason` above already

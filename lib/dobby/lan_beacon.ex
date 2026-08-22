@@ -7,10 +7,11 @@ defmodule Dobby.LanBeacon do
   the household's first second user reaches the thread by typing the house's
   name rather than an IP and a port.
 
-  The advertisement is a `dns-sd -P` proxy registration held in a port owned
-  by this process: the name exists exactly as long as the server does, and a
-  crashed server takes its name down with it — which is correct, because a
-  name that outlives what it names is a lie waiting for a browser.
+  The advertisement is held in a port owned by this process: `dns-sd -P` on
+  macOS, or an `avahi-publish` address record on Linux. The name exists exactly
+  as long as the server does, and a crashed server takes its name down with it
+  — which is correct, because a name that outlives what it names is a lie
+  waiting for a browser.
 
   Started only when the `:lan_beacon` config exists, which `runtime.exs` sets
   from `DOBBY_LAN` in dev. Off is the default: binding a laptop to the
@@ -33,17 +34,20 @@ defmodule Dobby.LanBeacon do
   def init(opts) do
     hostname = Keyword.get(opts, :hostname, "dobby.local")
 
-    case {System.find_executable("dns-sd"), lan_ip()} do
+    case {publisher(), lan_ip()} do
       {nil, _ip} ->
-        Logger.warning("dns-sd not found; #{hostname} will not be advertised")
+        Logger.warning(
+          "neither dns-sd nor avahi-publish was found; #{hostname} will not be advertised"
+        )
+
         :ignore
 
-      {_dns_sd, nil} ->
+      {_publisher, nil} ->
         Logger.warning("no LAN address on this machine; #{hostname} will not be advertised")
         :ignore
 
-      {dns_sd, ip} ->
-        state = %{dns_sd: dns_sd, ip: ip, hostname: hostname, port: nil}
+      {publisher, ip} ->
+        state = %{publisher: publisher, ip: ip, hostname: hostname, port: nil}
         {:ok, advertise(state)}
     end
   end
@@ -65,17 +69,17 @@ defmodule Dobby.LanBeacon do
   defp advertise(state) do
     http_port = http_port()
 
-    # Through a shell wrapper, because dns-sd ignores stdin: a bare port
-    # child would survive the VM as an orphan still claiming the name (three
-    # of them did, before this). The watcher turns stdin EOF — the port
-    # closing, the VM dying — into a kill, and `wait` turns dns-sd's own
-    # death into an exit this process hears and retries. The fd 3 dance is
+    # Through a shell wrapper, because the publishers ignore stdin: a bare
+    # port child would survive the VM as an orphan still claiming the name
+    # (three of them did, before this). The watcher turns stdin EOF — the port
+    # closing, the VM dying — into a kill, and `wait` turns the publisher's
+    # own death into an exit this process hears and retries. The fd 3 dance is
     # not optional: POSIX gives backgrounded commands /dev/null as stdin, so
-    # without it the watcher's cat sees EOF at birth and kills the name it
-    # was guarding.
+    # without it the watcher's cat sees EOF at birth and kills the name it was
+    # guarding. `"$@"` keeps every value as data rather than shell source.
     script = """
     exec 3<&0
-    '#{state.dns_sd}' -P Dobby _http._tcp local #{http_port} '#{state.hostname}' '#{state.ip}' &
+    "$@" &
     CHILD=$!
     ( cat <&3 > /dev/null; kill $CHILD 2> /dev/null ) &
     wait $CHILD
@@ -84,7 +88,16 @@ defmodule Dobby.LanBeacon do
     port =
       Port.open(
         {:spawn_executable, "/bin/sh"},
-        [:binary, :exit_status, args: ["-c", script]]
+        [
+          :binary,
+          :exit_status,
+          args: [
+            "-c",
+            script,
+            "dobby-mdns"
+            | publish_command(state, http_port)
+          ]
+        ]
       )
 
     address =
@@ -95,6 +108,34 @@ defmodule Dobby.LanBeacon do
     Logger.info("the house answers at #{address} (#{state.ip})")
 
     %{state | port: port}
+  end
+
+  defp publisher do
+    cond do
+      path = System.find_executable("dns-sd") -> {:dns_sd, path}
+      path = System.find_executable("avahi-publish") -> {:avahi, path}
+      true -> nil
+    end
+  end
+
+  defp publish_command(%{publisher: {:dns_sd, executable}} = state, http_port) do
+    [
+      executable,
+      "-P",
+      "Dobby",
+      "_http._tcp",
+      "local",
+      Integer.to_string(http_port),
+      state.hostname,
+      state.ip
+    ]
+  end
+
+  # The browser uses the documented explicit port, so Linux needs the address
+  # record. `-f` waits for avahi-daemon across a daemon restart instead of
+  # making this GenServer churn every five seconds.
+  defp publish_command(%{publisher: {:avahi, executable}} = state, _http_port) do
+    [executable, "-a", "-f", state.hostname, state.ip]
   end
 
   defp http_port do

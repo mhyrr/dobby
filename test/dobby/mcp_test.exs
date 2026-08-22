@@ -43,6 +43,12 @@ defmodule Dobby.MCPTest do
     assert message =~ "label"
   end
 
+  test "a label fits the database column" do
+    assert {:error, message} = MCP.mint(String.duplicate("a", 121))
+    assert message =~ "at most 120"
+    assert MCP.list() == []
+  end
+
   test "revoking closes the door for good" do
     {:ok, plaintext, token} = MCP.mint("the kitchen laptop")
 
@@ -53,5 +59,13 @@ defmodule Dobby.MCPTest do
 
     assert {:error, message} = MCP.revoke(token.id)
     assert message =~ "there is no token"
+  end
+
+  test "a malformed id is a refusal, not a context crash" do
+    assert {:error, message} = MCP.revoke("not-an-id")
+    assert message =~ "not a token id"
+
+    assert {:error, message} = MCP.revoke(nil)
+    assert message =~ "not a token id"
   end
 end

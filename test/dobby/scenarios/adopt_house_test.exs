@@ -11,11 +11,11 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
   ## What this file exists to hold
 
   **One sweep, one list, one yes.** The batch is doctrine plus the machinery
-  layer E already built, deliberately: no plural tools, no new grain. Three
+  layer E already built, deliberately: no plural tools, no new grain. Four
   sequential confirms coalesce because `Dobby.HomeConfig.Writer` keeps one
   `pending_house` slot and `Turn.catch_up/0` releases it once per turn.
 
-  **Proposed is proposed, at any size.** The turn that proposes three devices
+  **Proposed is proposed, at any size.** The turn that proposes four devices
   writes no file and moves no house — a list does not dilute the honesty rule
   the single-device arc holds.
 
@@ -33,10 +33,9 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
   separate message injected by `Dobby.DobbyAgent.RequestTransformer` — so
   `user(Utterance.to_message(utterance))` is the whole match.
 
-  One arithmetic note: DobbyAgent runs with `max_iterations: 5`, and the
-  proposing turn spends all five — discover, three proposals, the answer. A
-  fourth device in this script would need the request-scoped `:max_iterations`
-  option riding along with `react_opts/1`.
+  The fourth device crosses the old five-iteration ceiling: discovery, four
+  proposals, then the answer. The agent's production limit must therefore
+  carry a real household sweep without a test-only override.
   """
 
   use Dobby.RigCase, async: false
@@ -60,6 +59,7 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
   @nest "climate.dining_room"
   @hallway "light.hallway"
   @roomba "vacuum.roomba"
+  @printer "binary_sensor.office_printer"
 
   setup do
     boot_house!([thermostat_device(@thermostat, "main thermostat", entity: @entity)])
@@ -80,6 +80,11 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
       attributes: %{friendly_name: "Roomba", battery_level: 100}
     })
 
+    Fake.put_entity(@printer, %{
+      state: "on",
+      attributes: %{friendly_name: "Office Printer", device_class: "connectivity"}
+    })
+
     config = writable_house!()
 
     ThreadEvents.subscribe()
@@ -95,7 +100,7 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
     said =
       Utterance.new(
         "greg",
-        "we've got a Nest in the dining room, a hallway light, and the robot vacuum — set them all up"
+        "we've got a Nest in the dining room, a hallway light, the robot vacuum, and the office printer — set them all up"
       )
 
     proposing =
@@ -125,12 +130,20 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
           "entity_id" => @roomba
         })
 
+        call("propose_device", %{
+          "id" => "wifi:office_printer",
+          "type" => "wifi_endpoint",
+          "name" => "office printer",
+          "entity_id" => @printer
+        })
+
         answer("""
         Here's everything I can see that you named — proposed, not added yet:
         1. dining room thermostat on climate.dining_room
         2. hallway light on light.hallway
         3. the robot vacuum on vacuum.roomba
-        Say yes and I'll add all three.\
+        4. office printer on binary_sensor.office_printer
+        Say yes and I'll add all four.\
         """)
       end
 
@@ -139,7 +152,12 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
     assert_receive {:replied, %Message{role: :assistant, text: proposed_text}}
 
     # One list, ids and all — and it says proposed, not done.
-    for line <- ["1. dining room thermostat", "2. hallway light", "3. the robot vacuum"] do
+    for line <- [
+          "1. dining room thermostat",
+          "2. hallway light",
+          "3. the robot vacuum",
+          "4. office printer"
+        ] do
       assert proposed_text =~ line
     end
 
@@ -147,21 +165,29 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
 
     # One sweep, then the lot: discovery ran once, and every match got a row.
     assert Trace.tool_calls() ==
-             ["discover_entities", "propose_device", "propose_device", "propose_device"]
+             [
+               "discover_entities",
+               "propose_device",
+               "propose_device",
+               "propose_device",
+               "propose_device"
+             ]
 
-    assert [nest, hallway, roomba] = Proposals.outstanding()
+    assert [nest, hallway, roomba, printer] = Proposals.outstanding()
     assert nest.device_id == "thermostat:dining_room"
     assert hallway.device_id == "light:hallway"
     assert roomba.device_id == "vacuum:roomba"
-    assert Enum.all?([nest, hallway, roomba], &(&1.proposed_by == "greg"))
+    assert printer.device_id == "wifi:office_printer"
+    assert Enum.all?([nest, hallway, roomba, printer], &(&1.proposed_by == "greg"))
 
-    # Three proposals and the house did not move an inch.
+    # Four proposals and the house did not move an inch.
     assert Enum.map(Dobby.Home.devices(), & &1.id) == [@thermostat]
 
     written = File.read!(ctx.config.path)
     refute written =~ "dining_room"
     refute written =~ "hallway"
     refute written =~ "roomba"
+    refute written =~ "office_printer"
 
     assert Trace.ha_calls() == []
 
@@ -175,11 +201,11 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
     # rehydration hands the next turn a conversation of plain text.
     {:ok, _pid} = Dobby.Home.restart()
 
-    assert [^nest, ^hallway, ^roomba] = Proposals.outstanding()
+    assert [^nest, ^hallway, ^roomba, ^printer] = Proposals.outstanding()
 
     # -- turn two: one yes ---------------------------------------------------
     Trace.reset()
-    agreed = Utterance.new("greg", "yes — add all three")
+    agreed = Utterance.new("greg", "yes — add all four")
 
     confirming =
       expect_react do
@@ -187,24 +213,27 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
         call("confirm_device", %{"id" => nest.id})
         call("confirm_device", %{"id" => hallway.id})
         call("confirm_device", %{"id" => roomba.id})
+        call("confirm_device", %{"id" => printer.id})
 
         answer("""
         Done — the dining room thermostat, the hallway light and the robot \
-        vacuum are all part of the house now.\
+        vacuum, and the office printer are all part of the house now.\
         """)
       end
 
     Turn.run(agreed, ctx.speaker, react_opts(confirming))
 
     # The yes confirmed each proposal, and nothing was re-proposed.
-    assert Trace.tool_calls() == ["confirm_device", "confirm_device", "confirm_device"]
+    assert Trace.tool_calls() ==
+             ["confirm_device", "confirm_device", "confirm_device", "confirm_device"]
 
     # Exactly one restart, and only after the reply was in the thread. The
     # writer announces every deferral and the one catch-up on `dobby:config`,
-    # so the mailbox tells the whole story in order: three saves that each
+    # so the mailbox tells the whole story in order: four saves that each
     # held their restart, the reply, then the single restart that took them
     # all on at once.
     assert [
+             {:applied, :deferred},
              {:applied, :deferred},
              {:applied, :deferred},
              {:applied, :deferred},
@@ -214,7 +243,7 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
 
     assert applied_text =~ "all part of the house now"
 
-    # The file is the record, and it now carries all three.
+    # The file is the record, and it now carries all four.
     written = File.read!(ctx.config.path)
 
     for fragment <- [
@@ -223,13 +252,15 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
           "light:hallway",
           @hallway,
           "vacuum:roomba",
-          @roomba
+          @roomba,
+          "wifi:office_printer",
+          @printer
         ] do
       assert written =~ fragment
     end
 
     # Every proposal accounted for: applied, by the person who said yes.
-    for proposal <- [nest, hallway, roomba] do
+    for proposal <- [nest, hallway, roomba, printer] do
       assert {:ok, stored} = Proposals.fetch(proposal.id)
       assert stored.status == :applied
       assert stored.confirmed_by == "greg"
@@ -241,9 +272,20 @@ defmodule Dobby.Scenarios.AdoptHouseTest do
     ids = Enum.map(Dobby.Home.devices(), & &1.id)
 
     assert Enum.sort(ids) ==
-             Enum.sort([@thermostat, "thermostat:dining_room", "light:hallway", "vacuum:roomba"])
+             Enum.sort([
+               @thermostat,
+               "thermostat:dining_room",
+               "light:hallway",
+               "vacuum:roomba",
+               "wifi:office_printer"
+             ])
 
-    for id <- ["thermostat:dining_room", "light:hallway", "vacuum:roomba"] do
+    for id <- [
+          "thermostat:dining_room",
+          "light:hallway",
+          "vacuum:roomba",
+          "wifi:office_printer"
+        ] do
       assert is_pid(Dobby.Jido.whereis(id))
     end
   end

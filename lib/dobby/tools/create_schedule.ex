@@ -101,7 +101,7 @@ defmodule Dobby.Tools.CreateSchedule do
       action: params.action,
       args: params.args,
       created_by: speaker(context),
-      created_via: :conversation
+      created_via: via(context)
     }
 
     case Schedules.create_schedule(attrs) do
@@ -117,6 +117,16 @@ defmodule Dobby.Tools.CreateSchedule do
     case Map.get(context || %{}, :speaker) do
       speaker when is_binary(speaker) and speaker != "" -> speaker
       _other -> "the household"
+    end
+  end
+
+  # The channel is request framing, just like the speaker. Anything except the
+  # one external channel falls back to conversation rather than letting model
+  # or caller data write a false provenance value.
+  defp via(context) do
+    case Map.get(context || %{}, :via) do
+      :mcp -> :mcp
+      _other -> :conversation
     end
   end
 end

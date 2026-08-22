@@ -121,6 +121,10 @@ defmodule Dobby.HomeConfig.Writer do
   @doc """
   Writes a configuration and applies as much of it as can be applied.
 
+  This is an exact replacement, for a configuration already owned by the
+  caller. A read-modify-write path must use `update/3` so the read and write
+  are one serialized operation.
+
   Refuses, without touching the file, a house `Dobby.Home.Manifest` would not
   accept or a credential reference the environment cannot answer. Announces on
   `dobby:config` when something actually changed.
@@ -129,6 +133,24 @@ defmodule Dobby.HomeConfig.Writer do
           {:ok, Applied.t()} | {:error, String.t()}
   def save(server \\ __MODULE__, %HomeConfig{} = config, opts \\ []) do
     GenServer.call(server, {:save, config, opts}, 30_000)
+  end
+
+  @doc """
+  Derives and saves a configuration while holding the writer's queue.
+
+  The updater receives the latest configuration and returns either the next
+  one or a refusal. This is the mutation API for forms and tools. Serializing
+  only `save/3` is too late: two callers can otherwise read the same house,
+  each add one device, and then replace each other with two individually valid
+  files.
+  """
+  @spec update(
+          GenServer.server(),
+          (HomeConfig.t() -> {:ok, HomeConfig.t()} | {:error, String.t()}),
+          keyword()
+        ) :: {:ok, Applied.t()} | {:error, String.t()}
+  def update(server, updater, opts \\ []) when is_function(updater, 1) do
+    GenServer.call(server, {:update, updater, opts}, 30_000)
   end
 
   @doc """
@@ -153,13 +175,14 @@ defmodule Dobby.HomeConfig.Writer do
   def handle_call(:current, _from, state), do: {:reply, state.config, state}
 
   def handle_call({:save, incoming, opts}, _from, state) do
-    case write_and_apply(state.config, incoming, opts) do
-      {:ok, %Applied{} = applied} ->
-        pending = if :house in applied.on_restart, do: applied, else: state.pending_house
-        {:reply, {:ok, applied}, %{state | config: applied.config, pending_house: pending}}
+    persist(incoming, opts, state)
+  end
 
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+  def handle_call({:update, updater, opts}, _from, state) do
+    case updater.(state.config) do
+      {:ok, %HomeConfig{} = incoming} -> persist(incoming, opts, state)
+      {:error, reason} when is_binary(reason) -> {:reply, {:error, reason}, state}
+      other -> {:reply, {:error, "configuration update returned #{inspect(other)}"}, state}
     end
   end
 
@@ -176,6 +199,30 @@ defmodule Dobby.HomeConfig.Writer do
 
       {:error, reason} ->
         {:reply, {:error, reason}, %{state | pending_house: nil}}
+    end
+  end
+
+  defp persist(incoming, opts, state) do
+    case write_and_apply(state.config, incoming, opts) do
+      {:ok, %Applied{} = applied} ->
+        pending = pending_house(state.pending_house, applied)
+        {:reply, {:ok, applied}, %{state | config: applied.config, pending_house: pending}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  # A later save cannot make the deferred result point back at an older file.
+  # A synchronous house restart catches up every house change already in the
+  # writer and clears the debt. A system-only save keeps the debt but advances
+  # the configuration that the catch-up event will publish.
+  defp pending_house(previous, %Applied{} = applied) do
+    cond do
+      :house in applied.applied -> nil
+      :house in applied.on_restart -> applied
+      previous != nil -> %{previous | config: applied.config}
+      true -> nil
     end
   end
 
@@ -214,11 +261,17 @@ defmodule Dobby.HomeConfig.Writer do
   # -- applying --------------------------------------------------------------
 
   defp apply_changes(previous, incoming, manifest, opts) do
-    {live, later} = apply_system(previous.system, incoming.system)
+    {live, later, overridden} = apply_system(previous.system, incoming.system)
 
     case apply_house(previous, incoming, manifest, opts) do
       {:ok, house, waiting} ->
-        applied = %Applied{config: incoming, applied: house ++ live, on_restart: waiting ++ later}
+        applied = %Applied{
+          config: incoming,
+          applied: house ++ live,
+          on_restart: waiting ++ later,
+          overridden: overridden
+        }
+
         if Applied.changed?(applied), do: ConfigEvents.applied(applied)
         {:ok, applied}
 
@@ -263,8 +316,10 @@ defmodule Dobby.HomeConfig.Writer do
   # alias instead of a provider: swapping the model is configuration, and here
   # it is configuration that does not need a restart.
   defp apply_system(previous, incoming) do
+    exported_model = System.get_env("DOBBY_MODEL")
+
     live =
-      if incoming.model != previous.model and incoming.model != nil do
+      if incoming.model != previous.model and incoming.model != nil and is_nil(exported_model) do
         Application.put_env(:jido_ai, :model_aliases, %{capable: incoming.model})
         [:model]
       else
@@ -274,9 +329,14 @@ defmodule Dobby.HomeConfig.Writer do
     # A model *removed* is the committed default coming back, and the committed
     # default is a compile-time value this process no longer holds. So it waits,
     # with everything else that is a property of a socket already open.
+    changed_model? = incoming.model != previous.model
+
+    overridden =
+      if changed_model? and not is_nil(exported_model), do: [:model], else: []
+
     later =
       [
-        {:model, incoming.model != previous.model and incoming.model == nil},
+        {:model, changed_model? and incoming.model == nil and is_nil(exported_model)},
         {:port, incoming.port != previous.port},
         {:lan, incoming.lan != previous.lan},
         {:hostname, incoming.hostname != previous.hostname}
@@ -284,6 +344,6 @@ defmodule Dobby.HomeConfig.Writer do
       |> Enum.filter(&elem(&1, 1))
       |> Enum.map(&elem(&1, 0))
 
-    {live, later}
+    {live, later, overridden}
   end
 end

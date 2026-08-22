@@ -136,7 +136,9 @@ defmodule DobbyWeb.AdminLive do
   # holding this in an assign could not do.
   @impl true
   def handle_params(params, _uri, socket) do
-    {:noreply, show(socket, section(params["section"]))}
+    section = section(params["section"])
+    socket = if section == :system, do: socket, else: assign(socket, :minted, nil)
+    {:noreply, show(socket, section)}
   end
 
   defp sections, do: @sections
@@ -309,7 +311,8 @@ defmodule DobbyWeb.AdminLive do
             door: minted here, labeled for the record, revocable here. --%>
       <.tokens
         :if={@section == :system}
-        tokens={@tokens}
+        tokens={@streams.tokens}
+        tokens_empty?={@tokens_empty?}
         minted={@minted}
         label={@token_label}
         error={@token_error}
@@ -557,10 +560,14 @@ defmodule DobbyWeb.AdminLive do
          |> assign(:minted, %{label: token.label, token: plaintext})
          |> assign(:token_label, "")
          |> assign(:token_error, nil)
-         |> assign(:tokens, TokensPanel.list())}
+         |> refresh_tokens()}
 
       {:error, reason} ->
-        {:noreply, socket |> assign(:token_label, label) |> assign(:token_error, reason)}
+        {:noreply,
+         socket
+         |> assign(:minted, nil)
+         |> assign(:token_label, label)
+         |> assign(:token_error, reason)}
     end
   end
 
@@ -571,8 +578,12 @@ defmodule DobbyWeb.AdminLive do
   # one and isn't. Minting a fresh token is the honest path back in.
   def handle_event("revoke", %{"id" => id}, socket) do
     case Dobby.MCP.revoke(id) do
-      {:ok, _token} ->
-        {:noreply, socket |> assign(:token_error, nil) |> assign(:tokens, TokensPanel.list())}
+      {:ok, token} ->
+        {:noreply,
+         socket
+         |> clear_minted(token)
+         |> assign(:token_error, nil)
+         |> refresh_tokens()}
 
       {:error, reason} ->
         {:noreply, assign(socket, :token_error, reason)}
@@ -735,11 +746,24 @@ defmodule DobbyWeb.AdminLive do
   # mint and revoke, which re-read as they go.
   defp load_tokens(socket) do
     socket
-    |> assign(:tokens, TokensPanel.list())
+    |> refresh_tokens()
     |> assign(:minted, nil)
     |> assign(:token_label, "")
     |> assign(:token_error, nil)
   end
+
+  defp refresh_tokens(socket) do
+    tokens = TokensPanel.list()
+
+    socket
+    |> assign(:tokens_empty?, tokens == [])
+    |> stream(:tokens, tokens, reset: true)
+  end
+
+  defp clear_minted(%{assigns: %{minted: %{label: label}}} = socket, %{label: label}),
+    do: assign(socket, :minted, nil)
+
+  defp clear_minted(socket, _token), do: socket
 
   # The boxes are refilled from what was applied, including under a hand that
   # was typing: two browsers editing one knob is exactly the argument the single

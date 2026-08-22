@@ -53,10 +53,11 @@ DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix dobby.ha.verify
 DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server
 ```
 
-`mix dobby.ha.verify` proves the connection and the round trip before you
-trust an evening to it. The full household path is in
+`mix dobby.ha.verify` proves the authenticated state sync before you trust an
+evening to it. Add `--round-trip` to make and restore a real thermostat change.
+The full household path is in
 [docs/setup.md](docs/setup.md): token setup, every knob, what the file's
-sections mean, and serving the whole house at `http://dobby.local/`.
+sections mean, and serving the whole house at `http://dobby.local:4000/`.
 
 ## The surfaces
 

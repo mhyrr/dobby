@@ -36,10 +36,10 @@ defmodule DobbyWeb.MCP.Router do
 
   The chat path holds a confirmed house restart until the turn's reply has
   landed, because a conversation dies with the agent it is running on. This
-  path does not: the request runs in the endpoint's own process, a sibling of
-  `Dobby.Home`, so the restart is released here, immediately, the way the
-  /house forms apply — and the reply that says "applied" is written by a
-  process the restart cannot kill.
+  path does not: `confirm_device` asks the writer for an immediate restart.
+  The request runs in the endpoint's own process, a sibling of `Dobby.Home`,
+  so its reply survives the restart and "applied" means the running house took
+  the change on.
   """
 
   use Phantom.Router,
@@ -54,8 +54,6 @@ defmodule DobbyWeb.MCP.Router do
     nothing until it is confirmed, and confirming is only for when the \
     person you are working for has agreed to that specific proposal.\
     """
-
-  require Logger
 
   alias Dobby.Activity
   alias Phantom.Session
@@ -149,37 +147,15 @@ defmodule DobbyWeb.MCP.Router do
     speaker = session.assigns.speaker
 
     started = System.monotonic_time(:millisecond)
-    result = Jido.Action.Tool.execute_action(module, params, %{speaker: speaker})
+    result = Jido.Action.Tool.execute_action(module, params, %{speaker: speaker, via: :mcp})
     took = System.monotonic_time(:millisecond) - started
 
-    catch_up()
     record(module, params, result, speaker, session, took)
 
     case result do
       {:ok, json} -> {:reply, Tool.text(json), session}
       {:error, json} -> {:reply, Tool.error(refusal(json)), session}
     end
-  end
-
-  # A confirmed house change is written, validated and announced inside the
-  # tool call; the restart is held by the writer. The chat path releases it
-  # after the reply lands because a conversation cannot survive its own agent
-  # stopping — this request can, so it is released here and "applied" is
-  # already true when the client reads it. Every other call finds nothing
-  # waiting and this costs one message to the writer.
-  defp catch_up do
-    case Dobby.HomeConfig.Writer.catch_up() do
-      {:error, reason} ->
-        Logger.error("the house would not take on a confirmed change: #{reason}")
-
-      _idle_or_applied ->
-        :ok
-    end
-
-    :ok
-  catch
-    # No writer means no house file to catch up with.
-    :exit, _reason -> :ok
   end
 
   # The record the admin feed reads, in the same shape `Dobby.Conversation.Turn`

@@ -5,9 +5,10 @@
 #     cp config/homes/example.yaml config/homes/my-house.yaml
 #     DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server
 #
-# In an install it is /opt/dobby/config/home.yaml and needs no variable at all.
+# In an install it is /opt/dobby/config/home.yaml, so it needs no path override.
 # It and config/soul.md — what the house contains, and who is answering — are
-# the two files a household owns. Everything else is the application's business.
+# the two files a household owns. Credentials and operator settings still come
+# from the service environment.
 #
 # Credentials are never written here. `env:NAME` names an environment variable
 # and Dobby reads it at boot, which is what keeps this file safe to share.
@@ -90,8 +91,8 @@ house:
         connectivity: binary_sensor.office_printer
 
 # The box Dobby runs on, rather than the house it looks after. Everything here
-# is optional. Anything exported in the environment wins over what is written
-# here, so a one-off experiment does not mean editing a file.
+# is optional. DOBBY_MODEL, PORT and DOBBY_LAN override their matching fields
+# while exported, so a one-off experiment does not mean editing this file.
 system:
   # Which model answers. Unset means the committed default, which needs an
   # Anthropic key. Any provider ReqLLM speaks, as `provider:model`.
@@ -102,6 +103,6 @@ system:
 
   # Answer to the whole household rather than to this machine only: bind every
   # interface and advertise the name below, so anyone at home can open
-  # http://dobby.local/. Both of these take effect when Dobby restarts.
+  # http://dobby.local:4000/. Both of these take effect when Dobby restarts.
   lan: false
   hostname: dobby.local

@@ -1,48 +1,212 @@
-This is a web application written using the Phoenix web framework.
+# Dobby
 
-## Project guidelines
+A household agent for Home Assistant. Everyone in the house talks to it in one
+shared thread, and it answers by doing things: reading a thermostat, dimming a
+light, starting the vacuum, setting a schedule for eight o'clock.
 
-- Use `mix precommit` alias when you are done with all changes and fix any pending issues
-- Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
+One Phoenix application, not an umbrella. Elixir 1.18+, Phoenix 1.8, LiveView
+1.2, PostgreSQL, and Jido 2.3 for agents.
 
-### Phoenix v1.8 guidelines
+| Read this | For |
+|---|---|
+| `README.md` | What Dobby is and how a household runs it |
+| `dobby-design-jido.md` | The architecture. `@moduledoc`s cite its section numbers (`design §4.2`) |
+| `DESIGN.md` | The surface: the design system, and it is binding |
+| `PRODUCT.md` | Who it is for and what it promises them |
+| `docs/setup.md`, `docs/local-ha.md` | Running against a real Home Assistant |
 
-- **Always** begin your LiveView templates with `<Layouts.app flash={@flash} ...>` which wraps all inner content
-- The `MyAppWeb.Layouts` module is aliased in the `my_app_web.ex` file, so you can use it without needing to alias it again
-- Anytime you run into errors with no `current_scope` assign:
-  - You failed to follow the Authenticated Routes guidelines, or you failed to pass `current_scope` to `<Layouts.app>`
-  - **Always** fix the `current_scope` error by moving your routes to the proper `live_session` and ensure you pass `current_scope` as needed
-- Phoenix v1.8 moved the `<.flash_group>` component to the `Layouts` module. You are **forbidden** from calling `<.flash_group>` outside of the `layouts.ex` module
-- Out of the box, `core_components.ex` imports an `<.icon name="hero-x-mark" class="w-5 h-5"/>` component for hero icons. **Always** use the `<.icon>` component for icons, **never** use `Heroicons` modules or similar
-- **Always** use the imported `<.input>` component for form inputs from `core_components.ex` when available. `<.input>` is imported and using it will save steps and prevent errors
-- If you override the default input classes (`<.input class="myclass px-2 py-1 rounded-lg">)`) class with your own values, no default classes are inherited, so your
-custom classes must fully style the input
+## The rule the whole codebase is built around
 
-### JS and CSS guidelines
+Two layers, with a hard line between them.
 
-- **Use Tailwind CSS classes and custom CSS rules** to create polished, responsive, and visually stunning interfaces.
-- Tailwindcss v4 **no longer needs a tailwind.config.js** and uses a new import syntax in `app.css`:
+The **deterministic layer** — device agents, the Home Assistant client,
+schedules, the direct control path — owns every fact and every action. The
+**language layer** is one long-lived `Jido.AI` ReAct agent that can act only
+through the closed set of tools those device agents advertise.
 
-      @import "tailwindcss" source(none);
-      @source "../css";
-      @source "../js";
-      @source "../../lib/my_app_web";
+What follows from that is not negotiable:
 
-- **Always use and maintain this import syntax** in the app.css file for projects generated with `phx.new`
-- **Never** use `@apply` when writing raw css
-- **Always** manually write your own tailwind-based components instead of using daisyUI for a unique, world-class design
-- Out of the box **only the app.js and app.css bundles are supported**
-  - You cannot reference an external vendor'd script `src` or link `href` in the layouts
-  - You must import the vendor deps into app.js and app.css to use them
-  - **Never write inline <script>custom js</script> tags within templates**
+- **The model never touches Home Assistant.** It calls a tool, the tool calls a
+  device agent, the agent returns a `Dobby.Directive.HACall`, and the runtime
+  performs it. Adding a path from the language layer to the network is the one
+  change that breaks the product rather than a feature.
+- **The model never does arithmetic.** LLMs extract, code computes. No blending.
+- **The model reports what it commanded, never what it observed.** A write
+  returns acceptance — the device agent validated the command and emitted it.
+  Physical confirmation arrives later, asynchronously, as a state change. "The
+  living room is warm now" is exactly the sentence this architecture exists to
+  make impossible.
+- **Ambiguity is a refusal to act, and not a licence to act broadly.** "The
+  thermostat" in a house with two is a question, not permission to set both.
+- **The direct control path is first-class, not a fallback.** A card somebody
+  tapped reaches the device with no model involved. It is what the house does
+  when the model is down.
+- **Validation lives in the device agent.** The tool layer adds transport and
+  nothing else — no domain rules, no range checks, no second opinion.
 
-### UI/UX & design guidelines
+## Where things live
 
-- **Produce world-class UI designs** with a focus on usability, aesthetics, and modern design principles
-- Implement **subtle micro-interactions** (e.g., button hover effects, and smooth transitions)
-- Ensure **clean typography, spacing, and layout balance** for a refined, premium look
-- Focus on **delightful details** like hover effects, loading states, and smooth page transitions
+```text
+lib/dobby/
+  device_agent.ex        The extension contract every device type implements
+  device_agents/         Light, Thermostat, Vacuum, WifiEndpoint + their actions
+  home.ex, home/         Bootstrap: validate the manifest, start the agents
+  home_config.ex         home.yaml in both directions — read, validate, write
+  home_assistant.ex      The boundary. `impl/0` picks Fake or the real client
+  home_assistant/        The real Mint.WebSocket client, and the Fake
+  directives/ha_call.ex  A service call described but not performed
+  agent.ex, agent/       DobbyAgent: the ReAct agent, prompt, request transformer
+  tools/                 The model's closed tool set, one Jido.Action each
+  conversation.ex        The thread, its window, and rehydration at boot
+  schedules.ex           Dobby-owned Postgres rows, fired with no model call
+  interventions.ex       System lines: what somebody did, however they did it
+  activity.ex            The full log, which records everything
+  topology.ex, health.ex The admin's picture of the running house
+  mcp.ex, mcp/           The door for someone else's agent, same closed tools
 
+lib/dobby_web/
+  live/thread_live.ex    `/`      the thread, with the board above it
+  live/house_live.ex     `/house` every device, and where the house is edited
+  live/admin_live.ex     `/admin` the maintainer's room
+  components/flap.ex     The split-flap: a state word, and never a bare number
+  mcp/router.ex          `/mcp`   bearer-token door for external agents
+```
+
+## Adding a device type
+
+One module implementing `Dobby.DeviceAgent` plus its actions. No central switch
+statement changes — that is the point of the behaviour, and a change that adds
+a `case` over device types somewhere central is the design being lost.
+
+The module declares its own word (`config_type/0`), its own settings schema
+(`config_schema/0`, which `/house` renders a form from), its own discovery
+(`matches_entity?/1`), its own schedulable surface (`scheduled_actions/0`), and
+its own answer to whether an attribute change is something somebody *did*
+(`intervention?/1`). A setpoint is commanded; connectivity is observed. That
+judgment is per-device knowledge and lives with the device.
+
+`Dobby.DeviceAgent` also carries what every type shares: `initial_state/2`
+builds the identity map, `changes/3` separates what differs from what actually
+moved, and `command/3` is the write protocol every caller uses.
+
+## The Home Assistant boundary
+
+One shared client owns authentication, transport, subscriptions, and reconnect,
+and speaks to agents only in signals. `Dobby.HomeAssistant.impl/0` resolves the
+implementation, and **it defaults to `Dobby.HomeAssistant.Fake`** — the real
+client is opt-in through config, which is what makes the whole test suite run
+with no HA and no network.
+
+Two things that have bitten and will again:
+
+- **Inbound attribute maps carry string keys, always.** That is their shape on
+  the wire, and `dispatch_state_changed/4` normalizes to it. A bare `:map` in a
+  Jido action schema means atom keys to NimbleOptions.
+- **`HACall` executes asynchronously.** `Jido.AgentServer` drains directives
+  after the command completes, so the tool that triggered it has already
+  returned "accepted" before HA hears anything.
+
+## The household's two files
+
+`config/homes/*` is what the house contains; `config/soul.md` is who is
+answering. Both are read at boot from outside the release, so changing the
+house or its voice is a restart, not a rebuild. Credentials never appear in
+either — the manifest says `env:DOBBY_HA_TOKEN` and Dobby reads the variable.
+
+Two manifest formats, on purpose. `.yaml` is canonical: the audience already
+speaks Home Assistant's `configuration.yaml`, and a data file is one a machine
+can write back. `.exs` is still read — the rig manifest (`config/homes/rig.exs`)
+is Elixir and stays Elixir, because the test suite builds manifests by hand and
+has no business round-tripping through a file. Both come out as the same keyword
+list, so nothing downstream knows which it got.
+
+The manifest is machine-round-trippable: `Dobby.HomeConfig` reads and writes it,
+and four surfaces end in the same file — an editor, the `/house` and `/admin`
+forms, Dobby proposing a device in the thread, and an external agent over MCP.
+Anything that writes the house goes through `Dobby.HomeConfig.Writer`.
+
+Doctrine beats personality. `soul.md` is editable without a release; the rules
+that keep Dobby honest live in code and are composed last.
+
+## The surface
+
+`DESIGN.md` is binding, not advisory, and it overrides the generic UI guidance
+further down this file. The short version:
+
+- **The state vocabulary is closed at eight words** — Awake, Cooling, Held,
+  Listening, Not known, Quiet, Set, Warming — over five states (`:acting`,
+  `:refused`, `:running`, `:set`, `:silent`). A ninth word is a design
+  decision. Bending an existing word to a new meaning is worse than saying
+  nothing, which is why a paused schedule carries no state word at all.
+- **Words on flaps, never icons and never bare numbers.** A split-flap board
+  can only show what somebody set it to. That mechanical fact is the honesty
+  the whole product rests on.
+- **Flat by default — one shadow in the entire system.** Square corners
+  everywhere. Five reserved state colours and no sixth.
+- **A control that can act on the house offers an undo, never a confirm
+  dialog.** Dialogs train people to dismiss dialogs.
+- **Every blank says what it is**, in the record voice.
+
+## Testing: two tiers, answering different questions
+
+```sh
+mix test                      # the replay tier: no HA, no network, no model calls
+mix test --include eval       # the eval tier: real inference, real money
+```
+
+**Replay** runs on every `mix test` and in CI, and is *incapable* of reaching a
+provider — `config/test.exs` guards it. `Dobby.RigCase` runs the whole
+application against `Dobby.HomeAssistant.Fake` and is deliberately not `async`:
+the rig is the real application, one registry and one set of agents at fixed
+IDs, so scenarios take turns. `Dobby.HAServer` is the other rig — a real
+WebSocket endpoint for testing the actual client's correlation and reconnect.
+
+**Eval** (`test/dobby/eval/`, tagged `:eval`, excluded by default) asks whether
+a real model exercises judgment. It is the only tier that can catch a tool
+contract that lies to the model, a prompt that permits fan-out on an ambiguous
+request, or a model echoing input framing into user-visible output — all three
+of which it has caught. Rotating models is itself part of the test.
+
+If a fixture seeds what production builds, the test is lying. Ask of every one:
+does production do this, or am I faking it?
+
+## Commands
+
+```sh
+mix precommit                 # compile --warnings-as-errors, unused deps, format, test
+mix setup                     # deps, database, assets
+mix phx.server                # needs DOBBY_HOME_MANIFEST
+mix dobby.ha.verify           # prove a real HA connection and initial state sync
+mix reach.check --smells      # advisory review leads (see the elixir-reach skill)
+```
+
+`mix precommit` before you call anything done. Run the verification and read the
+output — a type check is not a feature check.
+
+In dev the running server also serves Tidewave at `/tidewave/mcp` (loopback
+only): evaluate code in the live node, read its logs, query the Repo. Register
+it once with `claude mcp add --transport http tidewave http://localhost:<PORT>/tidewave/mcp`.
+
+## Conventions
+
+- **Commit messages are sentences about what changed for the house**, not
+  Conventional Commits: "The house answers at dobby.local", "Attribute keys are
+  strings, because that is what they are on the wire".
+- **Moduledocs explain why, not what.** This codebase documents the reasoning
+  behind a decision and the alternative that was rejected. Match that density
+  — it is the house style, and it is why the design survives contact with a new
+  session.
+- **A broad `rescue` says why it is broad, in a comment at the rescue.** The
+  ones in `lib/dobby` sit at process boundaries where a crash costs more than
+  the error it hides: the turn that would never reply, the witness that would
+  stop recording, the house that would not boot. One without a stated reason is
+  a bug, and `mix reach.check --smells` will flag all of them either way.
+- **Never use `Mix.env()` to change runtime behaviour.** The Fake-versus-real
+  client is a config value, and that is the pattern.
+- **`dobby-design-jido.md` is a record, not a spec, and parts of it are
+  behind.** Decision 12 names `config/homes/*.exs` from before YAML became the
+  canonical form, and §6.2's tool list predates the light, the vacuum, and the
+  MCP door. Read the code for what is true and the design doc for why.
 
 <!-- usage-rules-start -->
 

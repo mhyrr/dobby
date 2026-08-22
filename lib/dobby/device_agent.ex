@@ -11,11 +11,57 @@ defmodule Dobby.DeviceAgent do
   alias Dobby.Home.Device
 
   @doc """
+  The name a home file calls this device type (TK-018).
+
+  A household writes `type: thermostat`, never an Elixir module name. Declared
+  by the module rather than listed centrally so that a new device type brings
+  its own word with it; `Dobby.HomeConfig.Types` only says which modules are on
+  offer.
+  """
+  @callback config_type() :: String.t()
+
+  @doc """
+  The `settings` this device type accepts in a home file, declared.
+
+  A `NimbleOptions` schema, and the `:doc` on each key is written for whoever
+  is editing the file rather than for whoever is reading the code. Two readers,
+  one declaration: `Dobby.HomeConfig` validates against it, naming the field
+  when a value is wrong, and /house renders a form from it — which is the seam
+  that makes a new device type cost one module instead of a form as well.
+
+  `[]` is a complete answer, and three of the four types give it: a device whose
+  behaviour is entirely discovered from Home Assistant has nothing for a
+  household to narrow.
+  """
+  @callback config_schema() :: keyword()
+
+  @doc """
+  Whether an unbound Home Assistant entity looks like one of these (TK-010).
+
+  The removable half of the double-entry problem. Home Assistant already knows
+  that `climate.dining_room` is a climate entity; nobody should have to retype
+  that as a device type. What HA cannot supply — the id this house will use
+  forever, the words the household actually says, the policy bounds — stays the
+  household's to state, which is why this only ever *suggests*.
+
+  Declared per type rather than as a domain table somewhere central, for the
+  reason `config_type/0` is: a new device agent should bring its own discovery
+  with it. It also lets a type be narrower than its domain — `wifi_endpoint`
+  wants the `binary_sensor` entities that report connectivity and none of the
+  motion sensors, and only `WifiEndpoint` knows that.
+  """
+  @callback matches_entity?(Dobby.HomeAssistant.Entity.t()) :: boolean()
+
+  @doc """
   Validates the manifest entry for one instance of this device type.
 
   Called during `Dobby.Home` bootstrap, before any agent starts. Return an
   error naming the offending field — the message reaches the operator as a
   startup failure.
+
+  This is where a rule that spans two fields lives, the kind a declared schema
+  cannot state: `config_schema/0` says a minimum is a number, and this says a
+  minimum above the maximum is not a house.
   """
   @callback validate_device(Device.t()) :: :ok | {:error, String.t()}
 
@@ -87,6 +133,30 @@ defmodule Dobby.DeviceAgent do
   `WifiEndpoint` answers false for everything it has.
   """
   @callback intervention?(attribute :: atom()) :: boolean()
+
+  @doc """
+  The identity a device agent starts with, which is the same for every type.
+
+  Every type answers `initial_state/1` with these four keys and differs only in
+  which binding carries its entity — a light's is `:light`, a thermostat's is
+  `:climate`. Written once here so that a fifth thing an agent knows about
+  itself is one edit rather than one per type, and so that four device types
+  cannot quietly drift into four slightly different ideas of what a device is.
+
+  `Map.fetch!/2` rather than `Map.get/2` on purpose. `validate_device/1` has
+  already run by the time `Dobby.Home` builds a state, so a device arriving
+  here without its binding is a bug in bootstrap and should say so loudly
+  rather than start an agent pointed at `nil`.
+  """
+  @spec initial_state(Device.t(), atom()) :: map()
+  def initial_state(%Device{} = device, binding) when is_atom(binding) do
+    %{
+      dobby_id: device.id,
+      name: device.name,
+      entity_id: Map.fetch!(device.bindings, binding),
+      settings: device.settings
+    }
+  end
 
   @doc """
   What differs between two states, and which of it actually *moved*.

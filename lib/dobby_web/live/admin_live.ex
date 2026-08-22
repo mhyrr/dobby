@@ -8,10 +8,13 @@ defmodule DobbyWeb.AdminLive do
   because there is no role system; this page is a different question, not a
   different permission.
 
-  Three sections and the order is deliberate. Health first because it is three
+  Four sections and the order is deliberate. Health first because it is three
   lines and it changes what the other two mean. Schedules next because they are
-  the only thing on this page you can change. The feed last because it is the
-  long one, and because you scroll to a log rather than being handed it.
+  the thing on this page changed most often. The system panel under them,
+  because a model alias or a port is changed once and then left alone, and
+  because it is about the box rather than the house the three around it
+  describe. The feed last because it is the long one, and because you scroll to
+  a log rather than being handed it.
 
   Above all three, the topology (TK-016): the diagram is not one of the
   maintainer's three questions, it is the map they are asked about, and it is
@@ -45,23 +48,46 @@ defmodule DobbyWeb.AdminLive do
 
   use DobbyWeb, :live_view
 
+  # The panel only; the rest of that module is what this one calls it by name.
+  import DobbyWeb.AdminLive.SystemPanel, only: [system: 1]
+  import DobbyWeb.AdminLive.TokensPanel, only: [tokens: 1]
   import DobbyWeb.AdminLive.Topology
   import DobbyWeb.Board
   import DobbyWeb.Flap
+  import DobbyWeb.Fields
 
   alias Dobby.Activity
   alias Dobby.ActivityEvents
+  alias Dobby.ConfigEvents
   alias Dobby.DeviceEvents
   alias Dobby.Health
   alias Dobby.Home
   alias Dobby.HomeAssistant.Connection
+  alias Dobby.HomeConfig.Applied
   alias Dobby.ScheduleEvents
   alias Dobby.SchedulerAgent
   alias Dobby.Schedules
   alias Dobby.Topology
+  alias DobbyWeb.AdminLive.SystemPanel
+  alias DobbyWeb.AdminLive.TokensPanel
+  alias DobbyWeb.Fields
 
   @feed 100
   @undo_window 8_000
+
+  # The five sections, in the order the rail reads them. Same names the panels
+  # carried as headings, because the rail *is* those headings — the order is
+  # still the argument it always was: the map first because it is what the
+  # other four are asked about, then health because it changes what schedules
+  # mean, then the thing changed most often, then the box, then the log you
+  # scroll to rather than being handed.
+  @sections [
+    topology: "Topology",
+    health: "Health",
+    schedules: "Schedules",
+    system: "System",
+    activity: "Activity"
+  ]
 
   # How long to wait before looking for an agent again after its `:DOWN`. The
   # supervisor is usually finished inside a millisecond; the doubling is for
@@ -77,6 +103,7 @@ defmodule DobbyWeb.AdminLive do
       ScheduleEvents.subscribe()
       DeviceEvents.subscribe()
       Connection.subscribe()
+      ConfigEvents.subscribe()
     end
 
     devices = Schedules.schedulable_devices()
@@ -97,26 +124,94 @@ defmodule DobbyWeb.AdminLive do
      |> load_arguments()
      |> load_health()
      |> load_schedules()
+     |> load_system()
+     |> load_tokens()
      |> watch_house()
      |> stream(:activity, feed)}
   end
 
+  # Which section, from the address rather than from a click. A LiveView that
+  # loses its socket remounts on the URL it is on, so a page left open on the
+  # feed comes back to the feed instead of to the map — which a click handler
+  # holding this in an assign could not do.
+  @impl true
+  def handle_params(params, _uri, socket) do
+    section = section(params["section"])
+    socket = if section == :system, do: socket, else: assign(socket, :minted, nil)
+    {:noreply, show(socket, section)}
+  end
+
+  defp sections, do: @sections
+
+  defp section(name) do
+    Enum.find_value(@sections, :topology, fn {key, _label} ->
+      if Atom.to_string(key) == name, do: key
+    end)
+  end
+
+  # The feed is in the DOM only while its own section is showing, so entries
+  # arriving behind another section have nowhere to land. Re-reading on the way
+  # in is the honest answer: a hundred rows held open behind four other
+  # sections would be a stream kept current for nobody, and the read is one
+  # query against a Postgres in the same box.
+  defp show(socket, :activity) do
+    feed = Activity.recent(@feed)
+
+    socket
+    |> assign(:section, :activity)
+    |> assign(:blank_feed, feed == [])
+    |> stream(:activity, feed, reset: true)
+  end
+
+  # The token list is in the DOM on the same terms: its stream container leaves
+  # with the section, and a stream sends each row once. Coming back without
+  # re-reading would draw the heading over an empty list the database does not
+  # have — the one reading of "no tokens" this panel must never give wrongly.
+  defp show(socket, :system) do
+    socket
+    |> assign(:section, :system)
+    |> refresh_tokens()
+  end
+
+  defp show(socket, section), do: assign(socket, :section, section)
+
   @impl true
   def render(assigns) do
     ~H"""
-    <%!-- Admin's board is the wide one: two columns of content sit under this
-          nameplate at 980 and up, and a header centred on the other pages'
-          span would leave the name floating in the middle of them. --%>
-    <header class="board board-admin">
+    <header class="board">
       <.plate speaker={@speaker} listening={@listening} section="Admin" return_to={~p"/admin"} />
     </header>
 
+    <%!-- The five panel headings this page already had, rotated from a column
+          into a row. The section you are reading stays brass and the rest go
+          faint, which is how this board has always told a subject apart from
+          its record-keeping — so nothing new is drawn here. That is what makes
+          it the board's own index rather than the shell of links The No Nav
+          Rule bans: navigation between *routes* is still the nameplate, the
+          band and one quiet link, and this changes which part of one page is
+          showing. --%>
+    <div class="rail">
+      <.link
+        :for={{key, name} <- sections()}
+        patch={~p"/admin?section=#{key}"}
+        class={key == @section && "on"}
+        aria-current={key == @section && "page"}
+      >
+        {name}
+      </.link>
+    </div>
+
+    <%!-- One section at a time, and it is the only thing on this page that
+          scrolls. The two columns before it shared one scroll container, so a
+          hundred entries of log dragged health, schedules and system off the
+          top — the panels you came to change were hostage to the length of the
+          one you came to read. --%>
     <main class="admin">
-      <%!-- The map, above the three questions asked about it. It spans both
-            columns where there are two: it is the one panel here whose subject
-            is the whole house rather than one aspect of it, and a diagram of
-            three tiers wedged into the 22rem column would be a list. --%>
+      <%!-- The map. It is a section like the other four rather than a banner
+            over them: at the span it can no longer divide N ways and stay
+            readable, so it takes the page while it is being looked at. --%>
       <.topology
+        :if={@section == :topology}
         topology={@topology}
         snapshots={@snapshots}
         live={@live}
@@ -127,102 +222,113 @@ defmodule DobbyWeb.AdminLive do
         pulses={@pulses}
       />
 
-      <%!-- Health and schedules are one column and not two grid rows. As rows
-            they were sized by the feed beside them: a grid row grows to hold an
-            item spanning it, so a hundred entries of log pushed the schedules
-            275px down the page and left a void under the health panel bigger
-            than the panel. The order here is an argument — the thing you can
-            change sits under the thing that says whether it will work — and an
-            argument does not survive a gap that size. --%>
-      <div class="side">
-        <section class="panel">
-          <h2>Health</h2>
-
-          <div class="rows">
-            <div :for={row <- @health} class="row">
-              <span class="name">{row.name}</span>
-              <span class="val">{row.detail}</span>
-              <.flap state={row.state}>{row.word}</.flap>
-            </div>
+      <section :if={@section == :health} class="panel">
+        <div class="rows">
+          <div :for={row <- @health} class="row">
+            <span class="name">{row.name}</span>
+            <span class="val">{row.detail}</span>
+            <.flap state={row.state}>{row.word}</.flap>
           </div>
+        </div>
 
-          <%!-- The most useful row on the page: a schedule accepted at authoring
-                time and then rejected by the timer looks, from every other
-                angle, exactly like one that works. Empty is the healthy
-                answer, and empty says so rather than showing nothing. --%>
-          <%!-- "That can run", not "enabled": `unregistered` measures the
-                schedules that are enabled *and* still able to reach their
-                device, so the wider claim reads as a flat contradiction of a
-                HELD row sitting two lines below it. --%>
-          <div class="note">
-            <span :if={@unregistered == []}>Every schedule that can run has a timer.</span>
-            <span :if={@unregistered != []} class="wrong">
-              {length(@unregistered)} enabled {if length(@unregistered) == 1,
-                do: "schedule has",
-                else: "schedules have"} no timer: {Enum.map_join(@unregistered, ", ", & &1.label)}
-            </span>
+        <%!-- The most useful row on the page: a schedule accepted at authoring
+              time and then rejected by the timer looks, from every other
+              angle, exactly like one that works. Empty is the healthy
+              answer, and empty says so rather than showing nothing. --%>
+        <%!-- "That can run", not "enabled": `unregistered` measures the
+              schedules that are enabled *and* still able to reach their
+              device, so the wider claim reads as a flat contradiction of a
+              HELD row sitting two lines below it. --%>
+        <div class="note">
+          <span :if={@unregistered == []}>Every schedule that can run has a timer.</span>
+          <span :if={@unregistered != []} class="wrong">
+            {length(@unregistered)} enabled {if length(@unregistered) == 1,
+              do: "schedule has",
+              else: "schedules have"} no timer: {Enum.map_join(@unregistered, ", ", & &1.label)}
+          </span>
+        </div>
+      </section>
+
+      <section :if={@section == :schedules} class="panel">
+        <%!-- One line, and it is the stronger of the two: a house with nothing
+              schedulable obviously has nothing scheduled, and saying both
+              stacks two negations where one is the answer. --%>
+        <p :if={@schedules == [] && @devices != []} class="note">Nothing is scheduled.</p>
+
+        <div :for={schedule <- @schedules} class={["sched", !schedule.enabled && "paused"]}>
+          <div class="row">
+            <span class="name">{schedule.label}</span>
+            <span class="val">{schedule.cron}</span>
+            <.flap :if={schedule.enabled} state={status_state(schedule)}>
+              {status_word(schedule)}
+            </.flap>
           </div>
-        </section>
-
-        <section class="panel">
-          <h2>Schedules</h2>
-
-          <%!-- One line, and it is the stronger of the two: a house with nothing
-                schedulable obviously has nothing scheduled, and saying both
-                stacks two negations where one is the answer. --%>
-          <p :if={@schedules == [] && @devices != []} class="note">Nothing is scheduled.</p>
-
-          <div :for={schedule <- @schedules} class={["sched", !schedule.enabled && "paused"]}>
-            <div class="row">
-              <span class="name">{schedule.label}</span>
-              <span class="val">{schedule.cron}</span>
-              <.flap :if={schedule.enabled} state={status_state(schedule)}>
-                {status_word(schedule)}
-              </.flap>
-            </div>
-            <%!-- The identifiers as identifiers, and the time as a time. --%>
-            <div class="detail">
-              <span class="arg">{schedule.device} · {schedule.action}{args(schedule)}</span>
-              <span :if={schedule.next_fire}>· next {fires_at(schedule)}</span>
-            </div>
-            <div :if={schedule.enabled && blocked(schedule)} class="why">{blocked(schedule)}</div>
-            <div class="acts">
-              <button type="button" phx-click="toggle" phx-value-id={schedule.id}>
-                {if schedule.enabled, do: "pause", else: "resume"}
-              </button>
-              <button type="button" phx-click="delete" phx-value-id={schedule.id}>delete</button>
-            </div>
+          <%!-- The identifiers as identifiers, and the time as a time. --%>
+          <div class="detail">
+            <span class="arg">{schedule.device} · {schedule.action}{args(schedule)}</span>
+            <span :if={schedule.next_fire}>· next {fires_at(schedule)}</span>
           </div>
-
-          <div :if={@deleted} class="undo">
-            <button type="button" phx-click="restore">undo</button>
-            <span>put back "{@deleted.label}"</span>
+          <div :if={schedule.enabled && blocked(schedule)} class="why">{blocked(schedule)}</div>
+          <div class="acts">
+            <button type="button" phx-click="toggle" phx-value-id={schedule.id}>
+              {if schedule.enabled, do: "pause", else: "resume"}
+            </button>
+            <button type="button" class="takes" phx-click="delete" phx-value-id={schedule.id}>
+              delete
+            </button>
           </div>
+        </div>
 
-          <%!-- Pausing, deleting or restoring an existing schedule can fail, and
-                its reason belongs beside the schedules — not under the new
-                schedule form's last field, where it reads as a rejection of
-                what somebody is still typing. --%>
-          <div :if={@trouble} class="why">{@trouble}</div>
+        <div :if={@deleted} class="undo">
+          <button type="button" phx-click="restore">undo</button>
+          <span>put back "{@deleted.label}"</span>
+        </div>
 
-          <%!-- A house with nothing schedulable used to get the form anyway: two
-                empty selects and an `add` that could only be refused. The form
-                is offered when there is something for it to act on. --%>
-          <p :if={@devices == []} class="note">Nothing in this house can be scheduled.</p>
+        <%!-- Pausing, deleting or restoring an existing schedule can fail, and
+              its reason belongs beside the schedules — not under the new
+              schedule form's last field, where it reads as a rejection of
+              what somebody is still typing. --%>
+        <div :if={@trouble} class="why">{@trouble}</div>
 
-          <.schedule_form
-            :if={@devices != []}
-            form={@form}
-            devices={@devices}
-            arguments={@arguments}
-            error={@error}
-          />
-        </section>
-      </div>
+        <%!-- A house with nothing schedulable used to get the form anyway: two
+              empty selects and an `add` that could only be refused. The form
+              is offered when there is something for it to act on. --%>
+        <p :if={@devices == []} class="note">Nothing in this house can be scheduled.</p>
 
-      <section class="panel feed">
-        <h2>Activity</h2>
+        <.schedule_form
+          :if={@devices != []}
+          form={@form}
+          devices={@devices}
+          arguments={@arguments}
+          error={@error}
+        />
+      </section>
 
+      <%!-- The box rather than the house: a model alias, a port, whether Dobby
+            answers on the household network. Its own section because every
+            field on it is the maintainer's, which is the one panel here where
+            that is true of all of them. --%>
+      <.system
+        :if={@section == :system}
+        config={@system_config}
+        form={@system_form}
+        effects={@effects}
+        error={@system_error}
+      />
+
+      <%!-- Under the system fields, because it is the same subject — who and
+            what may reach this box — and the same reader. The keys to the MCP
+            door: minted here, labeled for the record, revocable here. --%>
+      <.tokens
+        :if={@section == :system}
+        tokens={@streams.tokens}
+        tokens_empty?={@tokens_empty?}
+        minted={@minted}
+        label={@token_label}
+        error={@token_error}
+      />
+
+      <section :if={@section == :activity} class="panel feed">
         <p :if={@blank_feed} class="note">Nothing recorded yet.</p>
 
         <div id="activity" phx-update="stream">
@@ -249,15 +355,19 @@ defmodule DobbyWeb.AdminLive do
   attr :error, :string, default: nil
 
   defp schedule_form(assigns) do
-    ~H"""
-    <form id="new-schedule" class="new-sched" phx-change="form" phx-submit="create">
-      <label>
-        <span>Label</span>
-        <input type="text" name="schedule[label]" value={@form["label"]} autocomplete="off" />
-      </label>
+    assigns = assign(assigns, :registers, Fields.registers(assigns.arguments))
 
-      <label>
-        <span>Cron</span>
+    ~H"""
+    <form id="new-schedule" class="fields new-sched" phx-change="form" phx-submit="create">
+      <.field ask="What to call this" key="label">
+        <input type="text" name="schedule[label]" value={@form["label"]} autocomplete="off" />
+      </.field>
+
+      <%!-- The question is when, and the answer is cron. The placeholder does
+            the teaching rather than a sentence about five fields — a specimen
+            of the thing is shorter than a description of it, and this one is a
+            weeknight at eight. --%>
+      <.field ask="When it fires" key="cron">
         <input
           type="text"
           name="schedule[cron]"
@@ -265,19 +375,17 @@ defmodule DobbyWeb.AdminLive do
           autocomplete="off"
           placeholder="0 20 * * 1-5"
         />
-      </label>
+      </.field>
 
-      <label>
-        <span>Device</span>
+      <.field ask="What it acts on" key="target">
         <select name="schedule[target]">
           <option :for={device <- @devices} value={device.id} selected={device.id == @form["target"]}>
             {device.name}
           </option>
         </select>
-      </label>
+      </.field>
 
-      <label>
-        <span>Action</span>
+      <.field ask="What it does" key="action">
         <select name="schedule[action]">
           <option
             :for={action <- actions(@devices, @form["target"])}
@@ -287,21 +395,27 @@ defmodule DobbyWeb.AdminLive do
             {action}
           </option>
         </select>
-      </label>
+      </.field>
 
-      <%!-- The one field label on this page that nobody wrote: it is a key out
-            of the action's own schema, and it is set as the identifier it is
-            rather than shouted as a word. Same reading as the feed's. --%>
-      <label :for={argument <- @arguments}>
-        <span class="arg">{argument.name}</span>
-        <input
-          type={input_type(argument.type)}
-          step={if input_type(argument.type) == "number", do: "any"}
-          name={"schedule[args][" <> argument.name <> "]"}
-          value={@form["args"][argument.name]}
-          autocomplete="off"
-        />
-      </label>
+      <%!-- The action's own arguments, asking in the words its schema declares
+            them in. Nobody wrote these labels: they are the same `:doc` the
+            model is handed as the argument's description, so a question this
+            form can ask is one the model was told too. --%>
+      <.field :for={argument <- elem(@registers, 0)} ask={argument.ask} key={argument.name}>
+        <.argument argument={argument} value={@form["args"][argument.name]} />
+      </.field>
+
+      <%!-- An argument whose schema declares no `:doc` has no question to ask,
+            here or in the tool schema. It falls to the second register, which
+            is where a person will see that it is missing. --%>
+      <.named
+        :if={elem(@registers, 1) != []}
+        say="The action's schema says nothing about these, so neither does this form."
+      />
+
+      <.field :for={argument <- elem(@registers, 1)} key={argument.name}>
+        <.argument argument={argument} value={@form["args"][argument.name]} />
+      </.field>
 
       <div :if={@error} class="why">{@error}</div>
 
@@ -309,6 +423,32 @@ defmodule DobbyWeb.AdminLive do
             verb, and capitals here mean a state, a name or a time. --%>
       <button type="submit">add</button>
     </form>
+    """
+  end
+
+  # One argument's control, typed by the schema that declared it. A boolean is
+  # two words in a select and never a tick — the same call the system panel
+  # makes, which is now the same code.
+  attr :argument, :map, required: true
+  attr :value, :any, default: nil
+
+  defp argument(assigns) do
+    assigns = assign(assigns, :input, Fields.input_type(assigns.argument.type))
+
+    ~H"""
+    <select :if={@input == "select"} name={"schedule[args][" <> @argument.name <> "]"}>
+      <option value="false" selected={to_string(@value) != "true"}>no</option>
+      <option value="true" selected={to_string(@value) == "true"}>yes</option>
+    </select>
+
+    <input
+      :if={@input != "select"}
+      type={@input}
+      step={if @input == "number", do: "any"}
+      name={"schedule[args][" <> @argument.name <> "]"}
+      value={@value}
+      autocomplete="off"
+    />
     """
   end
 
@@ -387,6 +527,79 @@ defmodule DobbyWeb.AdminLive do
     end
   end
 
+  # The system panel has no cascade — a port does not change what a model can
+  # be — so this only remembers what is in the boxes, which is what keeps them
+  # holding it across the feed streaming an entry in underneath.
+  def handle_event("system", %{"system" => params}, socket) do
+    {:noreply, assign(socket, :system_form, SystemPanel.entered(params))}
+  end
+
+  # Through the one writer, always. Its answer is applied here as well as on
+  # `dobby:config`, so the browser that asked sees its own save land without
+  # waiting for the announcement — and applying it twice says the same thing
+  # twice, which is the point of the announcement being a fact rather than an
+  # instruction.
+  def handle_event("save", %{"system" => params}, socket) do
+    case SystemPanel.save(socket.assigns.system_config, params) do
+      {:ok, applied} ->
+        {:noreply, socket |> assign(:system_error, nil) |> take_config(applied)}
+
+      # The typing stays where it was, beside the reason it was refused.
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:system_form, SystemPanel.entered(params))
+         |> assign(:system_error, reason)}
+    end
+  end
+
+  def handle_event("token", %{"token" => %{"label" => label}}, socket) do
+    {:noreply, assign(socket, :token_label, label)}
+  end
+
+  # The one moment the plaintext exists outside `Dobby.MCP`: minted, shown
+  # beside its label, and held only in this assign — a refresh, a revisit or
+  # the next mint and it is gone for good, which is what the sentence next to
+  # it says. The label box clears because its job is done; a refused label
+  # stays put beside the reason, like every other form here.
+  def handle_event("mint", %{"token" => %{"label" => label}}, socket) do
+    case Dobby.MCP.mint(label) do
+      {:ok, plaintext, token} ->
+        {:noreply,
+         socket
+         |> assign(:minted, %{label: token.label, token: plaintext})
+         |> assign(:token_label, "")
+         |> assign(:token_error, nil)
+         |> refresh_tokens()}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:minted, nil)
+         |> assign(:token_label, label)
+         |> assign(:token_error, reason)}
+    end
+  end
+
+  # No undo, deliberately, where a schedule gets one: a deleted schedule can
+  # be put back because Dobby still knows everything about it, but a revoked
+  # token's plaintext is exactly what Dobby does not keep. Putting the row
+  # back would restore the label and not the key — an undo that looks like
+  # one and isn't. Minting a fresh token is the honest path back in.
+  def handle_event("revoke", %{"id" => id}, socket) do
+    case Dobby.MCP.revoke(id) do
+      {:ok, token} ->
+        {:noreply,
+         socket
+         |> clear_minted(token)
+         |> assign(:token_error, nil)
+         |> refresh_tokens()}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :token_error, reason)}
+    end
+  end
+
   def handle_event("restore", _params, socket) do
     case socket.assigns.deleted do
       %{schedule: schedule} ->
@@ -412,13 +625,12 @@ defmodule DobbyWeb.AdminLive do
 
   # -- what the house does ---------------------------------------------------
 
+  # The pulse lands whatever section is showing — it is the topology's, and a
+  # wire that only lit while somebody was watching the log would be a diagram
+  # that lies about a quiet house. The row is the feed's, and waits for it.
   @impl true
   def handle_info({:recorded, entry}, socket) do
-    {:noreply,
-     socket
-     |> assign(:blank_feed, false)
-     |> pulse(entry)
-     |> stream_insert(:activity, entry, at: 0, limit: @feed)}
+    {:noreply, socket |> pulse(entry) |> record(entry)}
   end
 
   # Only the newest pulse's own timer may darken its wire — an older timer
@@ -431,6 +643,17 @@ defmodule DobbyWeb.AdminLive do
       _newer_pulse ->
         {:noreply, socket}
     end
+  end
+
+  # The file changed, by whatever path — this browser, another one, or the
+  # household thread once it can. The panel is always current with the *applied*
+  # configuration, which is what buys v1 out of needing a file watcher.
+  #
+  # Only the system half is taken. A changed house is a restarted house, and
+  # what that means for the topology, the health rows and the schedules on this
+  # page is `/house`'s question to answer when it can make one.
+  def handle_info({:applied, %Applied{} = applied}, socket) do
+    {:noreply, take_config(socket, applied)}
   end
 
   # A firing changes what `next_fire` and `status` say, and both are computed
@@ -518,6 +741,51 @@ defmodule DobbyWeb.AdminLive do
     |> load_topology()
   end
 
+  # Once, when the page opens. `dobby:config` keeps it current after that.
+  defp load_system(socket) do
+    config = SystemPanel.current()
+
+    socket
+    |> assign(:system_config, config)
+    |> assign(:system_form, SystemPanel.values(config))
+    |> assign(:system_error, nil)
+    |> assign(:effects, %{})
+  end
+
+  # When the page opens. After that the rows are re-read whenever the system
+  # section is shown (`show/2`) and by this page's own mint and revoke.
+  defp load_tokens(socket) do
+    socket
+    |> refresh_tokens()
+    |> assign(:minted, nil)
+    |> assign(:token_label, "")
+    |> assign(:token_error, nil)
+  end
+
+  defp refresh_tokens(socket) do
+    tokens = TokensPanel.list()
+
+    socket
+    |> assign(:tokens_empty?, tokens == [])
+    |> stream(:tokens, tokens, reset: true)
+  end
+
+  defp clear_minted(%{assigns: %{minted: %{label: label}}} = socket, %{label: label}),
+    do: assign(socket, :minted, nil)
+
+  defp clear_minted(socket, _token), do: socket
+
+  # The boxes are refilled from what was applied, including under a hand that
+  # was typing: two browsers editing one knob is exactly the argument the single
+  # writer exists to settle, and showing the value that won is the honest half
+  # of settling it.
+  defp take_config(socket, %Applied{} = applied) do
+    socket
+    |> assign(:system_config, applied.config)
+    |> assign(:system_form, SystemPanel.values(applied.config))
+    |> assign(:effects, SystemPanel.effects(socket.assigns.effects, applied))
+  end
+
   # Nodes and edges only — configuration, and cheap enough to take again
   # whenever a schedule moves. Nothing here asks a running process anything.
   defp load_topology(socket), do: assign(socket, :topology, Topology.read())
@@ -580,6 +848,14 @@ defmodule DobbyWeb.AdminLive do
     "control" => :house,
     "device_changed" => :house
   }
+
+  defp record(%{assigns: %{section: :activity}} = socket, entry) do
+    socket
+    |> assign(:blank_feed, false)
+    |> stream_insert(:activity, entry, at: 0, limit: @feed)
+  end
+
+  defp record(socket, _entry), do: socket
 
   defp pulse(socket, %{kind: kind, device: device}) when is_binary(device) do
     case Map.get(@pulse_for, kind) do
@@ -649,7 +925,7 @@ defmodule DobbyWeb.AdminLive do
         {:error, _nothing_schedulable} -> []
       end
 
-    assign(socket, :arguments, arguments)
+    assign(socket, :arguments, Enum.map(arguments, &Map.put(&1, :ask, Fields.ask(&1[:doc]))))
   end
 
   # -- the form --------------------------------------------------------------
@@ -702,13 +978,6 @@ defmodule DobbyWeb.AdminLive do
   defp default_target(devices), do: devices |> List.first(%{}) |> Map.get(:id)
 
   defp default_action(devices, target), do: devices |> actions(target) |> List.first()
-
-  defp input_type(type) do
-    if numeric?(type), do: "number", else: "text"
-  end
-
-  defp numeric?({:or, types}), do: Enum.any?(types, &numeric?/1)
-  defp numeric?(type), do: type in [:integer, :float, :number, :pos_integer, :non_neg_integer]
 
   defp timezone do
     Home.manifest().timezone

@@ -39,6 +39,17 @@ defmodule Dobby.DeviceAgents.Vacuum do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "vacuum"
+
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "vacuum"
+
+  # A vacuum's whole envelope comes from the robot. There is nothing here for a
+  # household to say that HA does not already know.
+  @impl Dobby.DeviceAgent
+  def config_schema, do: []
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings, settings: settings}) do
     with :ok <- require_binding(bindings, :vacuum) do
       if is_map(settings),
@@ -78,14 +89,8 @@ defmodule Dobby.DeviceAgents.Vacuum do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def initial_state(%Device{} = device) do
-    %{
-      dobby_id: device.id,
-      name: device.name,
-      entity_id: Map.fetch!(device.bindings, :vacuum),
-      settings: device.settings
-    }
-  end
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :vacuum)
 
   defp require_binding(bindings, key) when is_map(bindings) do
     case Map.fetch(bindings, key) do

@@ -57,7 +57,7 @@ directory holds HA's own auth store; leave it that way.
 
 ## Point Dobby at it
 
-`config/homes/local.exs` is the committed manifest for this house. It binds
+`config/homes/local.yaml` is the committed home file for this house. It binds
 the real client (`Dobby.HomeAssistant.Client`) and takes its credential from
 the environment. In dev the environment starts from a gitignored `.env`:
 
@@ -79,7 +79,8 @@ and live in HA's own gitignored storage.
 ## Verify it
 
 ```sh
-DOBBY_HOME_MANIFEST=config/homes/local.exs DOBBY_HA_TOKEN=... \
+DOBBY_HOME_MANIFEST=config/homes/local.yaml \
+  DOBBY_HA_URL=http://localhost:8123 DOBBY_HA_TOKEN=... \
   mix dobby.ha.verify --round-trip
 ```
 
@@ -98,16 +99,17 @@ its dock**, then **press and hold its Home button until it plays a tone**
 — HA fetches the credential itself in that window.
 
 Note the `vacuum.*` entity id HA creates, fill it into the commented
-`vacuum:roomba` entry in `config/homes/local.exs`, uncomment, and restart.
+`vacuum:roomba` entry in `config/homes/local.yaml`, uncomment, and restart.
 `mix dobby.ha.verify` should then show the robot with its battery.
 
 ## Household access
 
 `DOBBY_LAN=1` (see `.env.example`) binds the dev server to every interface
-and advertises this machine as `http://dobby.local/` for exactly as long as
-the server runs. With `PORT=80` the address needs no port number. Anyone on
-the Wi-Fi can then open the thread by name — which is the point: the second
-household speaker is what the multi-speaker design exists for.
+and advertises this machine as `http://dobby.local:4000/` for exactly as long
+as the server runs. A bare hostname needs a port-80 reverse proxy or service
+capability. Anyone on the Wi-Fi can then open the thread by name — which is
+the point: the second household speaker is what the multi-speaker design
+exists for.
 
 ## Entity IDs
 

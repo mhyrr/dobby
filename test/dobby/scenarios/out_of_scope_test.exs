@@ -103,9 +103,15 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
       # got right, it is the only branch that exists.
       tool_names = Enum.map(Dobby.Home.tools(), & &1.name())
 
-      # Device tools come from the manifest; the schedule tools belong to the
-      # house and are offered whatever is plugged in. Both halves are pinned,
-      # because "what can Dobby do at all" is exactly the list this asserts.
+      # Device tools come from the manifest; the schedule tools and the config
+      # three belong to the house and are offered whatever is plugged in. Every
+      # half is pinned, because "what can Dobby do at all" is exactly the list
+      # this asserts — and a tool arriving here unnoticed is the failure mode.
+      #
+      # Note what the config three can and cannot do. They can describe a
+      # device; they cannot invent a media player, because a type not in
+      # `Dobby.HomeConfig.Types` is refused by the same closure the file is
+      # held to. Adding a way to change the house did not add a way past it.
       assert tool_names == [
                "thermostat_get_status",
                "thermostat_set_temperature",
@@ -120,10 +126,27 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
                "create_schedule",
                "list_schedules",
                "set_schedule_enabled",
-               "delete_schedule"
+               "delete_schedule",
+               "discover_entities",
+               "propose_device",
+               "confirm_device"
              ]
 
       refute Enum.any?(tool_names, &(&1 =~ ~r/play|media|music|speaker|sonos/i))
+    end
+
+    test "the config tools cannot name a device type Dobby does not have" do
+      # The same closure, reached the other way: a model that answered
+      # "media_player" to propose_device is refused by the registry rather than
+      # by anybody's manners.
+      assert {:error, reason} =
+               Dobby.Tools.ProposeDevice.on_before_validate_params(%{
+                 type: "media_player",
+                 settings: %{}
+               })
+
+      assert reason =~ "unknown device type"
+      assert reason =~ "thermostat"
     end
 
     test "an invented device id is refused by the tool, not by the model's manners" do

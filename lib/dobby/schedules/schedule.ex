@@ -35,7 +35,7 @@ defmodule Dobby.Schedules.Schedule do
     field :enabled, :boolean, default: true
 
     field :created_by, :string
-    field :created_via, Ecto.Enum, values: [:conversation, :admin]
+    field :created_via, Ecto.Enum, values: [:conversation, :admin, :mcp]
 
     timestamps(type: :utc_datetime_usec)
   end

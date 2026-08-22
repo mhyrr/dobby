@@ -8,7 +8,7 @@ web
 
 ## Users
 
-The household — Greg, his partner, and their kids — all talking to the same
+The household — Greg, his wife, and their kids — all talking to the same
 Dobby in one shared thread that everyone can read. Kids type into it, so
 copy has to be readable and controls hard to fat-finger.
 
@@ -64,17 +64,18 @@ schedule firings are a complete control path with no inference in it.
 
 One Linux mini-server in the house running Proxmox, with Home Assistant OS in
 one VM and Phoenix + Jido + Postgres in another. Dobby is reachable at
-`http://dobby.local` on the home LAN only — no inbound port forwarding, no
+`http://dobby.local:4000` on the home LAN only — no inbound port forwarding, no
 remote access, no TLS. Outbound HTTPS to the model provider is the only
 traffic that leaves.
 
 Browsers are on household Wi-Fi. The kitchen iPad is mounted and stays awake.
 Phones come and go.
 
-Dobby ships as an OTP release under `/opt/dobby` supervised by systemd. Three
+Dobby ships as an OTP release under `/opt/dobby` supervised by systemd. Two
 files under `/opt/dobby/config/` are read at boot from outside the release:
-the home manifest, the soul, and the secrets. Changing the house, or changing
-how Dobby talks, is edit-and-restart — never a rebuild.
+the home manifest and the soul. Credentials stay in the service environment;
+the manifest contains only `env:VARIABLE` references. Changing the house, or
+changing how Dobby talks, is edit-and-restart — never a rebuild.
 
 `mix phx.server` in dev boots the entire application against a fake HA client
 at the one honest boundary. The whole surface can be built, clicked, and
@@ -82,8 +83,9 @@ screenshotted with no server, no HAOS, and no house.
 
 ## Capabilities and Constraints
 
-**v1 devices.** One thermostat (report status, change setpoint) and a few
-read-only Wi-Fi endpoints (online or not). Plus the scheduler. Nothing else.
+**v1 devices.** Thermostats, lights, vacuums, and read-only Wi-Fi endpoints,
+plus the scheduler. Each device type owns its bindings, settings, tools, and
+discovery rules.
 
 **Confirmed surface decisions.** One shared, persistent, Discord-like thread,
 single page, thread-first. Actuations post muted system lines whenever
@@ -93,8 +95,10 @@ cards and in the admin log. The thread records interventions; the admin
 records everything. Identity is a first-visit "Who's this?" prompt plus a
 cookie-pinned device; MAC-based identity was considered and rejected.
 
-**No authentication.** LAN-only, flat trust, the Wi-Fi password is the
-boundary. Adding auth is out of scope, not deferred.
+**Flat household trust.** The browser surfaces have no login; LAN access is
+household access and the Wi-Fi password is their boundary. MCP requires a
+Dobby-minted bearer token. Possession of that token means household, with its
+label used for attribution rather than permission tiers.
 
 **Latency is a product fact, not a bug.** Measured against gpt-5.6-luna at
 reasoning `:low`: an actuating request is 2 model turns and 1.7–2.7s; a
@@ -106,8 +110,8 @@ gap between those two paths is visible to a person.
 **The world model is eventually consistent.** Device state fans out
 asynchronously. The thread having an event is not evidence the model has it.
 
-**Replies may contain markdown.** gpt-5.6-luna emits bold. Render it or strip
-it — undecided, and it is a step-4 decision.
+**Replies are plain speech.** Models may emit markdown, and the thread strips
+the syntax instead of adding a renderer and a second visual vocabulary.
 
 **Terminology, fixed.** *The house* (the manifest of real devices), *device
 agent*, *the thread*, *system line*, *cards*, *the activity log*, *the soul*
@@ -148,8 +152,8 @@ delete a safety rule.
 
 Real, in the repo:
 
-- A working system. 57 replay tests and 11 eval tests green against a real
-  model, stable across four seeds and two eval runs.
+- A working system with replay tests for the application rig and a separate
+  eval suite against real models.
 - Measured cost and latency per household request, not estimated (§6.5).
 - Voice fidelity across two providers, asserted structurally in
   `test/dobby/soul_test.exs`.
@@ -161,8 +165,8 @@ Real, in the repo:
 
 Absent, and not to be fabricated: no users outside this household, no
 testimonials, no customers, no pricing, no benchmarks against other products,
-no uptime record, no hardware — the server does not physically exist yet, and
-every measurement above was taken against a fake HA client.
+and no production uptime record. Replay evidence uses the fake HA client;
+installation evidence must come from the real household server and HA.
 
 ## Product Principles
 
@@ -176,8 +180,9 @@ every measurement above was taken against a fake HA client.
    surface and the outage fallback.
 4. **Attribution, never permission.** Knowing who is speaking makes Dobby
    personal. It never makes anyone privileged.
-5. **The things a person changes are files on the box.** The house, the
-   voice, and the secrets are edit-and-restart. Only code needs a rebuild.
+5. **The things a person changes are outside the release.** The house and the
+   voice are files on the box. Credentials are environment values referenced
+   by the house file. Only code needs a rebuild.
 
 ## Accessibility & Inclusion
 

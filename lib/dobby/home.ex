@@ -23,11 +23,18 @@ defmodule Dobby.Home do
   # about the household's intentions, so these are offered whatever is plugged
   # in — a house with nothing schedulable refuses at authoring time, naming
   # what it does have, which is a better answer than a missing tool.
+  #
+  # The config three are here for the sharper version of the same reason: they
+  # are how a house gets its *first* device, so a house that has none must
+  # still offer them or there is no way in but a text editor (TK-010).
   @house_tools [
     Dobby.Tools.CreateSchedule,
     Dobby.Tools.ListSchedules,
     Dobby.Tools.SetScheduleEnabled,
-    Dobby.Tools.DeleteSchedule
+    Dobby.Tools.DeleteSchedule,
+    Dobby.Tools.DiscoverEntities,
+    Dobby.Tools.ProposeDevice,
+    Dobby.Tools.ConfirmDevice
   ]
 
   # -- lifecycle -------------------------------------------------------------
@@ -87,6 +94,59 @@ defmodule Dobby.Home do
   def terminate(_reason, _state) do
     :persistent_term.erase(@term_key)
     :ok
+  end
+
+  @doc """
+  Takes the house down, and waits for it to actually be down.
+
+  `terminate_child` returns when this process is gone, but the agents it stopped
+  bring down plugin children of their own — Jido AI gives every agent a
+  Task.Supervisor. Coming back up before those have exited collides on
+  registered names, which surfaces as `:already_registered` and then a request
+  that never completes. Wait for the processes, not for the call.
+
+  Proven in the rig, where every scenario reboots the house between tests, and
+  in lib rather than in test support because production does the same thing for
+  the same reason: `Dobby.HomeConfig.Writer` applies a changed house by
+  restarting this.
+  """
+  @spec stop() :: :ok
+  def stop do
+    refs =
+      Dobby.Jido.list_agents()
+      |> Enum.map(fn {_id, pid} -> Process.monitor(pid) end)
+
+    :ok = Supervisor.terminate_child(Dobby.Supervisor, __MODULE__)
+    Enum.each(refs, &await_down/1)
+
+    :ok
+  end
+
+  @doc """
+  Reboots the house from whatever configuration is currently applied.
+
+  What changing the house has always meant (design §2.4: edit and restart) — the
+  only difference now is that a person can do it without a shell. The cards
+  honestly blink NOT KNOWN while the agents come back, and Home Assistant's
+  initial-state sync heals them.
+  """
+  @spec restart() :: {:ok, pid()} | {:error, term()}
+  def restart do
+    stop()
+
+    case Supervisor.restart_child(Dobby.Supervisor, __MODULE__) do
+      {:ok, pid} -> {:ok, pid}
+      {:ok, pid, _info} -> {:ok, pid}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp await_down(ref) do
+    receive do
+      {:DOWN, ^ref, :process, _pid, _reason} -> :ok
+    after
+      5_000 -> raise "timed out waiting for the house's agents to shut down"
+    end
   end
 
   # -- reads -----------------------------------------------------------------
@@ -179,6 +239,23 @@ defmodule Dobby.Home do
       |> Enum.uniq()
 
     device_tools ++ @house_tools
+  end
+
+  @doc """
+  Every tool module any house could ever be offered, whatever this one has.
+
+  `tools/0` is one house's set; this is the closure it is drawn from — the
+  tools of every registered device type plus the house's own. The MCP surface
+  declares this at compile time and narrows to `tools/0` per connection, the
+  same shape `Dobby.DobbyAgent` takes for the same macro-shaped reason: a
+  declaration cannot read the manifest, so the compile-time set is the library
+  and the running house narrows it.
+  """
+  @spec library() :: [module()]
+  def library do
+    device_tools = Enum.flat_map(Dobby.HomeConfig.Types.modules(), & &1.tools())
+
+    Enum.uniq(device_tools ++ @house_tools)
   end
 
   @doc """

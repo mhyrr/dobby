@@ -220,15 +220,7 @@ defmodule Dobby.Schedules do
   thermostat:main" is something a person can act on, and "invalid" is not.
   """
   @spec error_message(Ecto.Changeset.t()) :: String.t()
-  def error_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Regex.replace(~r"%{(\w+)}", message, fn _whole, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field}: #{Enum.join(messages, ", ")}" end)
-  end
+  defdelegate error_message(changeset), to: Dobby.Changeset
 
   # -- the house -------------------------------------------------------------
 

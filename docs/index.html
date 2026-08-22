@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dobby · Guide</title>
-<meta name="description" content="A house elf for your house, running on top of Home Assistant. How to set it up and live with it.">
+<meta name="description" content="A house elf for your Home Assistant. Anyone at home can ask it for things in plain words, and it does them. How to set it up and live with it.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -62,15 +62,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       </svg>
       <h1>Dobby</h1>
     </div>
-    <p class="lede">A house elf for your house, running on top of Home Assistant.</p>
+    <p class="lede">A house elf for your Home Assistant. Anyone at home can ask it for things in plain words, and it does them.</p>
 
-    <p>Home Assistant already knows your devices. Dobby gives the household someone to talk to about them. Everyone at home shares one thread. You say "set the thermostat to 70" or "I want it at 70 by eight on weekdays", and Dobby does it, or tells you why it could not.</p>
+    <p>You set up Home Assistant. The rest of the house asks you to change the thermostat. Dobby gives them someone else to ask: one shared thread, always open, with a housemate in it who runs things. "Set it to 70." "Make it cozy." "Send the vacuum out." "I want it at 70 by eight on weekdays." Dobby does what you said, says what it did, and asks when it is not sure.</p>
 
-    <p>Three things make it worth adding on top of a working Home Assistant:</p>
+    <p>What that gets you, on top of a working Home Assistant:</p>
     <ul>
-      <li><strong>It tells the truth.</strong> Dobby reports what it commanded, never what it guesses happened. "Set to 70" means the thermostat accepted the command. Whether the room got warm, the board shows you when Home Assistant reports it.</li>
-      <li><strong>It keeps working when the AI is down.</strong> Tap a card, or let a schedule fire, and the device gets the command with no model in the loop.</li>
-      <li><strong>Your own AI can use it.</strong> Point Claude Code, or any MCP client, at Dobby and let it set your house up for you.</li>
+      <li><strong>Anyone at home can run the house.</strong> Kids included. No app to learn, no dashboard, no automation editor. The kitchen tablet and every phone open the same thread, and whoever speaks, their name goes on what changed. When somebody turns the heat up, the thread says who.</li>
+      <li><strong>It keeps its word.</strong> Say "70 by eight on weekdays" once and it happens at eight on weekdays, with no AI in the loop, so it happens when the model is down too. And "set to 70" means exactly that: the thermostat took the command. Dobby never tells you the room is warm. The board shows you that, when Home Assistant reports it. You stop checking.</li>
+      <li><strong>It asks before it guesses.</strong> Two thermostats and you said "the thermostat"? It asks which. A device it does not have, it says so. A number the house does not allow, it declines and gives you the reason. Nothing happens to your house that nobody asked for.</li>
+      <li><strong>Setup is a conversation.</strong> Tell Dobby what you have, and it finds the devices in Home Assistant and proposes them. One yes adopts the lot. Or point Claude Code, or any MCP client, at Dobby and let the AI you already use do it.</li>
     </ul>
 
     <p>You describe the house in one file and give Dobby a voice in another. Home Assistant keeps running the devices. Dobby runs the house.</p>

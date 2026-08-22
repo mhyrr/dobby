@@ -2,9 +2,11 @@
 
 A house elf for your Home Assistant.
 
-Dobby is a household agent. Everyone in the house talks to it in one shared
-thread, and it answers by doing things: reading the thermostat, dimming a
-light, starting the vacuum, setting a schedule for eight o'clock.
+Dobby is a household agent. Everyone in the house, kids included, talks to
+it in one shared thread, and it answers by doing things: reading the
+thermostat, dimming a light, starting the vacuum, setting a schedule for
+eight o'clock. It does what you said, says what it did, and asks when it is
+not sure.
 
 Underneath are two layers with a hard line between them. A deterministic
 layer of device agents owns every fact and every action. Above it sits a

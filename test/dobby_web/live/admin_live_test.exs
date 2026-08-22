@@ -496,6 +496,7 @@ defmodule DobbyWeb.AdminLiveTest do
     test "a change that took effect says so on the field it took effect on", %{conn: conn} do
       previous = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
+      with_env("DOBBY_MODEL", nil)
 
       {:ok, view, _html} = open(conn, :system)
 

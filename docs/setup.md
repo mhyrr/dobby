@@ -149,12 +149,17 @@ you already use can do the work.
 2. **Connect your agent.** For Claude Code:
 
    ```sh
-   claude mcp add --transport http dobby http://dobby.local:4000/mcp \
+   claude mcp add --transport http dobby http://192.168.1.20:4000/mcp \
      --header "Authorization: Bearer <the token>"
    ```
 
-   Any MCP client that speaks streamable HTTP connects the same way.
-3. **Tell it what you have.** "Dobby at dobby.local:4000 runs my house. I have a
+   Use the machine's address, not `dobby.local`: Claude Code's MCP client
+   (2.1.240, August 2026) does not resolve `.local` names and times out on
+   them, where a browser on the same laptop resolves them fine. Dobby prints
+   the address when it starts — `the house answers at http://dobby.local:4000/
+   (192.168.1.20)`. Any MCP client that speaks streamable HTTP connects the
+   same way.
+3. **Tell it what you have.** "Dobby at 192.168.1.20:4000 runs my house. I have a
    thermostat, three lights, and a robot vacuum, all on Home Assistant — set
    them up." The agent discovers what HA sees, proposes each device, and
    confirms them into `home.yaml`; the house restarts into its new shape and

@@ -210,7 +210,7 @@ defmodule Dobby.HomeConfig.Proposals do
 
       case Repo.insert(Proposal.changeset(%Proposal{}, attrs)) do
         {:ok, proposal} -> proposal
-        {:error, changeset} -> Repo.rollback(error_message(changeset))
+        {:error, changeset} -> Repo.rollback(Dobby.Changeset.error_message(changeset))
       end
     end)
   end
@@ -300,15 +300,5 @@ defmodule Dobby.HomeConfig.Proposals do
       name when is_binary(name) and name != "" -> name
       _other -> "the household"
     end
-  end
-
-  defp error_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Regex.replace(~r"%{(\w+)}", message, fn _whole, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field}: #{Enum.join(messages, ", ")}" end)
   end
 end

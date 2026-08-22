@@ -163,6 +163,16 @@ defmodule DobbyWeb.AdminLive do
     |> stream(:activity, feed, reset: true)
   end
 
+  # The token list is in the DOM on the same terms: its stream container leaves
+  # with the section, and a stream sends each row once. Coming back without
+  # re-reading would draw the heading over an empty list the database does not
+  # have — the one reading of "no tokens" this panel must never give wrongly.
+  defp show(socket, :system) do
+    socket
+    |> assign(:section, :system)
+    |> refresh_tokens()
+  end
+
   defp show(socket, section), do: assign(socket, :section, section)
 
   @impl true
@@ -742,8 +752,8 @@ defmodule DobbyWeb.AdminLive do
     |> assign(:effects, %{})
   end
 
-  # Once, when the page opens. The rows change only through this page's own
-  # mint and revoke, which re-read as they go.
+  # When the page opens. After that the rows are re-read whenever the system
+  # section is shown (`show/2`) and by this page's own mint and revoke.
   defp load_tokens(socket) do
     socket
     |> refresh_tokens()

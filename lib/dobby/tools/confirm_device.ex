@@ -56,18 +56,29 @@ defmodule Dobby.Tools.ConfirmDevice do
            confirmed_by: speaker(context),
            defer_house: defer_house?(context)
          ) do
-      {:ok, proposal, _applied} ->
+      {:ok, proposal, applied} ->
         {:ok,
          %{
            applied: true,
            device: proposal.device_id,
            name: proposal.name,
            type: proposal.type,
-           note: "written to the house file; the house is restarting to take it on"
+           note: note(applied)
          }}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # The same honesty rule as the board's: say what happened, not what is
+  # about to. Over MCP the restart ran inside this request and the house
+  # already has the device; in the thread it runs after the reply lands.
+  defp note(%{applied: applied}) when is_list(applied) do
+    if :house in applied do
+      "written to the house file; the house has taken it on"
+    else
+      "written to the house file; the house is restarting to take it on"
     end
   end
 

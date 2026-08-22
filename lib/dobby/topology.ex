@@ -150,7 +150,9 @@ defmodule Dobby.Topology do
 
     Enum.flat_map(devices, fn node ->
       tools = if commandable?(node.id), do: [edge(DobbyAgent.id(), node.id, :command)], else: []
-      timer = if node.id in scheduled, do: [edge(SchedulerAgent.id(), node.id, :command)], else: []
+
+      timer =
+        if node.id in scheduled, do: [edge(SchedulerAgent.id(), node.id, :command)], else: []
 
       tools ++ timer
     end)

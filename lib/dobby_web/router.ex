@@ -17,13 +17,16 @@ defmodule DobbyWeb.Router do
     plug :accepts, ["json"]
   end
 
-  # The MCP door (TK-022): JSON only, none of the browser plugs. CSRF
-  # protection defends forms a browser submits, and nothing here is one; the
-  # session cookie and the speaker plug are the household surface's identity,
-  # and this surface's identity is the bearer token `DobbyWeb.MCP.Router`
-  # checks in `connect/2`.
+  # The MCP door (TK-022): none of the browser plugs, and no `:accepts`
+  # either. CSRF protection defends forms a browser submits, and nothing here
+  # is one; the session cookie and the speaker plug are the household
+  # surface's identity, and this surface's identity is the bearer token
+  # `DobbyWeb.MCP.Router` checks in `connect/2`. Content negotiation is
+  # Phantom's: a POST carries JSON or it answers 400, and the GET listen
+  # stream every client opens after initialize — `accept: text/event-stream`
+  # alone — gets its 405 from Phantom, where `:accepts, ["json"]` turned it
+  # into a 406 exception page on every connection.
   pipeline :mcp do
-    plug :accepts, ["json"]
   end
 
   # Three routes, no auth on any of them (design §10.1). LAN-only, flat

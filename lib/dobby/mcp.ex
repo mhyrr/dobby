@@ -37,7 +37,7 @@ defmodule Dobby.MCP do
 
     case Repo.insert(Token.changeset(%Token{}, %{label: label, token_hash: digest(plaintext)})) do
       {:ok, token} -> {:ok, plaintext, token}
-      {:error, changeset} -> {:error, error_message(changeset)}
+      {:error, changeset} -> {:error, Dobby.Changeset.error_message(changeset)}
     end
   end
 
@@ -100,10 +100,4 @@ defmodule Dobby.MCP do
   defp cast_id(_other), do: :error
 
   defp digest(plaintext), do: :crypto.hash(:sha256, plaintext)
-
-  defp error_message(changeset) do
-    Enum.map_join(changeset.errors, "; ", fn {field, {message, _opts}} ->
-      "#{field}: #{message}"
-    end)
-  end
 end

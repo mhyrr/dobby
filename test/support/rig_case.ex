@@ -314,6 +314,24 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  Sets — or with `nil`, clears — an environment variable for this test only.
+
+  The writer reads `DOBBY_MODEL` at the moment it applies a save, so a shell
+  that exports one (every developer's `.env` does) would make a test of "the
+  model applies live" pass or fail on whose machine it ran. A test that
+  asserts either side of that rule says which side it is standing on.
+  """
+  @spec with_env(String.t(), String.t() | nil) :: :ok
+  def with_env(name, value) do
+    previous = System.get_env(name)
+    put_env(name, value)
+    ExUnit.Callbacks.on_exit(fn -> put_env(name, previous) end)
+  end
+
+  defp put_env(name, nil), do: System.delete_env(name)
+  defp put_env(name, value), do: System.put_env(name, value)
+
+  @doc """
   Reads a device agent's current state.
   """
   @spec agent_state(String.t()) :: map()

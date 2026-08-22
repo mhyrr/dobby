@@ -83,6 +83,23 @@ defmodule DobbyWeb.MCPTest do
       local = rpc(ctx.base, token, "tools/list", %{}, [{"origin", "http://localhost:4000"}])
       assert %{"tools" => _tools} = result!(local)
     end
+
+    # Claude Code opens a GET listen stream right after initialize, with
+    # `accept: text/event-stream` and nothing else. Dobby has no listen stream
+    # to offer, and the answer to that is the spec's 405 — not a content
+    # negotiation plug refusing the request before Phantom can say so.
+    test "the listen stream a client opens is declined in one line, not refused", ctx do
+      token = mint!("the kitchen laptop")
+
+      response =
+        Req.get!(ctx.base <> "/mcp",
+          headers: [{"authorization", "Bearer " <> token}, {"accept", "text/event-stream"}],
+          retry: false
+        )
+
+      assert response.status == 405
+      assert response.body["error"]["message"] =~ "SSE not supported"
+    end
   end
 
   describe "the roster" do
@@ -171,7 +188,11 @@ defmodule DobbyWeb.MCPTest do
       # -- confirm: token possession is the blessing on this path ------------
       confirmed = call_tool(ctx.base, token, "confirm_device", %{"id" => proposal.id})
       refute confirmed["isError"]
-      assert Jason.decode!(text(confirmed))["applied"] == true
+      assert %{"applied" => true, "note" => note} = Jason.decode!(text(confirmed))
+
+      # Past tense, because it is: on this path the restart ran inside the
+      # request, and the reply must not describe it as still to come.
+      assert note =~ "has taken it on"
 
       written = File.read!(ctx.config.path)
       assert written =~ "thermostat:dining_room"

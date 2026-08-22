@@ -250,6 +250,7 @@ defmodule Dobby.HomeConfig.WriterTest do
     test "the model alias takes effect now", %{writer: writer} do
       previous = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
+      with_env("DOBBY_MODEL", nil)
 
       config = current(writer)
 
@@ -263,19 +264,9 @@ defmodule Dobby.HomeConfig.WriterTest do
 
     test "an exported model remains in effect when the file changes", %{writer: writer} do
       previous_aliases = Application.get_env(:jido_ai, :model_aliases)
-      previous_export = System.get_env("DOBBY_MODEL")
+      on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous_aliases) end)
 
-      on_exit(fn ->
-        Application.put_env(:jido_ai, :model_aliases, previous_aliases)
-
-        if previous_export do
-          System.put_env("DOBBY_MODEL", previous_export)
-        else
-          System.delete_env("DOBBY_MODEL")
-        end
-      end)
-
-      System.put_env("DOBBY_MODEL", "anthropic:exported")
+      with_env("DOBBY_MODEL", "anthropic:exported")
       Application.put_env(:jido_ai, :model_aliases, %{capable: "anthropic:exported"})
 
       assert {:ok, applied} =
@@ -312,6 +303,7 @@ defmodule Dobby.HomeConfig.WriterTest do
     } do
       previous = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
+      with_env("DOBBY_MODEL", nil)
 
       config = current(writer)
       {:ok, _applied} = Writer.save(writer, with_system(config, model: "openai:gpt-5.6-luna"))
@@ -326,6 +318,7 @@ defmodule Dobby.HomeConfig.WriterTest do
     test "the house and the system can change in one save", %{writer: writer} do
       previous = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous) end)
+      with_env("DOBBY_MODEL", nil)
 
       config = current(writer)
 

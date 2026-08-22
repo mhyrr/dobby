@@ -8,6 +8,36 @@
         "value": "rgba(0, 0, 0, .45)",
         "createdAt": "2026-08-15T16:52:52.185Z",
         "reason": "The One Shadow Rule: DESIGN.md documents this as the single box-shadow in the system (Elevation & Depth). Lives in the sidecar because the frontmatter schema has no shadow group."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "3rem",
+        "createdAt": "2026-08-22T17:57:04.172Z",
+        "reason": "Maya: the guide (docs/) is a Read surface and needs a chapter-title ramp the board's six steps never had; recorded in .impeccable/surfaces/docs-index-html.md"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "2.4rem",
+        "createdAt": "2026-08-22T17:57:04.201Z",
+        "reason": "Maya: the guide (docs/) is a Read surface and needs a chapter-title ramp the board's six steps never had; recorded in .impeccable/surfaces/docs-index-html.md"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "2rem",
+        "createdAt": "2026-08-22T17:57:04.230Z",
+        "reason": "Maya: the guide (docs/) is a Read surface and needs a chapter-title ramp the board's six steps never had; recorded in .impeccable/surfaces/docs-index-html.md"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.5rem",
+        "createdAt": "2026-08-22T17:57:04.258Z",
+        "reason": "Maya: the guide (docs/) is a Read surface and needs a chapter-title ramp the board's six steps never had; recorded in .impeccable/surfaces/docs-index-html.md"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.2rem",
+        "createdAt": "2026-08-22T17:57:04.286Z",
+        "reason": "Maya: the guide (docs/) is a Read surface and needs a chapter-title ramp the board's six steps never had; recorded in .impeccable/surfaces/docs-index-html.md"
       }
     ]
   }

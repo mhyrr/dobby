@@ -1,5 +1,5 @@
-# The local home (docs/local-ha.md): a real Home Assistant in a container on
-# this machine, demo entities, and — since 2026-08-17 — one real furnace. The
+# The local home (docs/developing.html, the guide's Developing chapter): a real
+# Home Assistant in a container on this machine, demo entities, and — since 2026-08-17 — one real furnace. The
 # same application as the rig, bound to the real client at the one honest
 # boundary, which makes this file the first description of a house that exists
 # outside the BEAM.
@@ -63,7 +63,7 @@ house:
         light: light.living_room_rgbww_lights
 
     # The Roomba, once HA holds its credentials — the one step that needs a
-    # human at the robot (docs/local-ha.md, "The Roomba"). Fill in the vacuum.*
+    # human at the robot (docs/developing.html, "The Roomba"). Fill in the vacuum.*
     # entity id HA creates, then uncomment:
     #
     # - id: vacuum:roomba

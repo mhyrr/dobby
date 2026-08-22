@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works · Dobby</title>
+<meta name="description" content="Two layers and the hard line between them: why Dobby cannot lie about a room, why the house restarts, and what the model is for.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html" aria-current="page">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>How it works</h1>
+    <p class="lede">Enough of the machinery to predict what Dobby will do before you ask it. The full design record is in the repository; this is the tour.</p>
+
+    <h2 id="two-layers">Two layers, one line</h2>
+    <p>Dobby is two layers with a hard line between them.</p>
+    <p>Below the line is the <strong>deterministic layer</strong>: one small program per device, called a device agent, plus the Home Assistant client, the scheduler, and the writer that owns the house file. This layer owns every fact and every action. It knows what a thermostat's range is because Home Assistant told it; it knows what the household allows because the file said so; and it is the only thing that ever sends a command to Home Assistant.</p>
+    <p>Above the line is the <strong>language layer</strong>: one long-lived model-backed agent that holds the conversation. It can do exactly one thing to the house: call a tool from a closed set the device agents advertise. That set is a construction fact, not a prompt instruction: there is no path from the model to Home Assistant, to the network, or to arithmetic, because none was built.</p>
+    <p>Everything else on these pages follows from that arrangement.</p>
+
+    <h2 id="commanded">Why it cannot say the room is warm</h2>
+    <p>When you ask for 72, the model calls <span class="arg">thermostat_set_temperature</span>. The tool hands the request to the hall thermostat's agent. The agent validates it (is 72 inside the hardware's range and the household's?) and if so emits a description of a service call, which the runtime performs against Home Assistant. What comes back to the model is <em>accepted</em>: the command was valid and it was sent.</p>
+    <p>What the room does next arrives later, on its own, as a state change from Home Assistant, and lands on the board as a word. The model never sees it in the same breath, so it cannot report it. "The living room is warm now" is exactly the sentence this architecture exists to make impossible; "set to 72" is the most it can truthfully say, and it is what it says.</p>
+    <p>The same shape holds for a refusal. The agent that declines 85 in a house capped at 78 returns its reason; the tool carries it up unchanged; the model repeats it. The words you read are the device's.</p>
+
+    <h2 id="facts">The model knows what it is told</h2>
+    <p>Before every message, the model is handed a block listing every device in the house with its id and its last known state. Those ids are the only ones that exist. A device not in the list is a device Dobby does not have, and the doctrine tells it to say so rather than guess. Ambiguity, two devices a phrase could mean, is a question back, because the doctrine forbids acting on several when one was asked for.</p>
+    <p>The doctrine is in code, composed after the <a href="running.html#soul">soul</a>. The soul can make Dobby warm or curt; it cannot give it permission to invent a device.</p>
+
+    <h2 id="without-model">The house works when the model does not</h2>
+    <p>A card on <span class="arg">/house</span> reaches a device with no model involved: a tap is a command to the device agent, directly. A schedule fires the same way: a timer wakes a deterministic process that calls the agent, and no model runs. These are first-class paths, not fallbacks: they are the test surface, and they are what the house does when the model is down, slow, or expensive. You will notice the difference: a card tap is effectively instant, and a sentence takes a couple of seconds.</p>
+
+    <h2 id="restart">Why the house restarts</h2>
+    <p>The house is a supervision tree: one agent per device, started from the file at boot. Changing the house (adding a device, removing one, editing its bindings) means a different tree. So a change to the house file, from any of the <a href="growing.html">four ways</a>, is applied by restarting that tree into its new shape. It takes about a second; every device reads <span class="arg">NOT KNOWN</span> until Home Assistant speaks again; the thread and the rest of the application stay up.</p>
+    <p>That restart is why there is one writer. Three browsers saving three forms would otherwise write three files, and the last to finish would win an argument nobody had. Every path that changes the house goes through the same process, so saves queue rather than race, and the file is written whole or not at all.</p>
+    <p>Not everything needs a restart. The <a href="house.html#system">system section</a> is honest about which of its knobs take effect now (the model alias does) and which belong to a socket opened at boot and wait.</p>
+
+    <h2 id="proposals">Proposals</h2>
+    <p>A device enters the house in two steps because the yes has to be a person's. Discovery reads what Home Assistant has that the house does not; a proposal is a validated, numbered entry written nowhere; a confirmation applies it. In Dobby's own chat the confirmation is your yes in the thread. Over MCP it is the agent calling <span class="arg">confirm_device</span>, and on that path holding the key is the yes; see <a href="agents.html#trust">the trust</a>.</p>
+
+    <h2 id="fake">The fake Home Assistant</h2>
+    <p>The Home Assistant client is one module behind one boundary, and the default implementation is a fake that lives in the repository. The entire test suite, and <code>mix phx.server</code> with no house file named, run against it: no HA, no network, no model calls. The real client is opt-in through configuration. That is why a developer can build, click and screenshot the whole surface on a train, and why <a href="running.html#verify">verify</a> exists: it is the one command that swaps the real client in and proves the wiring.</p>
+
+    <h2 id="more">The record</h2>
+    <p>For the reasoning behind all of this, and the alternatives that were rejected, the repository carries the design of record (<span class="arg">dobby-design-jido.md</span>), the surface's design system (<span class="arg">DESIGN.md</span>, which is binding), and the product thesis (<span class="arg">PRODUCT.md</span>). They were written for the people building Dobby, and they say why.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="agents.html"><small>Previous</small>Your own agent</a>
+      <a class="next" href="developing.html"><small>Next</small>Developing</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

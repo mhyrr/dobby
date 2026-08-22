@@ -13,7 +13,7 @@ One Phoenix application, not an umbrella. Elixir 1.18+, Phoenix 1.8, LiveView
 | `dobby-design-jido.md` | The architecture. `@moduledoc`s cite its section numbers (`design §4.2`) |
 | `DESIGN.md` | The surface: the design system, and it is binding |
 | `PRODUCT.md` | Who it is for and what it promises them |
-| `docs/setup.md`, `docs/local-ha.md` | Running against a real Home Assistant |
+| `docs/` | The user's guide: hand-written HTML, published at https://mhyrr.github.io/dobby/. Setup, the house file, the LAN, the MCP door, the local HA rig |
 
 ## The rule the whole codebase is built around
 
@@ -133,11 +133,12 @@ that keep Dobby honest live in code and are composed last.
 `DESIGN.md` is binding, not advisory, and it overrides the generic UI guidance
 further down this file. The short version:
 
-- **The state vocabulary is closed at eight words** — Awake, Cooling, Held,
-  Listening, Not known, Quiet, Set, Warming — over five states (`:acting`,
-  `:refused`, `:running`, `:set`, `:silent`). A ninth word is a design
-  decision. Bending an existing word to a new meaning is worse than saying
-  nothing, which is why a paused schedule carries no state word at all.
+- **The state vocabulary is closed at eight words** — Set, Warming/Cooling
+  (one word with two faces), Ready, Awake, Listening, Quiet, Held, Not known —
+  over five states (`:set`, `:acting`, `:expected`, `:silent`, `:refused`). A
+  ninth word is a design decision. Bending an existing word to a new meaning
+  is worse than saying nothing, which is why a paused schedule carries no
+  state word at all.
 - **Words on flaps, never icons and never bare numbers.** A split-flap board
   can only show what somebody set it to. That mechanical fact is the honesty
   the whole product rests on.

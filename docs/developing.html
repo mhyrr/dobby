@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developing · Dobby</title>
+<meta name="description" content="The local Home Assistant rig, the two test tiers, and the doors a developer's agent gets.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html" aria-current="page">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>Developing</h1>
+    <p class="lede">A real Home Assistant on your machine with virtual devices and no hardware, two test tiers that answer different questions, and a door for the agent working on Dobby rather than through it.</p>
+
+    <h2 id="rig">Two rigs</h2>
+    <p><code>mix test</code> and a bare <code>mix phx.server</code> run against the fake Home Assistant in the repository: no HA, no network, no model calls, and no environment variable changes that. That is the rig, and it is the whole application.</p>
+    <p>The second rig is a real Home Assistant in a container, for exercising the real client against actual protocol semantics: connection, authentication, subscription, service calls. It is disposable; its state is gitignored and remaking it costs two commands.</p>
+
+    <h2 id="local-ha">The local Home Assistant</h2>
+    <p>Requires Docker. The official image runs HA directly; no HAOS VM is involved.</p>
+<pre><code>cd dev/home-assistant
+docker compose up -d</code></pre>
+    <p>First boot takes a minute or two, and the instance listens on <span class="arg">http://localhost:8123</span>, loopback only. Its configuration is <span class="arg">configuration.seed.yaml</span>, mounted read-only, and it enables HA's <span class="arg">demo</span> integration: climate devices (<span class="arg">climate.hvac</span>, <span class="arg">climate.heatpump</span>, <span class="arg">climate.ecobee</span>), lights, and vacuums with nothing behind them.</p>
+
+    <p>Initialize it once. This creates the owner account, sets US customary units (Dobby's temperature fields say Fahrenheit, and the unit system is what makes HA report in it), finishes onboarding, and mints the long-lived token Dobby authenticates with. It prints the credentials and writes them nowhere.</p>
+<pre><code>mix run --no-start dev/home-assistant/onboard.exs
+docker compose restart   <span class="c"># so entities rendered before the unit change re-render in °F</span></code></pre>
+
+    <p>Then point Dobby at it. <span class="arg">config/homes/local.yaml</span> is the committed house file for this rig; it binds the real client and takes its credential from the environment, which in development starts from a gitignored <span class="arg">.env</span>.</p>
+<pre><code>cp .env.example .env    <span class="c"># then fill in the token onboard.exs printed</span>
+mix phx.server</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">[info] connected to Home Assistant 2026.8.2 at http://localhost:8123
+home "local" with 4 device(s)
+
+%{
+  id: "thermostat:main",
+  name: "demo thermostat",
+  type: :thermostat,
+  available: true,
+  target_temperature_f: 70,
+  min_temperature_f: 60,
+  max_temperature_f: 76,
+  current_temperature_f: 72,
+  hvac_mode: :cool
+}
+<span class="c">…</span>
+initial state sync: ok</p>
+      <p class="said">From <span class="arg">mix dobby.ha.verify</span> against the rig, August 22, 2026. <a href="running.html#verify">Running it</a> has the round trip.</p>
+    </div>
+
+    <p>To see what the instance actually has: <span class="arg">Developer Tools → States</span> in HA, or</p>
+<pre><code>curl -s -H "Authorization: Bearer $DOBBY_HA_TOKEN" \
+  http://localhost:8123/api/states | jq -r '.[].entity_id'</code></pre>
+
+    <p>Credentials for HA <em>integrations</em>, a cloud thermostat's account or a robot's password, do not belong in <span class="arg">.env</span> or anywhere in the repository. They are entered once in the HA UI and live in HA's own gitignored storage. Never commit a token.</p>
+
+    <h2 id="roomba">The Roomba</h2>
+    <p>The one integration that needs a human at the robot. In the HA UI: <span class="arg">Settings → Devices &amp; services → Add integration → iRobot Roomba</span>, and enter the robot's IP (the iRobot app or your router shows it). When the flow asks for the password, make sure the robot is on its dock, then press and hold its Home button until it plays a tone; HA fetches the credential itself in that window.</p>
+    <p>Note the <span class="arg">vacuum.*</span> entity id HA creates, fill it into the commented <span class="arg">vacuum:roomba</span> entry in <span class="arg">config/homes/local.yaml</span>, uncomment, and restart. <span class="arg">mix dobby.ha.verify</span> should then show the robot with its battery.</p>
+
+    <h2 id="tests">Two test tiers</h2>
+    <p><strong>Replay</strong> runs on every <code>mix test</code> and in CI, and is incapable of reaching a model provider; the test configuration guards it. It runs the whole application against the fake HA: one registry, one set of agents at fixed ids, scenarios taking turns. It is the tier that proves the machinery.</p>
+    <p><strong>Eval</strong> (<code>mix test --include eval</code>) asks whether a real model exercises judgment, with real inference and real money. It is the only tier that can catch a tool contract that lies to the model, a prompt that permits fan-out on an ambiguous request, or a model echoing input framing into what a person reads. It has caught all three. Rotating models is part of the test.</p>
+<pre><code>mix test                      <span class="c"># replay: no HA, no network, no model calls</span>
+mix test --include eval       <span class="c"># eval: real inference</span>
+mix precommit                 <span class="c"># compile --warnings-as-errors, unused deps, format, test</span></code></pre>
+    <p>The standard for a fixture: if it seeds what production builds, the test is lying. Ask of every one whether production does this, or whether the test is faking it.</p>
+
+    <h2 id="tidewave">A door for the agent working on Dobby</h2>
+    <p>In development the running server also serves <a href="https://tidewave.ai/">Tidewave</a> at <span class="arg">/tidewave/mcp</span>, loopback only: evaluate code in the live node, read its logs, query the database. It is the complement of the <a href="agents.html">MCP door</a>: that one is for an agent working <em>through</em> Dobby on the house; this one is for an agent working <em>on</em> Dobby. Register it once:</p>
+<pre><code>claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">get_logs, get_source_location, get_docs, project_eval,
+execute_sql_query, browser_eval, create_design_canvas</p>
+      <p class="said">Tidewave's tools, from <span class="arg">tools/list</span>. A request with a browser origin is refused, and a request from another machine is refused even when the server is bound to the LAN.</p>
+    </div>
+
+    <h2 id="reading">Reading the repository</h2>
+    <p><span class="arg">CLAUDE.md</span> at the root is the map: where things live, the rule the codebase is built around, and the conventions. Module documentation explains why a thing is the way it is and what was rejected, which is the house style and the reason the design survives a new reader.</p>
+
+    <p class="colophon">This guide is hand-written HTML under <span class="arg">docs/</span>, served as committed. Edit the page; there is no build.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="how-it-works.html"><small>Previous</small>How it works</a>
+      <a class="next" href="index.html"><small>Back to</small>Start</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

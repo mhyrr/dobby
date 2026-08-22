@@ -1,0 +1,967 @@
+/* The guide's one stylesheet.
+
+   The same instrument as the board, read rather than operated. Dark is the
+   board's night face, straight from DESIGN.md. Light is the printed manual:
+   cream enamel, bronze-black ink, the same brass and the same five state
+   hues at a lightness that reads on paper. Neither is a default; the page
+   follows the room it is read in. */
+
+@font-face {
+  font-family: "Barlow";
+  src: url("fonts/Barlow-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("fonts/BarlowCondensed-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("fonts/BarlowCondensed-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* The printed manual. */
+  --board: #ede7d6;
+  --board-raised: #e4ddc9;
+  --rail: rgba(228, 221, 201, 0.88);
+  --lit: #f5f0e4;
+  --patina: rgba(214, 222, 216, 0.9);
+  --flap: #dce5df;
+  --flap-edge: #b4c2ba;
+  --brass: #765418;
+  --brass-dim: #c4ad7e;
+  --brass-lit: #8b6827;
+  --ink: #1a1708;
+  --ink-quiet: #3e4e47;
+  --ink-faint: #56655f;
+  --rule: #d5ccb4;
+  --st-set: #8a5a0a;
+  --st-acting: #386f2c;
+  --st-refused: #a33726;
+  --st-silent: #566560;
+  --st-expected: var(--ink);
+  --seam: rgba(0, 0, 0, 0.05);
+  --selection: rgba(139, 104, 39, 0.22);
+
+  --sans: "Barlow", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --cond: "Barlow Condensed", "Avenir Next Condensed", ui-sans-serif, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --edge: 0.9rem;
+  --pitch: 34rem;
+  --gutter: 8.6rem;
+  --span: 42.6rem;
+  --measure: 62ch;
+  --wide: var(--span);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* The board at night, as DESIGN.md records it. */
+    --board: #17140a;
+    --board-raised: #1e1b0f;
+    --rail: rgba(30, 27, 15, 0.88);
+    --lit: #241f12;
+    --patina: rgba(11, 23, 19, 0.92);
+    --flap: #16241e;
+    --flap-edge: #08110e;
+    --brass: #b08a46;
+    --brass-dim: #6e5a31;
+    --brass-lit: #c9a568;
+    --ink: #e8e2d2;
+    --ink-quiet: #9aaba1;
+    --ink-faint: #8a9c92;
+    --rule: #2e2a1a;
+    --st-set: #e0a33c;
+    --st-acting: #7bb86a;
+    --st-refused: #d2604a;
+    --st-silent: #7c8b85;
+    --st-expected: var(--ink);
+    --seam: rgba(255, 255, 255, 0.045);
+    --selection: rgba(176, 138, 70, 0.3);
+  }
+}
+
+/* -- ground ------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--board);
+  scroll-padding-top: 5.5rem;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--lit) 0%, transparent 60%),
+    linear-gradient(to bottom, transparent 70%, var(--patina) 100%),
+    var(--board);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--st-set);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--brass-dim);
+}
+* {
+  scrollbar-color: var(--brass-dim) transparent;
+  scrollbar-width: thin;
+}
+
+/* Every block sits on the span and centres past it — one expression, the
+   board's own. Once the page has its gutter column the two sit side by side,
+   so what centres is the gutter plus the span, and the reading column keeps
+   the whole span for itself. */
+.band,
+.page {
+  padding-left: max(var(--edge), calc((100% - var(--wide)) / 2));
+  padding-right: max(var(--edge), calc((100% - var(--wide)) / 2));
+}
+
+/* -- the plate ---------------------------------------------------------- */
+
+.plate {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--rail);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-bottom: 2px solid var(--brass-dim);
+}
+
+.plate .band {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.05rem;
+  padding-top: 0.7rem;
+  padding-bottom: 0.45rem;
+  font-family: var(--cond);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.plate a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.plate .dot {
+  color: var(--brass-dim);
+  margin: 0 0.35em;
+}
+
+.plate .who {
+  color: var(--ink-faint);
+  letter-spacing: 0.07em;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+/* -- the rail ----------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.05rem;
+  padding-top: 0.7rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--cond);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.rail a {
+  color: var(--ink-faint);
+  text-decoration: none;
+  padding: 0.1rem 0;
+  border-bottom: 2px solid transparent;
+  transition: color 160ms ease-out;
+}
+
+.rail a:hover {
+  color: var(--ink);
+}
+
+.rail a[aria-current="page"] {
+  color: var(--brass);
+  border-bottom-color: var(--brass);
+}
+
+/* A phone's rail: the same nine names at the same size, tracked a little
+   tighter and set closer, so they fit in two rows rather than three. */
+@media (max-width: 600px) {
+  .rail {
+    gap: 0.25rem 0.75rem;
+    letter-spacing: 0.1em;
+  }
+}
+
+/* -- the page ----------------------------------------------------------- */
+
+.page {
+  padding-top: 2.2rem;
+  padding-bottom: 4rem;
+}
+
+@media (min-width: 900px) {
+  :root {
+    --wide: calc(var(--span) + var(--gutter));
+  }
+  .page {
+    display: grid;
+    grid-template-columns: var(--gutter) minmax(0, 1fr);
+    column-gap: 0;
+  }
+  .page > .onpage {
+    grid-column: 1;
+  }
+  .page > article {
+    grid-column: 2;
+  }
+}
+
+/* Prose sits at the measure; code and the proofs may take the span, the
+   way the feed is the one thing on the board wider than a row. */
+article {
+  max-width: var(--span);
+}
+
+article > p,
+article > ul,
+article > ol:not(.sheet),
+article > h1,
+article > h2,
+article > h3,
+article > .lede,
+article > .index-head {
+  max-width: var(--measure);
+}
+
+/* Chapter title: the condensed face at reading scale. Sentence case — a
+   title is the guide naming a chapter, not the board shouting a state. */
+h1 {
+  margin: 0 0 0.35rem;
+  font-family: var(--cond);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0 0 2.2rem;
+  font-size: 1.12rem;
+  line-height: 1.4;
+  color: var(--ink-quiet);
+  max-width: 56ch;
+  text-wrap: pretty;
+}
+
+h2 {
+  margin: 2.6rem 0 0.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--cond);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+h3 {
+  margin: 1.7rem 0 0.4rem;
+  font-family: var(--cond);
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+p,
+ul,
+ol {
+  margin: 0 0 1.05rem;
+  font-size: 1.12rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+ul,
+ol {
+  padding-left: 1.3rem;
+}
+
+li {
+  margin-bottom: 0.4rem;
+}
+
+li::marker {
+  color: var(--brass);
+}
+
+/* Emphasis is weight and face, never a slant: nothing in this world is
+   italic. It borrows the condensed face because the guide ships exactly the
+   three faces the board vendors (Barlow 400, Barlow Condensed 400 and 600)
+   and DESIGN.md calls a fourth weight a design decision, not a CSS change. */
+strong,
+em {
+  font-style: normal;
+  font-weight: 600;
+  font-family: var(--cond);
+  font-size: 1.05em;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: var(--brass);
+  text-decoration: underline;
+  text-decoration-color: var(--brass-dim);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--brass-lit);
+  text-decoration-color: var(--brass);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 2rem 0;
+}
+
+/* An identifier is a thing you go and open — lower case, condensed, never
+   shouted. The Identifier Rule, carried off the board. */
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  color: var(--ink);
+  background: var(--flap);
+  padding: 0.08em 0.38em;
+  border-bottom: 1px solid var(--flap-edge);
+}
+
+.arg {
+  font-family: var(--cond);
+  font-size: 0.95em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-quiet);
+  text-transform: none;
+}
+
+/* Code set on enamel: a card with the fold across its top. */
+pre {
+  position: relative;
+  margin: 1.05rem 0 1.4rem;
+  padding: 0.85rem 0.9rem 0.9rem;
+  background: var(--flap);
+  border-top: 2px solid var(--flap-edge);
+  border-bottom: 1px solid var(--seam);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+pre .c {
+  color: var(--ink-faint);
+}
+pre .k {
+  color: var(--brass);
+}
+pre .s {
+  color: var(--st-set);
+}
+
+.copy {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.6rem;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  padding: 0.1rem 0;
+  color: var(--brass);
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+pre:hover .copy,
+pre:focus-within .copy,
+.copy:focus-visible {
+  opacity: 1;
+}
+
+.copy[data-done] {
+  color: var(--st-acting);
+  border-bottom-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .copy {
+    opacity: 1;
+  }
+}
+
+/* -- the proof ---------------------------------------------------------- */
+
+/* The chapter's signature: what you should see, on the instrument's own
+   face. The reading is a word on a flap or the literal line the terminal
+   prints, and the card carries nothing that was not observed. */
+.proof {
+  margin: 1.4rem 0 2rem;
+  padding: 0.7rem 0.9rem 0.85rem;
+  background: var(--flap);
+  border-top: 2px solid var(--flap-edge);
+  border-bottom: 1px solid var(--seam);
+  max-width: var(--span);
+}
+
+.proof > .label {
+  margin: 0 0 0.5rem;
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.proof .row {
+  display: grid;
+  grid-template-columns: 1fr auto 9.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  border-top: 1px solid var(--seam);
+}
+
+.proof .row:first-of-type {
+  border-top: 0;
+}
+
+.proof .name {
+  font-family: var(--cond);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proof .val {
+  font-family: var(--cond);
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.proof .st {
+  justify-self: end;
+}
+
+.proof .line {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.proof .line .c {
+  color: var(--ink-faint);
+}
+
+.proof .said {
+  margin: 0.2rem 0 0;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+.proof .said b {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.proof .why {
+  margin: 0.35rem 0 0;
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--st-refused);
+}
+
+@media (max-width: 600px) {
+  .proof .row {
+    grid-template-columns: 1fr auto 6rem;
+  }
+}
+
+/* The flap: a word somebody set, and the only place a state colour lives. */
+.flap {
+  display: inline-block;
+  height: 1.55rem;
+  padding: 0.16rem 0.5rem 0.18rem;
+  font-family: var(--cond);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--board);
+  position: relative;
+  white-space: nowrap;
+  transform-origin: 50% 0;
+}
+
+.flap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--flap-edge);
+  opacity: 0.9;
+}
+
+.flap[data-st="set"] {
+  color: var(--st-set);
+}
+.flap[data-st="acting"] {
+  color: var(--st-acting);
+}
+.flap[data-st="refused"] {
+  color: var(--st-refused);
+}
+.flap[data-st="silent"] {
+  color: var(--st-silent);
+}
+.flap[data-st="expected"] {
+  color: var(--st-expected);
+}
+
+/* The one authored moment: a proof's flap settles into place the first time
+   the card comes into view, the way a split-flap lands on its word. */
+@media (prefers-reduced-motion: no-preference) {
+  .proof[data-landed] .flap {
+    animation: land 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes land {
+    0% {
+      transform: rotateX(-90deg);
+      opacity: 0;
+    }
+    60% {
+      transform: rotateX(8deg);
+      opacity: 1;
+    }
+    100% {
+      transform: rotateX(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* -- the thread, quoted ------------------------------------------------- */
+
+/* A transcript is the house's own record: who said it, what was said, and
+   the system lines in the record voice. */
+.thread {
+  margin: 1.05rem 0 1.6rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.thread li {
+  margin: 0;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.2rem 0.8rem;
+}
+
+.thread .who {
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brass);
+  padding-top: 0.3rem;
+}
+
+.thread .say {
+  font-size: 1.12rem;
+  line-height: 1.35;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* The record voice under what was said: condensed, quiet, and never
+   shouted — a tool's name is an identifier, and identifiers are lower case. */
+.thread .sys {
+  grid-column: 2;
+  font-family: var(--cond);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  color: var(--ink-quiet);
+  margin: 0.2rem 0 0;
+}
+
+.thread .sys .arg {
+  text-transform: none;
+  color: var(--ink-quiet);
+}
+
+@media (max-width: 600px) {
+  .thread li {
+    grid-template-columns: 1fr;
+  }
+  .thread .sys {
+    grid-column: 1;
+  }
+}
+
+/* -- the note ----------------------------------------------------------- */
+
+/* A line in the record voice, for what has and has not been walked. */
+.note {
+  margin: 1.05rem 0;
+  padding: 0.55rem 0 0.55rem 0.9rem;
+  border-left: 1px solid var(--brass-dim);
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--ink-quiet);
+  max-width: 56ch;
+}
+
+.note .label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.note.unwalked .label {
+  color: var(--st-refused);
+}
+
+/* -- tables ------------------------------------------------------------- */
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.05rem 0 1.4rem;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.45rem 0.8rem 0.45rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+th {
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border-bottom-color: var(--brass-dim);
+}
+
+td:first-child {
+  white-space: nowrap;
+}
+
+/* -- the contents sheet (index) ----------------------------------------- */
+
+.sheet {
+  margin: 1.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--brass-dim);
+  max-width: var(--pitch);
+}
+
+.sheet li {
+  margin: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sheet a {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  gap: 0.2rem 0.5rem;
+  padding: 0.75rem 0 0.8rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background 160ms ease-out;
+}
+
+.sheet a:hover {
+  background: var(--seam);
+}
+
+.sheet .n {
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: var(--brass);
+  padding-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet .t {
+  font-family: var(--cond);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+.sheet .d {
+  grid-column: 2;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--ink-quiet);
+}
+
+/* -- on this page ------------------------------------------------------- */
+
+.onpage {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .onpage {
+    display: block;
+    position: sticky;
+    top: 5.2rem;
+    align-self: start;
+    padding-right: 1rem;
+    font-family: var(--cond);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    line-height: 1.35;
+  }
+  .onpage .label {
+    color: var(--ink-faint);
+    margin: 0.3rem 0 0.5rem;
+    letter-spacing: 0.09em;
+  }
+  .onpage ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    line-height: inherit;
+  }
+  .onpage li {
+    margin: 0 0 0.45rem;
+  }
+  .onpage a {
+    color: var(--ink-faint);
+    text-decoration: none;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-size: 0.86rem;
+    transition: color 160ms ease-out;
+  }
+  .onpage a:hover {
+    color: var(--ink);
+  }
+  .onpage a[aria-current="true"] {
+    color: var(--brass);
+  }
+}
+
+/* -- the foot ----------------------------------------------------------- */
+
+.foot {
+  margin-top: 3rem;
+  padding-top: 0.9rem;
+  border-top: 2px solid var(--brass-dim);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: var(--measure);
+  font-family: var(--cond);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.foot a {
+  color: var(--brass);
+  text-decoration: none;
+  border-bottom: 1px solid var(--brass-dim);
+  padding-bottom: 0.1rem;
+}
+
+.foot a:hover {
+  color: var(--brass-lit);
+  border-bottom-color: var(--brass);
+}
+
+.foot .next {
+  margin-left: auto;
+  text-align: right;
+}
+
+.foot small {
+  display: block;
+  font-size: 0.74rem;
+  letter-spacing: 0.09em;
+  color: var(--ink-faint);
+  margin-bottom: 0.15rem;
+}
+
+.colophon {
+  margin: 2.6rem 0 0;
+  font-family: var(--cond);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.colophon a {
+  color: var(--ink-faint);
+  text-decoration-color: var(--rule);
+}
+
+/* -- the mark ----------------------------------------------------------- */
+
+.mark {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 0 1rem;
+}
+
+.index-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 1.05rem;
+  align-items: end;
+  margin-bottom: 0.4rem;
+}
+
+.index-head h1 {
+  margin-bottom: 0;
+  font-size: 3rem;
+}
+
+@media (max-width: 600px) {
+  .index-head {
+    grid-template-columns: 1fr;
+  }
+  .index-head h1 {
+    font-size: 2.4rem;
+  }
+  h1 {
+    font-size: 2rem;
+  }
+}

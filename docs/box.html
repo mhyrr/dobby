@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An always-on box · Dobby</title>
+<meta name="description" content="Proposed hardware for a machine in a closet that runs Home Assistant and Dobby together.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html" aria-current="page">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>An always-on box</h1>
+    <p class="lede">A laptop is where you try Dobby. A house needs a machine that is always on, in a closet, running Home Assistant and Dobby together. This is the hardware we propose for it.</p>
+
+    <div class="note unwalked">
+      <span class="label">A proposal, not a walk</span>
+      This chapter is the plan. It is grounded in what each piece needs and in what the hardware costs in August 2026, but nobody has yet bought the box, installed both halves, and written down what happened. When that walk is taken, this page and <a href="running.html#service">the installed-service section</a> will be rewritten from it.
+    </div>
+
+    <h2 id="needs">What each half needs</h2>
+    <p><strong>Home Assistant</strong> is happiest as an appliance. Home Assistant OS is the way its authors recommend running it: it manages its own updates, its add-ons, and its backups, and it expects to own the machine it is on: a small box of its own, or a virtual machine. You cannot install other software into HAOS, and that is a feature.</p>
+    <p><strong>Dobby</strong> is an ordinary Linux service. It needs Erlang and Elixir (or a release built with them), PostgreSQL, Avahi for the <span class="arg">dobby.local</span> name, and an outbound connection to a model provider. It is light: the runtime and the database together sit in a few hundred megabytes of memory, and there is no GPU because there is no local inference; the model is a call over HTTPS.</p>
+    <p>So the two halves want different things: HA wants a box to itself, Dobby wants a Linux host. Every layout below is a way of giving each what it wants.</p>
+
+    <h2 id="one-box">One box: a mini PC running Proxmox</h2>
+    <p>This is the layout Dobby was designed for, and the one we intend to walk first. A small x86 mini PC runs Proxmox VE, a free hypervisor, and the two halves live in two virtual machines on it.</p>
+
+    <div class="table-wrap">
+    <table>
+      <tr><th>Part</th><th>Proposed</th><th>Why</th></tr>
+      <tr><td>Box</td><td>A mini PC with an Intel N100 or N150, 16–32 GB of RAM, a 500 GB–1 TB NVMe drive. Around $200–250.</td><td>Fanless or near-silent, 6–10 W at idle, and a class of machine that people have run Proxmox on for years. RAM prices rose sharply in 2025–26; 16 GB is enough, 32 GB is comfortable.</td></tr>
+      <tr><td>VM 1 — Home Assistant</td><td>HAOS from the official VM image. 2 vCPU, 4 GB.</td><td>HAOS in its own VM rather than in Docker, so the supervisor, add-ons and updates work as designed.</td></tr>
+      <tr><td>VM 2 — Dobby</td><td>Debian. 2 vCPU, 4 GB. Dobby as a release under <span class="arg">/opt/dobby</span>, PostgreSQL, Avahi.</td><td>A plain Linux host you can ssh into. Everything the household changes lives in two files under <span class="arg">/opt/dobby/config</span>.</td></tr>
+      <tr><td>Radios</td><td>A Zigbee or Z-Wave USB coordinator, passed through to the HA VM. Only if you have devices on those protocols.</td><td>HA owns protocols; Dobby never talks to a radio.</td></tr>
+      <tr><td>Power</td><td>A small line-interactive UPS.</td><td>The house's brain should survive a blip. HA can watch the UPS over NUT.</td></tr>
+    </table>
+    </div>
+
+    <p>Networking is the simple part, because there is none to set up: both VMs sit on the home LAN, Dobby advertises <span class="arg">dobby.local</span>, and nothing is forwarded in from the internet. The only traffic that leaves the house is Dobby's outbound HTTPS to the model provider. If you want to reach the box from away, a mesh VPN on the Dobby VM is the honest way; a port forward is not.</p>
+
+    <h2 id="two-boxes">Two boxes: an appliance and a helper</h2>
+    <p>If you already run Home Assistant on its own hardware (a Home Assistant Green, a Yellow, a Raspberry Pi), keep it. Dobby then needs one more small machine on the same network.</p>
+    <ul>
+      <li><strong>Home Assistant Green</strong> is the appliance HA's own company sells: fanless, silent, about 1.7 W at idle, 4 GB of RAM and 32 GB of storage, $199 as of January 2026. It runs HAOS and nothing else, which is exactly right for it.</li>
+      <li><strong>For Dobby</strong>, the same N100-class mini PC as above running Debian directly with no hypervisor, or a Raspberry Pi 5 with 8 GB, which runs Erlang well and costs less. Either way: Debian, PostgreSQL, Avahi, Dobby.</li>
+    </ul>
+    <p>Two boxes cost a little more and draw a little more power than one, and in exchange HA stays an appliance you never log into and Dobby gets a machine you can break without touching the house's automations.</p>
+
+    <h2 id="not-needed">What you do not need</h2>
+    <ul>
+      <li><strong>A GPU.</strong> Inference is a network call. Local models would change this, and they are deliberately not built.</li>
+      <li><strong>A public address or TLS.</strong> Dobby is LAN-only by design. The Wi-Fi password is the boundary.</li>
+      <li><strong>Much of anything.</strong> The whole of Dobby's state is a Postgres database of conversations, schedules and the activity log, and two files. A backup is those three things.</li>
+    </ul>
+
+    <h2 id="then">Then what</h2>
+    <p>With the box up, the path is the one the rest of this guide walks: <a href="house.html">describe the house</a>, <a href="running.html#verify">verify before you trust</a>, set <code>lan: true</code>, and open <span class="arg">dobby.local</span> from the kitchen. The release-specific steps (building it, the systemd unit, upgrades, restoring a backup) are the part still owed a walk, and they will be written from one.</p>
+
+    <p class="colophon">Prices and parts: <a href="https://www.nabucasa.com/news/2026-01-08-green-pricing-change/">Nabu Casa on Green pricing</a> · <a href="https://www.xda-developers.com/i-used-an-intel-n100-mini-pc-as-a-proxmox-node/">an N100 as a Proxmox node</a>.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="running.html"><small>Previous</small>Running it</a>
+      <a class="next" href="living.html"><small>Next</small>Living with Dobby</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

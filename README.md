@@ -13,35 +13,19 @@ agents offer. The model never touches Home Assistant, never does arithmetic,
 and never claims a room got warm. It reports what it commanded; the house
 reports what actually happened.
 
-## The two files a household owns
+## The guide
 
-Everything about *your* house lives in two files. Everything else is the
-application's business.
-
-| File | Holds |
-|---|---|
-| `home.yaml` | What the house contains: your Home Assistant, your devices, your household's policy. Start from [`config/homes/example.yaml`](config/homes/example.yaml). |
-| `soul.md` | Who is answering: Dobby's voice and manners. Start from [`config/soul.md`](config/soul.md). |
-
-Credentials never appear in either file. `home.yaml` says
-`env:DOBBY_HA_TOKEN` and Dobby reads the variable at boot. The file stays
-safe to share, commit, or send to someone debugging your setup.
-
-You can edit the house four ways, and they all end in the same file. Open
-`home.yaml` in an editor. Use the forms on `/house` and `/admin`. Tell Dobby
-— "add the new thermostat as the dining room thermostat" — and say yes to
-what it proposes. Name everything you have and it takes the whole house in
-one breath. Or let your own AI do the same through the MCP door, with a
-token minted on `/admin`.
+**[mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/)** is the user's
+guide: what you need, the house file section by section, running it and
+putting it on the Wi-Fi, an always-on box, living with it, growing the house,
+sending your own agent at it over MCP, how it works, and developing. Every
+page is written from a walk somebody took, and says so where one has not
+been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
 ## Running it
 
-You need Elixir, PostgreSQL, a Home Assistant you can reach, and an API key
-for a model provider.
-
 ```sh
 mix setup
-
 cp config/homes/example.yaml config/homes/my-house.yaml
 # edit it: your HA's address, your devices
 
@@ -54,38 +38,15 @@ DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server
 ```
 
 `mix dobby.ha.verify` proves the authenticated state sync before you trust an
-evening to it. Add `--round-trip` to make and restore a real thermostat change.
-The full household path is in
-[docs/setup.md](docs/setup.md): token setup, every knob, what the file's
-sections mean, and serving the whole house at `http://dobby.local:4000/`.
-
-## The surfaces
-
-- `/` — the thread. One conversation for the whole household, with the board
-  above it showing the devices worth watching right now.
-- `/house` — every device, its state, and what it can be asked; edit the
-  house here.
-- `/admin` — the maintainer's room: a live diagram of the house's mind,
-  health, schedules, the box's settings, the keys other agents hold, and the
-  full activity log. A room in the house, not a privilege level — the Wi-Fi
-  password is the boundary.
-
-## Bring your own agent
-
-Dobby serves its tools over MCP at `/mcp`, the same closed set its own model
-uses. So an agent that is not Dobby can work the house: Claude Code on your
-laptop, or whatever your household runs. Mint a labeled token on `/admin`
-and hand it to your agent. Tell it what you have. It can discover what Home
-Assistant sees, propose the devices, and confirm them into `home.yaml` — the
-token is the household's own key. Every call it makes lands in the activity
-log under the token's label. The recipe is in [docs/setup.md](docs/setup.md).
+evening to it. Then `/` is the thread, `/house` the cards, `/admin` the
+maintainer's room, and `/mcp` the door for an agent that is not Dobby.
 
 ## Developing
 
 `mix test` runs everything against a fake Home Assistant that lives in the
-repo: no HA, no network, no model calls. No environment variable changes any
-of that. To develop against a real local HA with virtual demo entities
-(still no hardware), see [docs/local-ha.md](docs/local-ha.md).
+repo: no HA, no network, no model calls. The local rig with a real HA and
+virtual devices, the two test tiers, and Tidewave are in the guide's
+[Developing](https://mhyrr.github.io/dobby/developing.html) chapter.
 
 The design record lives in [DESIGN.md](DESIGN.md) (the surface) and
 [dobby-design-jido.md](dobby-design-jido.md) (the architecture).

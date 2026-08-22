@@ -55,3 +55,6 @@ npm-debug.log
 # Agent worktrees. Ephemeral checkouts a subagent works in; git records them
 # as gitlinks if they are ever staged, which is never what anyone meant.
 /.claude/worktrees/
+
+# Impeccable review captures: regenerated every finish round, never source
+/.impeccable/review/

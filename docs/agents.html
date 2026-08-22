@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your own agent · Dobby</title>
+<meta name="description" content="Mint a key on /admin, point Claude Code at /mcp, and let the AI you already use set the house up.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html" aria-current="page">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>Your own agent</h1>
+    <p class="lede">You do not have to do the setup in Dobby's chat. Dobby serves its tools over MCP at <span class="arg">/mcp</span>, the same tools, the same schemas and the same refusals its own model gets, so the AI you already use can do the work.</p>
+
+    <h2 id="key">Mint a key</h2>
+    <p>On <span class="arg">/admin</span>, under the system section, mint a token with a label naming the agent that will hold it: <span class="arg">Ann's laptop</span>, <span class="arg">the kitchen Mac</span>. The label is what every call made with the key is logged under. The key is shown once.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <div class="row"><span class="name">Ann's laptop</span><span class="val">minted Aug 22, 2026</span><span class="st"></span></div>
+      <p class="said">…and beneath it, once: <b>The token for Ann's laptop is <span class="arg">‹43 characters›</span> — copy it now. Dobby keeps only a fingerprint, so it will not be shown again.</b> Leave the page and the row stays; the key does not.</p>
+    </div>
+
+    <p><span class="arg">revoke</span> closes the door without ceremony, and the next request with that key gets the same 401 a made-up key gets. There is no undo: the plaintext is exactly what Dobby does not keep. Mint a fresh one.</p>
+
+    <h2 id="connect">Connect your agent</h2>
+    <p>For Claude Code, one command, with the machine's address:</p>
+<pre><code>claude mcp add --transport http dobby http://192.168.1.20:4000/mcp \
+  --header "Authorization: Bearer &lt;the token&gt;"</code></pre>
+
+    <div class="note">
+      <span class="label">Use the address, not the name</span>
+      Claude Code's MCP client (2.1.240, August 2026) does not resolve <span class="arg">.local</span> names and times out on them, where a browser on the same laptop resolves them fine. Dobby prints the address when it starts: <span class="arg">the house answers at http://dobby.local:4000/ (192.168.1.20)</span>. Any MCP client that speaks streamable HTTP connects the same way.
+    </div>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">$ claude mcp list
+dobby: http://192.168.1.20:4000/mcp (HTTP) - ✔ Connected</p>
+    </div>
+
+    <h2 id="tools">What it can do</h2>
+    <p>Everything Dobby's own model can. <span class="arg">tools/list</span> returns this house's roster, not the library's (a house with no vacuum offers no vacuum tools), and every call goes through the same device agent, with the same validation and the same words when it refuses.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">confirm_device, create_schedule, delete_schedule, discover_entities,
+light_get_status, light_set_brightness, light_turn_off, light_turn_on,
+list_schedules, propose_device, set_schedule_enabled,
+thermostat_get_status, thermostat_set_temperature, wifi_get_status</p>
+      <p class="said">The roster of a house with a thermostat, a light and a printer. Add a vacuum and the vacuum tools appear on the next connection.</p>
+    </div>
+
+    <h2 id="trust">The trust, stated plainly</h2>
+    <p>A key-holder speaks for the household, the way anyone with the Wi-Fi password does on the surfaces. That includes confirming a device into the house: on this path, possession of the key is the yes. Dobby does not defend against a stolen key. That is the posture Home Assistant takes with its own long-lived access tokens, which this audience already lives with. What the key does carry is a name, and the name is the point: the activity log and every proposal say which agent asked.</p>
+
+    <h2 id="walk">A real session</h2>
+    <p>This is what happened on August 22, 2026, with Claude Code pointed at a running house, asked to adopt one light. The tool calls and their results are verbatim; the prose between them is Claude's.</p>
+
+    <ul class="thread">
+      <li><span class="who">Claude</span><p class="say">Step 1: discover_entities.</p><p class="sys">discover_entities → 12 entities, among them <span class="arg">light.kitchen_lights</span> · type light · Kitchen Lights</p></li>
+      <li><span class="who">Claude</span><p class="say"><span class="arg">light.kitchen_lights</span> is listed with type light. Step 2: propose_device.</p><p class="sys">propose_device(id light:kitchen, type light, name "kitchen lights", entity light.kitchen_lights) → proposal 1 · proposed · proposed_by "Maya's walkthrough"</p></li>
+      <li><span class="who">Claude</span><p class="say">Proposal id 1 returned. Step 3: you've agreed to this specific proposal, so confirming it.</p><p class="sys">confirm_device(1) → applied: true · "written to the house file; the house has taken it on"</p></li>
+      <li><span class="who">Claude</span><p class="say">Applied. Step 4: re-discover, then read the light's status.</p><p class="sys">discover_entities → 11 entities; light.kitchen_lights no longer among them</p><p class="sys">light_get_status(light:kitchen) → available · on · 71% · dimmable</p></li>
+    </ul>
+
+    <p>Notice what the house did between the third and fourth calls: the confirmation wrote the file, restarted the house, and answered only when the house was running with the new device in it. The reply says <em>has taken it on</em>, past tense, because it had. The agent's connection survived the restart; the next two calls went through on the same session.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">16:23:06  tool call  discover_entities    Maya's walkthrough
+16:23:09  tool call  propose_device       Maya's walkthrough
+16:23:12  tool call  confirm_device       Maya's walkthrough
+16:23:14  tool call  discover_entities    Maya's walkthrough
+16:23:16  tool call  light_get_status     Maya's walkthrough</p>
+      <p class="said">The activity log on <span class="arg">/admin</span>, every line under the key's label. And in the file, the entry it wrote:</p>
+      <p class="line">    - aliases:
+        - the kitchen light
+      bindings:
+        light: light.kitchen_lights
+      id: light:kitchen
+      name: kitchen lights
+      type: light</p>
+    </div>
+
+    <h2 id="say">Tell it what you have</h2>
+    <p>"Dobby at 192.168.1.20:4000 runs my house. I have a thermostat, three lights and a robot vacuum, all on Home Assistant — set them up." The agent discovers what HA sees, proposes each device, and confirms them into the house file; the house restarts into its new shape and the cards fill in as Home Assistant speaks. The doctrine an agent is handed with the tools says the rest: discover first, copy entity ids exactly, propose before confirming, and confirm only what the person actually agreed to.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="growing.html"><small>Previous</small>Growing the house</a>
+      <a class="next" href="how-it-works.html"><small>Next</small>How it works</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

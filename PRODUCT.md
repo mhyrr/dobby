@@ -8,7 +8,7 @@ web
 
 ## Users
 
-The household — Greg, his partner, and their kids — all talking to the same
+The household — Greg, his wife, and their kids — all talking to the same
 Dobby in one shared thread that everyone can read. Kids type into it, so
 copy has to be readable and controls hard to fat-finger.
 

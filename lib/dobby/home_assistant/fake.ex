@@ -181,7 +181,8 @@ defmodule Dobby.HomeAssistant.Fake do
         Entity.from_attributes(
           entity_id,
           Map.get(entity, :state),
-          Map.get(entity, :attributes, %{})
+          Map.get(entity, :attributes, %{}),
+          entity
         )
       end)
 
@@ -246,6 +247,69 @@ defmodule Dobby.HomeAssistant.Fake do
 
   defp apply_service(%HACall{domain: "light", service: "turn_off"}, entity) do
     put_in(%{entity | state: "off"}.attributes[:brightness], nil)
+  end
+
+  defp apply_service(%HACall{domain: "media_player", service: "media_play"}, entity),
+    do: %{entity | state: "playing"}
+
+  defp apply_service(%HACall{domain: "media_player", service: "media_pause"}, entity),
+    do: %{entity | state: "paused"}
+
+  defp apply_service(
+         %HACall{domain: "media_player", service: "volume_set", data: data},
+         entity
+       ) do
+    case fetch_any(data, [:volume_level, "volume_level"]) do
+      {:ok, level} -> put_in(entity.attributes[:volume_level], level)
+      :error -> entity
+    end
+  end
+
+  defp apply_service(%HACall{domain: "lock", service: "lock"}, entity),
+    do: %{entity | state: "locked"}
+
+  defp apply_service(%HACall{domain: "cover", service: "close_cover"}, entity) do
+    entity
+    |> Map.put(:state, "closed")
+    |> put_in([:attributes, :current_position], 0)
+  end
+
+  defp apply_service(%HACall{domain: "cover", service: "open_cover"}, entity) do
+    entity
+    |> Map.put(:state, "open")
+    |> put_in([:attributes, :current_position], 100)
+  end
+
+  defp apply_service(%HACall{domain: "cover", service: "set_cover_position", data: data}, entity) do
+    case fetch_any(data, [:position, "position"]) do
+      {:ok, position} ->
+        entity
+        |> Map.put(:state, if(position == 0, do: "closed", else: "open"))
+        |> put_in([:attributes, :current_position], position)
+
+      :error ->
+        entity
+    end
+  end
+
+  defp apply_service(%HACall{domain: domain, service: "turn_on"}, entity)
+       when domain in ["switch", "fan"],
+       do: %{entity | state: "on"}
+
+  defp apply_service(%HACall{domain: domain, service: "turn_off"}, entity)
+       when domain in ["switch", "fan"],
+       do: %{entity | state: "off"}
+
+  defp apply_service(%HACall{domain: "fan", service: "set_percentage", data: data}, entity) do
+    case fetch_any(data, [:percentage, "percentage"]) do
+      {:ok, percentage} ->
+        entity
+        |> Map.put(:state, "on")
+        |> put_in([:attributes, :percentage], percentage)
+
+      :error ->
+        entity
+    end
   end
 
   # The vacuum acknowledges by moving: start reports cleaning, return_to_base

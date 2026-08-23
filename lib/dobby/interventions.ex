@@ -106,11 +106,28 @@ defmodule Dobby.Interventions do
            "temperature_f"
          ]) do
       value when is_number(value) -> "#{round(value)}°"
-      _absent -> nil
+      _absent -> state_reading(source)
     end
   end
 
   def reading(_source), do: nil
+
+  defp state_reading(source) do
+    case first_of(source, [:lock_state, :cover_state, :shade_state, :power]) do
+      value when is_atom(value) ->
+        value |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
+
+      _absent ->
+        percent_reading(source)
+    end
+  end
+
+  defp percent_reading(source) do
+    case first_of(source, [:position, :speed_percent, :volume_percent]) do
+      value when is_number(value) -> "#{round(value)}%"
+      _absent -> nil
+    end
+  end
 
   defp first_of(source, keys), do: Enum.find_value(keys, &Map.get(source, &1))
 end

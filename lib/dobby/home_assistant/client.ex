@@ -58,6 +58,7 @@ defmodule Dobby.HomeAssistant.Client do
     # "what does Home Assistant have that this house does not manage?" without
     # anything above the boundary making a request of its own.
     catalogue: %{},
+    entity_registry: %{},
     pending: %{},
     next_id: 1,
     backoff: @initial_backoff,
@@ -343,6 +344,10 @@ defmodule Dobby.HomeAssistant.Client do
 
     %{state | status: :connected, backoff: state.initial_backoff}
     |> send_command(%{type: "subscribe_events", event_type: "state_changed"}, :subscription)
+    |> send_command(
+      %{type: "subscribe_events", event_type: "entity_registry_updated"},
+      :registry_subscription
+    )
     |> maybe_sync()
   end
 
@@ -366,6 +371,13 @@ defmodule Dobby.HomeAssistant.Client do
     state
     |> remember(data["entity_id"], data["new_state"])
     |> dispatch_entity(data["entity_id"], data["new_state"])
+  end
+
+  defp handle_message(
+         state,
+         %{"type" => "event", "event" => %{"event_type" => "entity_registry_updated"}}
+       ) do
+    send_command(state, %{type: "config/entity_registry/list"}, :entity_registry)
   end
 
   defp handle_message(state, _message), do: state
@@ -395,6 +407,16 @@ defmodule Dobby.HomeAssistant.Client do
     disconnect(state, :subscription_refused)
   end
 
+  defp handle_result(state, :registry_subscription, %{"success" => true}), do: state
+
+  defp handle_result(state, :registry_subscription, message) do
+    # Registry metadata improves discovery but is not part of control. A house
+    # that can still hear state changes remains connected when this optional
+    # subscription is unavailable on an older HA release.
+    Logger.warning("Home Assistant refused the entity registry subscription: #{inspect(message)}")
+    state
+  end
+
   defp handle_result(state, :initial_sync, %{"success" => true, "result" => states})
        when is_list(states) do
     # Replaced wholesale rather than merged. A sync is Home Assistant's complete
@@ -402,7 +424,7 @@ defmodule Dobby.HomeAssistant.Client do
     # candidate here — where a merge would keep offering it forever.
     catalogue =
       for %{"entity_id" => entity_id} = entity_state <- states, into: %{} do
-        {entity_id, entity(entity_id, entity_state)}
+        {entity_id, entity(entity_id, entity_state, state.entity_registry)}
       end
 
     Enum.reduce(states, %{state | catalogue: catalogue}, fn entity_state, state ->
@@ -414,6 +436,26 @@ defmodule Dobby.HomeAssistant.Client do
     # Survivable: agents stay unknowing until the next state change or
     # reconnect, which is the same posture as a house that just booted.
     Logger.error("Home Assistant could not report current states: #{inspect(message)}")
+    state
+  end
+
+  defp handle_result(state, :entity_registry, %{"success" => true, "result" => entries})
+       when is_list(entries) do
+    registry =
+      for %{"entity_id" => entity_id} = entry <- entries, into: %{} do
+        {entity_id, entry}
+      end
+
+    catalogue =
+      Map.new(state.catalogue, fn {entity_id, entity} ->
+        {entity_id, Entity.enrich(entity, Map.get(registry, entity_id, %{}))}
+      end)
+
+    %{state | entity_registry: registry, catalogue: catalogue}
+  end
+
+  defp handle_result(state, :entity_registry, message) do
+    Logger.warning("Home Assistant could not report its entity registry: #{inspect(message)}")
     state
   end
 
@@ -447,20 +489,23 @@ defmodule Dobby.HomeAssistant.Client do
     do: %{state | catalogue: Map.delete(state.catalogue, entity_id)}
 
   defp remember(state, entity_id, %{} = new_state) when is_binary(entity_id),
-    do: put_in(state.catalogue[entity_id], entity(entity_id, new_state))
+    do: put_in(state.catalogue[entity_id], entity(entity_id, new_state, state.entity_registry))
 
   defp remember(state, _entity_id, _new_state), do: state
 
-  defp entity(entity_id, entity_state) do
+  defp entity(entity_id, entity_state, registry) do
     Entity.from_attributes(
       entity_id,
       Map.get(entity_state, "state"),
-      Map.get(entity_state, "attributes") || %{}
+      Map.get(entity_state, "attributes") || %{},
+      Map.get(registry, entity_id, %{})
     )
   end
 
   defp maybe_sync(%{status: :connected, routing: routing} = state) when is_map(routing) do
-    send_command(state, %{type: "get_states"}, :initial_sync)
+    state
+    |> send_command(%{type: "config/entity_registry/list"}, :entity_registry)
+    |> send_command(%{type: "get_states"}, :initial_sync)
   end
 
   defp maybe_sync(state), do: state

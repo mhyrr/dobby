@@ -9,6 +9,14 @@ defmodule Dobby.DeviceAgents.ThermostatTest do
 
   use Dobby.RigCase, async: false
 
+  import Dobby.DeviceAgentContract
+
+  device_agent_contract(Dobby.DeviceAgents.Thermostat,
+    bindings: %{climate: "climate.contract"},
+    settings: %{min_temperature_f: 60, max_temperature_f: 76},
+    entity: [entity_id: "climate.contract"]
+  )
+
   alias Dobby.Tools.{ThermostatGetStatus, ThermostatSetTemperature}
 
   @thermostat "thermostat:main"

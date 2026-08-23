@@ -73,6 +73,40 @@ defmodule DobbyWeb.FlapTest do
     end
   end
 
+  describe "the device library" do
+    test "secure devices report observed state as AWAKE, not as a command" do
+      assert %{word: "Awake", state: :acting, value: "Locked"} =
+               read(%{type: :lock, available: true, lock_state: :locked})
+
+      assert %{word: "Awake", state: :acting, value: "Open"} =
+               read(%{type: :access_cover, available: true, cover_state: :open})
+    end
+
+    test "sensors put the reading beside the closed vocabulary" do
+      assert %{word: "Awake", value: "Open"} =
+               read(%{type: :contact_sensor, available: true, open: true})
+
+      assert %{word: "Awake", value: "Alarm"} =
+               read(%{type: :safety_sensor, available: true, alarm: true})
+
+      assert %{word: "Awake", value: "72.4°F"} =
+               read(%{
+                 type: :environment_monitor,
+                 available: true,
+                 readings: %{temperature: 72.4},
+                 units: %{temperature: "°F"}
+               })
+    end
+
+    test "reversible actors use SET and retain their concrete reading" do
+      assert %{word: "Set", state: :set, value: "Off"} =
+               read(%{type: :power_switch, available: true, power: :off})
+
+      assert %{word: "Set", state: :set, value: "40%"} =
+               read(%{type: :fan, available: true, power: :on, speed_percent: 40})
+    end
+  end
+
   defp thermostat(opts) do
     %{
       id: "thermostat:main",

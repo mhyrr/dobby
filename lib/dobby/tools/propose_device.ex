@@ -14,11 +14,10 @@ defmodule Dobby.Tools.ProposeDevice do
 
   ## What the model does not supply
 
-  **The binding key.** The model gives an entity id — copied from
-  `discover_entities`, never invented — and the device type says which binding
-  that id belongs under. `climate` is an atom because `Thermostat` declares one,
-  not because a model wrote the word down (`Dobby.HomeConfig.Types` is the
-  closure; this is it applied to a tool).
+  **The binding keys.** The model copies the binding map from
+  `discover_entities`; it does not invent either the keys or entity ids. The
+  type registry closes the keys before they become atoms. `entity_id` remains
+  accepted for single-entity types so an older agent turn can still complete.
 
   **Who asked.** Attribution rides on the request context (§6.4), the same way
   `create_schedule` learns it.
@@ -57,9 +56,13 @@ defmodule Dobby.Tools.ProposeDevice do
       ],
       entity_id: [
         type: :string,
-        required: true,
         doc:
-          "The Home Assistant entity this device is, copied exactly from discover_entities. Never invent one."
+          "For a single-entity device only: its HA entity id. Prefer copying bindings from discover_entities."
+      ],
+      bindings: [
+        type: {:map, :string, :string},
+        doc:
+          "The complete binding map from discover_entities, copied exactly. Required for compound devices."
       ],
       aliases: [
         type: {:list, :string},
@@ -93,16 +96,16 @@ defmodule Dobby.Tools.ProposeDevice do
   @impl true
   def on_before_validate_params(params) do
     with {:ok, module} <- fetch_type(params[:type]),
-         {:ok, settings} <- known_settings(module, params[:settings] || %{}) do
-      {:ok, Map.put(params, :settings, settings)}
+         {:ok, settings} <- known_settings(module, params[:settings] || %{}),
+         {:ok, bindings} <- known_bindings(module, params[:bindings], params[:entity_id]) do
+      {:ok, params |> Map.put(:settings, settings) |> Map.put(:bindings, bindings)}
     end
   end
 
   @impl true
   def run(params, context) do
-    with {:ok, module} <- fetch_type(params.type),
-         {:ok, binding} <- binding_for(module) do
-      entry = entry(params, binding)
+    with {:ok, _module} <- fetch_type(params.type) do
+      entry = entry(params)
 
       case Proposals.propose(entry, proposed_by: speaker(context)) do
         {:ok, proposal} ->
@@ -117,12 +120,12 @@ defmodule Dobby.Tools.ProposeDevice do
   # The mapping a home file would hold: string keys, string values, `type` and
   # never a module name. One shape, whether it came from an editor or a
   # sentence.
-  defp entry(params, binding) do
+  defp entry(params) do
     %{
       "id" => params.id,
       "type" => params.type,
       "name" => params.name,
-      "bindings" => %{binding => params.entity_id}
+      "bindings" => params.bindings
     }
     |> put_present("aliases", Map.get(params, :aliases))
     |> put_present("settings", stringify(Map.get(params, :settings) || %{}))
@@ -145,19 +148,54 @@ defmodule Dobby.Tools.ProposeDevice do
   defp fetch_type(other),
     do: {:error, "type must be a device type name, got #{inspect(other)}"}
 
-  # Every type Dobby has binds exactly one entity, so the model supplies an id
-  # and the registry supplies the word it goes under. A future type that bound
-  # two would need a wider tool, and this says so instead of picking one.
-  defp binding_for(module) do
+  defp known_bindings(_module, bindings, entity_id)
+       when is_map(bindings) and is_binary(entity_id),
+       do: {:error, "copy bindings or entity_id, not both"}
+
+  defp known_bindings(module, bindings, nil) when is_map(bindings) do
+    known = Map.new(module.subscribed_bindings(), &{Atom.to_string(&1), &1})
+
+    Enum.reduce_while(bindings, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
+      case {Map.fetch(known, to_string(key)), value} do
+        {{:ok, _binding}, entity_id} when is_binary(entity_id) ->
+          {:cont, {:ok, Map.put(acc, to_string(key), entity_id)}}
+
+        {{:ok, _binding}, other} ->
+          {:halt, {:error, "binding #{key} must be an entity id string, got #{inspect(other)}"}}
+
+        {:error, _value} ->
+          known_bindings = Enum.map_join(known, ", ", fn {name, _binding} -> name end)
+
+          {:halt,
+           {:error,
+            IO.iodata_to_binary([
+              "a ",
+              module.config_type(),
+              " has no binding ",
+              inspect(to_string(key)),
+              "; it binds: ",
+              known_bindings
+            ])}}
+      end
+    end)
+  end
+
+  defp known_bindings(module, nil, entity_id) when is_binary(entity_id) do
     case module.subscribed_bindings() do
       [only] ->
-        {:ok, Atom.to_string(only)}
+        {:ok, %{Atom.to_string(only) => entity_id}}
 
       several ->
         {:error,
-         "a #{module.config_type()} binds more than one entity (#{Enum.map_join(several, ", ", &Atom.to_string/1)}); add it by editing the house file"}
+         "a #{module.config_type()} needs bindings: #{Enum.map_join(several, ", ", &Atom.to_string/1)}"}
     end
   end
+
+  defp known_bindings(module, nil, nil),
+    do: {:error, "a #{module.config_type()} needs the bindings from discover_entities"}
+
+  defp known_bindings(_module, other, _entity_id),
+    do: {:error, "bindings must be an object, got #{inspect(other)}"}
 
   defp known_settings(module, raw) when is_map(raw) do
     declared = Keyword.keys(module.config_schema())

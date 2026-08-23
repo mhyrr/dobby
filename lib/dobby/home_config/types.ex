@@ -17,6 +17,18 @@ defmodule Dobby.HomeConfig.Types do
   @modules [
     Dobby.DeviceAgents.Thermostat,
     Dobby.DeviceAgents.Light,
+    Dobby.DeviceAgents.Speaker,
+    Dobby.DeviceAgents.Camera,
+    Dobby.DeviceAgents.Doorbell,
+    Dobby.DeviceAgents.Lock,
+    Dobby.DeviceAgents.AccessCover,
+    Dobby.DeviceAgents.PowerSwitch,
+    Dobby.DeviceAgents.Shade,
+    Dobby.DeviceAgents.Fan,
+    Dobby.DeviceAgents.EnvironmentMonitor,
+    Dobby.DeviceAgents.ContactSensor,
+    Dobby.DeviceAgents.OccupancySensor,
+    Dobby.DeviceAgents.SafetySensor,
     Dobby.DeviceAgents.Vacuum,
     Dobby.DeviceAgents.WifiEndpoint
   ]

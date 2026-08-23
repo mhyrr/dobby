@@ -80,6 +80,41 @@ defmodule Dobby.HomeAssistant.ClientTest do
   end
 
   describe "initial state synchronization" do
+    test "catalogue entities carry the registry metadata needed for compound discovery" do
+      states = [
+        %{
+          "entity_id" => "event.front_door",
+          "state" => "2026-08-23T12:00:00Z",
+          "attributes" => %{
+            "device_class" => "doorbell",
+            "friendly_name" => "Front door",
+            "supported_features" => 3
+          }
+        }
+      ]
+
+      entity_registry = [
+        %{
+          "entity_id" => "event.front_door",
+          "device_id" => "ha-device-front-door",
+          "platform" => "reolink",
+          "entity_category" => nil
+        }
+      ]
+
+      url = HAServer.start!(owner: self(), states: states, entity_registry: entity_registry)
+      client = start_client!(url)
+      :ok = Client.configure_routing(client, %{"event.front_door" => "doorbell:front"})
+
+      assert_receive {:dispatched, "event.front_door", _state, _attributes}, 1_000
+
+      assert [entity] = Client.entities(client)
+      assert entity.device_id == "ha-device-front-door"
+      assert entity.platform == "reolink"
+      assert entity.device_class == "doorbell"
+      assert entity.supported_features == 3
+    end
+
     test "routing installed before connect: current states fan out on auth" do
       states = [
         %{

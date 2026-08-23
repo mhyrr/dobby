@@ -10,6 +10,13 @@ defmodule Dobby.DeviceAgents.LightTest do
 
   use Dobby.RigCase, async: false
 
+  import Dobby.DeviceAgentContract
+
+  device_agent_contract(Dobby.DeviceAgents.Light,
+    bindings: %{light: "light.contract"},
+    entity: [entity_id: "light.contract"]
+  )
+
   alias Dobby.Tools.{LightGetStatus, LightSetBrightness, LightTurnOff, LightTurnOn}
 
   @light "light:living_room"

@@ -147,10 +147,80 @@ defmodule DobbyWeb.Flap do
     end
   end
 
+  def read(%{type: :speaker} = snapshot),
+    do: observed(snapshot, speaker_value(snapshot))
+
+  def read(%{type: :camera} = snapshot),
+    do: observed(snapshot, if(snapshot.motion, do: "Motion", else: atom_value(snapshot.activity)))
+
+  def read(%{type: :doorbell} = snapshot),
+    do: observed(snapshot, snapshot.last_event)
+
+  def read(%{type: :lock} = snapshot),
+    do: observed(snapshot, atom_value(snapshot.lock_state))
+
+  def read(%{type: :access_cover} = snapshot),
+    do: observed(snapshot, atom_value(snapshot.cover_state))
+
+  def read(%{type: :power_switch} = snapshot),
+    do: commanded(snapshot, atom_value(snapshot.power))
+
+  def read(%{type: :shade} = snapshot),
+    do: commanded(snapshot, percent_or_state(snapshot.position, snapshot.shade_state))
+
+  def read(%{type: :fan} = snapshot),
+    do: commanded(snapshot, percent_or_state(snapshot.speed_percent, snapshot.power))
+
+  def read(%{type: :environment_monitor} = snapshot),
+    do: observed(snapshot, primary_reading(snapshot))
+
+  def read(%{type: :contact_sensor} = snapshot),
+    do: observed(snapshot, boolean_value(snapshot.open, "Open", "Closed"))
+
+  def read(%{type: :occupancy_sensor} = snapshot),
+    do: observed(snapshot, boolean_value(snapshot.occupied, "Occupied", "Clear"))
+
+  def read(%{type: :safety_sensor} = snapshot),
+    do: observed(snapshot, boolean_value(snapshot.alarm, "Alarm", "Clear"))
+
   def read(%{available: true}), do: %{word: "Awake", state: :acting, value: nil}
   def read(_snapshot), do: unknown(nil)
 
   defp unknown(value), do: %{word: "Not known", state: :silent, value: value}
+
+  defp observed(%{available: nil}, value), do: unknown(value)
+  defp observed(%{available: false}, value), do: %{word: "Quiet", state: :silent, value: value}
+  defp observed(%{available: true}, value), do: %{word: "Awake", state: :acting, value: value}
+
+  defp commanded(%{available: nil}, value), do: unknown(value)
+  defp commanded(%{available: false}, value), do: %{word: "Quiet", state: :silent, value: value}
+  defp commanded(%{available: true}, value), do: %{word: "Set", state: :set, value: value}
+
+  defp speaker_value(%{media_title: title}) when is_binary(title) and title != "", do: title
+  defp speaker_value(%{volume_percent: percent}) when is_number(percent), do: "#{percent}%"
+  defp speaker_value(%{playback: playback}), do: atom_value(playback)
+
+  defp percent_or_state(percent, _state) when is_number(percent), do: "#{percent}%"
+  defp percent_or_state(_percent, state), do: atom_value(state)
+
+  defp atom_value(value) when is_atom(value),
+    do: value |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
+
+  defp atom_value(_value), do: nil
+
+  defp boolean_value(true, yes, _no), do: yes
+  defp boolean_value(false, _yes, no), do: no
+  defp boolean_value(nil, _yes, _no), do: nil
+
+  defp primary_reading(%{readings: readings, units: units}) do
+    [:temperature, :humidity, :carbon_dioxide, :air_quality, :pm25]
+    |> Enum.find_value(fn key ->
+      case Map.get(readings, key) do
+        value when is_number(value) -> "#{value}#{Map.get(units, key, "")}"
+        _missing -> nil
+      end
+    end)
+  end
 
   # On or off is the reading; a dimmed light's percentage is the more exact
   # form of "on". Either way the word is SET — it is a commanded state, which

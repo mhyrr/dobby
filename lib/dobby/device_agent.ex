@@ -53,6 +53,21 @@ defmodule Dobby.DeviceAgent do
   @callback matches_entity?(Dobby.HomeAssistant.Entity.t()) :: boolean()
 
   @doc """
+  The bindings one discovery anchor claims from its HA device group.
+
+  Most types bind one entity. They can omit this callback and discovery maps
+  the anchor to their sole subscribed binding. Compound types implement it to
+  select several related entities, or return `:ignore` when the group is not
+  the semantic device they represent.
+  """
+  @callback discovery_bindings(
+              anchor :: Dobby.HomeAssistant.Entity.t(),
+              related :: [Dobby.HomeAssistant.Entity.t()]
+            ) :: {:ok, %{atom() => String.t()}} | :ignore
+
+  @optional_callbacks discovery_bindings: 2
+
+  @doc """
   Validates the manifest entry for one instance of this device type.
 
   Called during `Dobby.Home` bootstrap, before any agent starts. Return an
@@ -135,13 +150,34 @@ defmodule Dobby.DeviceAgent do
   @callback intervention?(attribute :: atom()) :: boolean()
 
   @doc """
+  Resolves a type's discovery bindings, including the single-entity default.
+
+  The default is intentionally unavailable to a multi-binding type. Such a
+  type must state how its HA entities fit together rather than letting their
+  order choose.
+  """
+  @spec discovery_bindings(module(), Dobby.HomeAssistant.Entity.t(), [
+          Dobby.HomeAssistant.Entity.t()
+        ]) :: {:ok, %{atom() => String.t()}} | :ignore
+  def discovery_bindings(module, anchor, related) do
+    if function_exported?(module, :discovery_bindings, 2) do
+      module.discovery_bindings(anchor, related)
+    else
+      case module.subscribed_bindings() do
+        [binding] -> {:ok, %{binding => anchor.entity_id}}
+        _several -> :ignore
+      end
+    end
+  end
+
+  @doc """
   The identity a device agent starts with, which is the same for every type.
 
   Every type answers `initial_state/1` with these four keys and differs only in
   which binding carries its entity — a light's is `:light`, a thermostat's is
   `:climate`. Written once here so that a fifth thing an agent knows about
-  itself is one edit rather than one per type, and so that four device types
-  cannot quietly drift into four slightly different ideas of what a device is.
+  itself is one edit rather than one per type, and so that the library cannot
+  drift into several slightly different ideas of what a device is.
 
   `Map.fetch!/2` rather than `Map.get/2` on purpose. `validate_device/1` has
   already run by the time `Dobby.Home` builds a state, so a device arriving
@@ -150,10 +186,24 @@ defmodule Dobby.DeviceAgent do
   """
   @spec initial_state(Device.t(), atom()) :: map()
   def initial_state(%Device{} = device, binding) when is_atom(binding) do
+    device
+    |> initial_state()
+    |> Map.put(:entity_id, Map.fetch!(device.bindings, binding))
+  end
+
+  @doc """
+  The shared identity for a compound device agent.
+
+  A single-entity type uses `initial_state/2`. A compound type keeps the
+  complete binding map and decides which incoming entity moved in its sync
+  action.
+  """
+  @spec initial_state(Device.t()) :: map()
+  def initial_state(%Device{} = device) do
     %{
       dobby_id: device.id,
       name: device.name,
-      entity_id: Map.fetch!(device.bindings, binding),
+      bindings: device.bindings,
       settings: device.settings
     }
   end

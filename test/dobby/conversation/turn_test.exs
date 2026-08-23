@@ -97,6 +97,41 @@ defmodule Dobby.Conversation.TurnTest do
     assert meta["value"] == "71°"
   end
 
+  test "a library write renders its record line from the tool result alone", %{speaker: speaker} do
+    # The library's write tools carry no number the way the thermostat's does —
+    # a lock's result says `lock_state: :locked` and nothing else. This is the
+    # wiring proof for that whole family: the result shape `library_test`
+    # guards actually reaches `Interventions.reading/1` through a real ReAct
+    # turn and comes out as a word, attributed to the speaker.
+    seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+
+    utterance = Utterance.new("greg", "Dobby, lock the front door")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("lock_secure", %{"device" => "lock:front"})
+        answer("Told the front door lock to secure.")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    assert_receive {:turn_started, request_id}
+
+    assert_receive {:system_line,
+                    %Message{
+                      role: :system,
+                      text: "front door lock",
+                      request_id: ^request_id,
+                      meta: meta
+                    }}
+
+    assert meta["device"] == "lock:front"
+    assert meta["via"] == "greg"
+    assert meta["word"] == "Set"
+    assert meta["value"] == "Locked"
+  end
+
   # `Turn.run/3` everywhere else in this file skips the queue deliberately, so
   # that a test can assert against a finished turn. This one goes through the
   # front door — `say/3` casts to `Turn.Queue`, which records the utterance and

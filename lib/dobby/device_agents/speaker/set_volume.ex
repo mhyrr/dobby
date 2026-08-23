@@ -18,10 +18,10 @@ defmodule Dobby.DeviceAgents.Speaker.SetVolume do
     state = context.state
 
     cond do
-      not state.available ->
+      state.available != true ->
         reject(ref, :set_volume, "#{state.name} is unavailable")
 
-      not Map.get(state.capabilities, :volume, false) ->
+      Map.get(state.capabilities, :volume) != true ->
         reject(ref, :set_volume, "#{state.name} does not support volume control")
 
       percent < 0 or percent > 100 ->

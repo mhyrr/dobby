@@ -20,7 +20,10 @@ defmodule Dobby.DeviceAgents.Speaker.SetPlayback do
   def run(%{playback: playback, ref: ref}, context) do
     state = context.state
 
-    if state.available and Map.get(state.capabilities, playback, false) do
+    # `!= true` rather than `not`, as on the thermostat: `available` is nil
+    # until the first sync, and a command in that window deserves a refusal,
+    # not an `ArgumentError`.
+    if state.available == true and Map.get(state.capabilities, playback) == true do
       {:ok, %{last_command: %{ref: ref, action: playback, result: :accepted}},
        [
          %HACall{

@@ -3,7 +3,9 @@ defmodule Dobby.Tools.FanSetSpeed do
 
   use Jido.Action,
     name: "fan_set_speed",
-    description: "Set fan speed from 1 to 100 percent when the fan supports it.",
+    description:
+      "Set fan speed from 1 to 100 percent when the fan supports it. " <>
+        "Returns command acceptance, not the fan's observed speed.",
     schema: [
       device: [type: :string, required: true, doc: "Fan id from the roster."],
       speed_percent: [type: :integer, required: true, doc: "Speed from 1 to 100 percent."]
@@ -14,6 +16,10 @@ defmodule Dobby.Tools.FanSetSpeed do
 
   @impl Dobby.Tools
   def label(arguments), do: "setting the #{Dobby.Tools.device_name(arguments)}"
+
+  @impl true
+  def on_before_validate_params(params),
+    do: {:ok, Map.update(params, :speed_percent, nil, &Dobby.Tools.to_percent/1)}
 
   @impl true
   def run(%{device: device_id, speed_percent: percent}, _context),

@@ -13,10 +13,10 @@ defmodule Dobby.DeviceAgents.Shade.SetPosition do
     state = context.state
 
     cond do
-      not state.available ->
+      state.available != true ->
         reject(ref, "#{state.name} is unavailable")
 
-      not state.supports_position ->
+      state.supports_position != true ->
         reject(ref, "#{state.name} does not support position control")
 
       position < 0 or position > 100 ->

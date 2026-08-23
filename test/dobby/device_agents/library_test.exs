@@ -224,7 +224,17 @@ defmodule Dobby.DeviceAgents.LibraryTest do
   end
 
   defp assert_accepted(tool, args, domain, service, commanded? \\ true) do
-    assert {:ok, %{accepted: true}} = Jido.Exec.run(tool, args)
+    assert {:ok, %{accepted: true, device: device, name: name} = result} =
+             Jido.Exec.run(tool, args)
+
+    assert is_binary(device) and is_binary(name)
+
+    # The thread's record line is written from this exact shape:
+    # `Dobby.Conversation.Turn` matches on accepted/device/name, and
+    # `Interventions.reading/1` renders the commanded value. A write result
+    # the thread cannot read is a command the thread never mentions.
+    assert Dobby.Interventions.reading(result)
+
     assert_receive {:ha_call, %HACall{domain: ^domain, service: ^service}}, 2_000
 
     assert_receive %Jido.Signal{

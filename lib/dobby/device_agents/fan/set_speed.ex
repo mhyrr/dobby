@@ -16,10 +16,10 @@ defmodule Dobby.DeviceAgents.Fan.SetSpeed do
     state = context.state
 
     cond do
-      not state.available ->
+      state.available != true ->
         reject(ref, "#{state.name} is unavailable")
 
-      not state.supports_speed ->
+      state.supports_speed != true ->
         reject(ref, "#{state.name} does not support speed control")
 
       percent < 1 or percent > 100 ->

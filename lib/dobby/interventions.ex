@@ -113,7 +113,7 @@ defmodule Dobby.Interventions do
   def reading(_source), do: nil
 
   defp state_reading(source) do
-    case first_of(source, [:lock_state, :cover_state, :shade_state, :power]) do
+    case first_of(source, [:lock_state, :cover_state, :shade_state, :power, :playback]) do
       value when is_atom(value) ->
         value |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
 

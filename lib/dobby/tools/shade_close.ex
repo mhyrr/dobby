@@ -14,5 +14,12 @@ defmodule Dobby.Tools.ShadeClose do
 
   @impl true
   def run(%{device: device_id}, _context),
-    do: Dobby.Tools.Device.command(device_id, Shade, "shade.move", %{movement: :close})
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        Shade,
+        "shade.move",
+        %{movement: :close},
+        %{shade_state: :closed}
+      )
 end

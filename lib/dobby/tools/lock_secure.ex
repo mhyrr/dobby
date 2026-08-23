@@ -15,5 +15,5 @@ defmodule Dobby.Tools.LockSecure do
 
   @impl true
   def run(%{device: device_id}, _context),
-    do: Dobby.Tools.Device.command(device_id, Lock, "lock.secure")
+    do: Dobby.Tools.Device.command(device_id, Lock, "lock.secure", %{}, %{lock_state: :locked})
 end

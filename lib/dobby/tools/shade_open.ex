@@ -14,5 +14,12 @@ defmodule Dobby.Tools.ShadeOpen do
 
   @impl true
   def run(%{device: device_id}, _context),
-    do: Dobby.Tools.Device.command(device_id, Shade, "shade.move", %{movement: :open})
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        Shade,
+        "shade.move",
+        %{movement: :open},
+        %{shade_state: :open}
+      )
 end

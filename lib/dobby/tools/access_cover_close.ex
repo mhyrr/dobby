@@ -15,5 +15,12 @@ defmodule Dobby.Tools.AccessCoverClose do
 
   @impl true
   def run(%{device: device_id}, _context),
-    do: Dobby.Tools.Device.command(device_id, AccessCover, "access_cover.close")
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        AccessCover,
+        "access_cover.close",
+        %{},
+        %{cover_state: :closed}
+      )
 end

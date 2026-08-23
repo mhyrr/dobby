@@ -30,60 +30,105 @@ if System.get_env("PHX_SERVER") do
   config :dobby, DobbyWeb.Endpoint, server: true
 end
 
-# The home manifest is read here, at runtime, and deliberately not imported by
+# The test environment honours no environment variable at all, and that is the
+# whole rule rather than a list of exceptions (TK-018). The rig is the house the
+# suite describes; which house `mix test` boots must not depend on what a shell
+# happens to export.
+#
+# The .env guard above was written for this and did not reach far enough. An
+# exported DOBBY_HOME_MANIFEST arrives in every environment, test included, and
+# on 2026-08-20 it did: the suite booted the real WebSocket client against a
+# real Home Assistant, and the interventions watcher committed real device rows
+# to the test database before the sandbox engaged.
+test? = config_env() == :test
+
+# The home file is read here, at runtime, and deliberately not imported by
 # config/config.exs (design §4). Imported at compile time it would be frozen
 # into the release, and every corrected entity ID would cost a rebuild and a
 # redeploy. Read here, changing the house is edit-and-restart.
 #
-# `import_config` is unavailable in runtime.exs; Config.Reader.read!/1 is the
-# supported path.
-home_manifest =
-  System.get_env("DOBBY_HOME_MANIFEST") ||
-    case config_env() do
-      :prod -> "/opt/dobby/config/home.exs"
-      _ -> "config/homes/rig.exs"
-    end
+# `import_config` is unavailable in runtime.exs, and neither format is an import
+# anyway: `Dobby.HomeConfig` reads the household's YAML and the rig's Elixir and
+# hands back the one manifest shape `Dobby.Home` has always taken. It is called
+# from here because it is pure — runtime.exs runs with the dependencies loaded
+# and the application not started.
+home_path =
+  cond do
+    test? -> "config/homes/rig.exs"
+    path = System.get_env("DOBBY_HOME_MANIFEST") -> path
+    config_env() == :prod -> "/opt/dobby/config/home.yaml"
+    true -> "config/homes/rig.exs"
+  end
 
-config :dobby, Dobby.Home, get_in(Config.Reader.read!(home_manifest), [:dobby, Dobby.Home])
+home = Dobby.HomeConfig.load!(home_path)
 
-# Dobby's soul travels with the manifest and for the same reason: the two files
+config :dobby, Dobby.Home, Dobby.HomeConfig.manifest(home)
+
+# Which file that was, so `Dobby.HomeConfig.Writer` writes back to the one this
+# boot actually read rather than to wherever the default points.
+config :dobby, :home_config_path, home_path
+
+# Dobby's soul travels with the home file and for the same reason: the two files
 # under /opt/dobby/config are the parts of Dobby a person should be able to
 # change without a release. One says what the house contains; the other says
 # who is answering.
 soul_path =
-  System.get_env("DOBBY_SOUL") ||
-    case config_env() do
-      :prod -> "/opt/dobby/config/soul.md"
-      _ -> "config/soul.md"
-    end
+  cond do
+    test? -> "config/soul.md"
+    path = System.get_env("DOBBY_SOUL") -> path
+    config_env() == :prod -> "/opt/dobby/config/soul.md"
+    true -> "config/soul.md"
+  end
 
 config :dobby, :soul_path, soul_path
 
-config :dobby, DobbyWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+# The system section, in every environment except the pinned one. All three of
+# these used to sit inside `if config_env() == :dev`, which meant a household
+# running a release could not choose a provider without rebuilding, and could
+# not be reached from its own kitchen at all (TK-018, broken items 1 and 3).
+#
+# The environment still has the last word wherever it always did: the real
+# environment is sourced last, so a variable somebody actually exported beats
+# the file — which keeps `DOBBY_MODEL=… mix phx.server` working for the one-off
+# it is good at, without it being the only way.
+runtime_port =
+  if test? do
+    nil
+  else
+    case System.get_env("PORT") do
+      nil -> home.system.port || 4000
+      exported -> String.to_integer(exported)
+    end
+  end
 
-if config_env() == :dev do
-  # The dev server boots against FakeHA by default, and the one thing the
-  # fake cannot stand in for is the model. Point `:capable` at whatever
-  # provider this machine has a key for and the surface streams for real:
-  #
-  #     DOBBY_MODEL=openai:gpt-5.6-luna mix phx.server
-  #
-  # Which is the swap design §2.1 says the alias exists to make — the agent
-  # names the alias, never the provider. Here rather than dev.exs so a model
-  # named in .env is seen.
-  if model = System.get_env("DOBBY_MODEL") do
+if not test? do
+  # The `:capable` alias, which is the swap design §2.1 says an alias exists to
+  # make: the agent names the alias, never the provider. Unset on both sides
+  # means the committed default in config/config.exs.
+  if model = System.get_env("DOBBY_MODEL") || home.system.model do
     config :jido_ai, :model_aliases, %{capable: model}
   end
 
-  # DOBBY_LAN opens the dev server to the household: bind every interface and
-  # advertise this machine as dobby.local for as long as the server runs
-  # (Dobby.LanBeacon). Off by default — dev.exs binds loopback, and putting a
-  # laptop on the network is a choice, not a side effect.
-  if System.get_env("DOBBY_LAN") in ~w(1 true) do
-    config :dobby, DobbyWeb.Endpoint, http: [ip: {0, 0, 0, 0}]
-    config :dobby, :lan_beacon, hostname: "dobby.local"
-  end
+  # Opening Dobby to the household: bind every interface and advertise this
+  # machine on the LAN for as long as the server runs (Dobby.LanBeacon). Off by
+  # default — loopback is explicit in every environment, and putting a machine
+  # on the network is a choice, not a server adapter's default.
+  lan? =
+    case System.get_env("DOBBY_LAN") do
+      nil -> home.system.lan
+      exported -> exported in ~w(1 true)
+    end
 
+  ip = if lan?, do: {0, 0, 0, 0}, else: {127, 0, 0, 1}
+
+  config :dobby, DobbyWeb.Endpoint, http: [ip: ip, port: runtime_port]
+
+  if lan? do
+    config :dobby, :lan_beacon, hostname: home.system.hostname || "dobby.local"
+  end
+end
+
+if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :dobby, DobbyWeb.Endpoint,
     live_reload: [
@@ -128,50 +173,13 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || home.system.hostname || "dobby.local"
 
   config :dobby, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :dobby, DobbyWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
-    ],
+    # One scheme, matching the listener above and the address the household
+    # opens. A reverse proxy that changes this contract owns its public URL too.
+    url: [host: host, port: runtime_port, scheme: "http"],
     secret_key_base: secret_key_base
-
-  # ## SSL Support
-  #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
-  #
-  #     config :dobby, DobbyWeb.Endpoint,
-  #       https: [
-  #         ...,
-  #         port: 443,
-  #         cipher_suite: :strong,
-  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
-  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
-  #       ]
-  #
-  # The `cipher_suite` is set to `:strong` to support only the
-  # latest and more secure SSL ciphers. This means old browsers
-  # and clients may not be supported. You can set it to
-  # `:compatible` for wider support.
-  #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
-  # and cert in disk or a relative path inside priv, for example
-  # "priv/ssl/server.key". For all supported SSL configuration
-  # options, see https://plug.hexdocs.pm/Plug.SSL.html#configure/1
-  #
-  # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
-  #
-  #     config :dobby, DobbyWeb.Endpoint,
-  #       force_ssl: [hsts: true]
-  #
-  # Check `Plug.SSL` for all available options in `force_ssl`.
 end

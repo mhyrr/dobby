@@ -58,6 +58,79 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  Puts the rig's house in a file Dobby is allowed to write, and returns it.
+
+  `config/homes/rig.exs` is Elixir on purpose and the writer refuses it on
+  purpose — a file with logic in it is not a file a machine can round-trip. So
+  a scenario that exercises *writing* the house has to give it a YAML one, and
+  this does it the way production would: a real file on disk, loaded into the
+  real `Dobby.HomeConfig.Writer`, restarted through the real supervisor.
+
+  One thing is not round-tripped, and it is the reason the config is handed over
+  as a struct rather than read back from the file it writes. `to_yaml/1` drops
+  the client module, because a YAML house is a real house and the fake is a test
+  fixture that lives in Elixir. Reading the written file back would therefore
+  point the rig at `Dobby.HomeAssistant.Client`, which is not running. The
+  struct keeps the manifest the suite booted on; the file on disk is what a
+  household would have.
+  """
+  @spec writable_house!() :: Dobby.HomeConfig.t()
+  def writable_house! do
+    variable = "DOBBY_RIG_HA_TOKEN"
+    previous_token = System.get_env(variable)
+    System.put_env(variable, "fake")
+
+    ExUnit.Callbacks.on_exit(fn ->
+      if previous_token do
+        System.put_env(variable, previous_token)
+      else
+        System.delete_env(variable)
+      end
+    end)
+
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "dobby-rig-house-#{System.unique_integer([:positive])}.yaml"
+      )
+
+    house =
+      Application.get_env(:dobby, Dobby.Home, [])
+      |> Keyword.update!(:home_assistant, fn options ->
+        Keyword.put(options, :token, Dobby.HomeConfig.Resolver.reference(variable))
+      end)
+
+    config = %Dobby.HomeConfig{
+      path: path,
+      format: :yaml,
+      house: house
+    }
+
+    File.write!(path, Dobby.HomeConfig.to_yaml(config))
+    restart_writer!(config: config)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      File.rm(path)
+      restart_writer!([])
+    end)
+
+    config
+  end
+
+  # The writer is a child of the application supervisor with its options baked
+  # into the spec, so pointing it at another house means replacing the child
+  # rather than telling it something.
+  defp restart_writer!(opts) do
+    Supervisor.terminate_child(Dobby.Supervisor, Dobby.HomeConfig.Writer)
+    Supervisor.delete_child(Dobby.Supervisor, Dobby.HomeConfig.Writer)
+
+    {:ok, _pid} =
+      Supervisor.start_child(Dobby.Supervisor, {Dobby.HomeConfig.Writer, opts})
+
+    :ok
+  end
+
+  @doc """
   Reboots the house from a different manifest.
 
   Scenarios that need a differently-shaped home — two thermostats, a device
@@ -241,6 +314,24 @@ defmodule Dobby.RigCase do
   end
 
   @doc """
+  Sets — or with `nil`, clears — an environment variable for this test only.
+
+  The writer reads `DOBBY_MODEL` at the moment it applies a save, so a shell
+  that exports one (every developer's `.env` does) would make a test of "the
+  model applies live" pass or fail on whose machine it ran. A test that
+  asserts either side of that rule says which side it is standing on.
+  """
+  @spec with_env(String.t(), String.t() | nil) :: :ok
+  def with_env(name, value) do
+    previous = System.get_env(name)
+    put_env(name, value)
+    ExUnit.Callbacks.on_exit(fn -> put_env(name, previous) end)
+  end
+
+  defp put_env(name, nil), do: System.delete_env(name)
+  defp put_env(name, value), do: System.put_env(name, value)
+
+  @doc """
   Reads a device agent's current state.
   """
   @spec agent_state(String.t()) :: map()
@@ -250,14 +341,11 @@ defmodule Dobby.RigCase do
     server_state.agent.state
   end
 
-  # `terminate_child` returns when Dobby.Home is gone, but the agents it
-  # stopped bring down plugin children of their own — Jido AI gives every
-  # agent a Task.Supervisor. Restarting before those have actually exited
-  # collides on registered names, which surfaces as `:already_registered` and
-  # then a request that never completes. Wait for the processes, not the call.
+  # The move itself lives in `Dobby.Home` now: production restarts the house
+  # for the same reason a scenario does, and waits for the agents for the same
+  # reason too (`Dobby.HomeConfig.Writer`).
   defp restart_home! do
-    stop_home!()
-    {:ok, _pid} = Supervisor.restart_child(Dobby.Supervisor, Dobby.Home)
+    {:ok, _pid} = Dobby.Home.restart()
     :ok
   end
 
@@ -306,21 +394,5 @@ defmodule Dobby.RigCase do
   end
 
   @doc false
-  def stop_home! do
-    pids = Enum.map(Dobby.Jido.list_agents(), fn {_id, pid} -> pid end)
-    refs = Enum.map(pids, &Process.monitor/1)
-
-    :ok = Supervisor.terminate_child(Dobby.Supervisor, Dobby.Home)
-    Enum.each(refs, &await_down/1)
-
-    :ok
-  end
-
-  defp await_down(ref) do
-    receive do
-      {:DOWN, ^ref, :process, _pid, _reason} -> :ok
-    after
-      5_000 -> raise "timed out waiting for a rig agent to shut down"
-    end
-  end
+  defdelegate stop_home!, to: Dobby.Home, as: :stop
 end

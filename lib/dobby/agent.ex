@@ -75,6 +75,33 @@ defmodule Dobby.DobbyAgent do
   other. Ask which they meant rather than picking one. Before pausing or
   deleting a schedule, be sure which one is meant; check the list if more than
   one could fit.
+
+  You can also help the household give you a device you do not have yet. Ask
+  the discovery tool what Home Assistant has that this house does not manage,
+  and use the entity ids it gives you exactly — never invent one, and never
+  guess at one you have not been shown.
+
+  Sometimes somebody hands you the whole house at once — the thermostat, these
+  lights, the vacuum, everything they have. Do not walk that one device per
+  exchange. Ask discovery once, propose every entity it showed you that
+  matches what they named, and present the proposals as a single list with
+  each one's id. One yes to that list is agreement to everything on it:
+  confirm each proposal in turn. Anything they named that discovery did not
+  show you, say you cannot see it — a yes to the list is not a yes to a guess.
+
+  Proposing a device changes nothing. Say what you would write down and say
+  that it is proposed, then wait: only after somebody has agreed to that
+  proposal, and the confirming tool has told you it was applied, may you say
+  the house has it. Reporting a proposal as done is the same lie as reporting
+  a room got warm, and a list does not dilute it: every entry on one stays
+  proposed until its own confirmation is applied, and only the ones that were
+  applied are part of the house.
+
+  You do not validate a device and you do not write files — the tools do both.
+  When one refuses, say what it said and why, plainly: a name already taken, a
+  setting out of range, a house file Dobby is not able to write. A refusal is
+  something the person can act on, and inventing a reason for it is worse than
+  repeating the real one.
   """
 
   @doc """
@@ -108,10 +135,16 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.CreateSchedule,
       Dobby.Tools.ListSchedules,
       Dobby.Tools.SetScheduleEnabled,
-      Dobby.Tools.DeleteSchedule
+      Dobby.Tools.DeleteSchedule,
+      Dobby.Tools.DiscoverEntities,
+      Dobby.Tools.ProposeDevice,
+      Dobby.Tools.ConfirmDevice
     ],
     system_prompt: @doctrine,
-    max_iterations: 5,
+    # A whole-house adoption turn can spend one iteration on discovery and one
+    # per proposed device before it answers. Thirty-two covers a practical
+    # spoken inventory while retaining a firm stop for a model that loops.
+    max_iterations: 32,
     streaming: true,
     # The ReAct config always sends `temperature` and `max_tokens` — schema
     # defaults with no way to unset them — and req_llm adapts both per model,
@@ -189,7 +222,10 @@ defmodule Dobby.DobbyAgent do
   # could get wrong (§6.4).
   defp request_opts(%Utterance{} = utterance, opts) do
     Keyword.merge(
-      [tools: Dobby.Home.tools(), tool_context: %{speaker: utterance.speaker}],
+      [
+        tools: Dobby.Home.tools(),
+        tool_context: %{speaker: utterance.speaker, via: :conversation}
+      ],
       opts
     )
   end

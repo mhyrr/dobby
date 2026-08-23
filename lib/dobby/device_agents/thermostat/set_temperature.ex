@@ -16,7 +16,11 @@ defmodule Dobby.DeviceAgents.Thermostat.SetTemperature do
     name: "thermostat_set_temperature",
     description: "Validates a thermostat setpoint and emits the Home Assistant call",
     schema: [
-      temperature_f: [type: {:or, [:integer, :float]}, required: true],
+      temperature_f: [
+        type: {:or, [:integer, :float]},
+        required: true,
+        doc: "The temperature to set the thermostat to, in Fahrenheit."
+      ],
       ref: [type: :string, required: true]
     ]
 

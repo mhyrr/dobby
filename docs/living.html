@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living with Dobby · Dobby</title>
+<meta name="description" content="How to talk to Dobby, what it says back, the board, the cards, the admin, and schedules.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html" aria-current="page">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>Living with Dobby</h1>
+    <p class="lede">Three pages. The thread is where the household talks. The cards reach a device without a word. The admin is where you find out why the heat did not come on.</p>
+
+    <h2 id="name">Your name goes on what you change</h2>
+    <p>The first time a browser opens Dobby, it asks <span class="arg">who's this?</span> and remembers the answer. That name goes on everything the browser says and does. It is a name, not a login: nobody is privileged. The kitchen tablet speaks as whoever set its name last. <span class="arg">switch</span> on the plate changes it.</p>
+
+    <h2 id="thread">The thread</h2>
+    <p>One conversation for the whole house. Say what you want. Dobby answers in a sentence or two and stops. A real exchange:</p>
+
+    <ul class="thread">
+      <li><span class="who">greg</span><p class="say">Set the temp to 74 now</p></li>
+      <li><span class="who">Dobby</span><p class="say">Which thermostat—the main thermostat or the downstairs thermostat?</p></li>
+      <li><span class="who">greg</span><p class="say">Downstairs</p></li>
+      <li><span class="who">Dobby</span><p class="say">Done — downstairs thermostat set to 74.</p></li>
+    </ul>
+
+    <p>Four rules you will notice:</p>
+    <ul>
+      <li><strong>If it could mean two devices, Dobby asks.</strong> "The thermostat" in a house with two is a question, not permission to set both.</li>
+      <li><strong>"Set to 74" means the command was accepted.</strong> Not that the room is 74. The board tells you that when Home Assistant reports it.</li>
+      <li><strong>A device Dobby does not have, it says so.</strong> It does not guess:</li>
+    </ul>
+
+    <ul class="thread">
+      <li><span class="who">greg</span><p class="say">Hey Dobby, can you go send the Roomba to go clean?</p></li>
+      <li><span class="who">Dobby</span><p class="say">I don't have a Roomba here—only the thermostats, living room light, and office printer.</p></li>
+    </ul>
+
+    <ul>
+      <li><strong>A refusal comes with the device's reason.</strong> Ask for 85 in a house capped at 78 and Dobby tells you the thermostat declined, and why.</li>
+    </ul>
+
+    <p>An answer that acts takes about two seconds. A question back takes about one. A card tap is instant, because no model is involved.</p>
+
+    <h3 id="system-lines">System lines</h3>
+    <p>Whenever anything changes the house, a quiet line appears in the thread: the device, the word, the value, and who did it. That includes a card tap, a schedule firing, and someone turning the dial on the wall.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <div class="row"><span class="name">house thermostat</span><span class="val">74°</span><span class="st flap" data-st="set">Set</span></div>
+      <p class="said">Then who, in faint ink: <b>greg</b> for the thread, <b>greg, card</b> for a tap on <span class="arg">/house</span>, the schedule's name when one fired, and <b>changed at the house thermostat</b> when someone used the dial.</p>
+    </div>
+
+    <p>A printer going quiet at night is not a change anyone made. It shows on the card and in the log, not in the thread.</p>
+
+    <h2 id="words">The eight words</h2>
+    <p>Every state on the board is a word on a flap. There are eight. <span class="arg">WARMING</span> and <span class="arg">COOLING</span> are one word with two faces.</p>
+
+    <div class="table-wrap">
+    <table>
+      <tr><th>Word</th><th>Means</th></tr>
+      <tr><td><span class="flap" data-st="set">Set</span></td><td>Somebody asked for this value.</td></tr>
+      <tr><td><span class="flap" data-st="acting">Warming</span> <span class="flap" data-st="acting">Cooling</span></td><td>The device is doing it. Home Assistant said so.</td></tr>
+      <tr><td><span class="flap" data-st="expected">Ready</span></td><td>A schedule waiting for its time.</td></tr>
+      <tr><td><span class="flap" data-st="acting">Awake</span></td><td>A network device that answers.</td></tr>
+      <tr><td><span class="flap" data-st="acting">Listening</span></td><td>Dobby is paying attention. On the plate, beside his mark.</td></tr>
+      <tr><td><span class="flap" data-st="silent">Quiet</span></td><td>A network device that stopped answering.</td></tr>
+      <tr><td><span class="flap" data-st="refused">Held</span></td><td>The device declined. The reason is beside it.</td></tr>
+      <tr><td><span class="flap" data-st="silent">Not known</span></td><td>Nobody has told us yet. Every device reads this for a moment after a restart.</td></tr>
+    </table>
+    </div>
+
+    <p>When no word is true, the row has no word. A paused schedule shows none.</p>
+
+    <h2 id="house">The cards</h2>
+    <p><span class="arg">/house</span> shows every device as a card with its reading and its word. A thermostat card has a fader across the range the house allows. While your finger is on it, the new number sits beside the fader in amber. The card does not show it as the reading until Home Assistant confirms it. A light or a vacuum is driven from the thread or a schedule; its card has no switch yet.</p>
+    <p>A card never asks "are you sure?". It offers an undo instead: <span class="arg">undo · back to 70°</span> under the card after you set it.</p>
+    <p>The foot of the page is where you edit the house: <span class="arg">edit</span> and <span class="arg">remove</span> on each card, <span class="arg">add a device</span> below. See <a href="growing.html">Growing the house</a>.</p>
+
+    <h2 id="admin">The admin</h2>
+    <p><span class="arg">/admin</span> is a small link at the foot of the cards. It is a room, not a privilege. Five sections, one at a time:</p>
+    <ul>
+      <li><strong>Topology.</strong> A live diagram of Dobby, the scheduler, and every device, with the wires between them pulsing as they talk.</li>
+      <li><strong>Health.</strong> Whether Home Assistant is connected, and whether every schedule that can run has a timer.</li>
+      <li><strong>Schedules.</strong> Every standing intention. <span class="arg">READY</span> when waiting, <span class="arg">HELD</span> when it can no longer reach its device, no word when paused. Pause, resume, delete, or add one here.</li>
+      <li><strong>System.</strong> The <a href="house.html#system">system section</a> as a form, and the <a href="agents.html">tokens</a> other agents hold.</li>
+      <li><strong>Activity.</strong> The full log, newest first. The thread records what people did. This records everything.</li>
+    </ul>
+
+    <h2 id="schedules">Schedules</h2>
+    <p>A schedule is a standing intention: "I always want it at 70 by eight on weekdays." Say it in the thread and Dobby writes it down with a label, a time, the device, and the action. Dobby says it is set for those times, not that the house is already that way.</p>
+    <p>"By 8pm" and "at 8pm" are different requests. Dobby can only do the second, so it asks which you meant. When the time comes, a timer sends the command straight to the device. No model runs, so the heat comes on at eight even when the AI is down.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="box.html"><small>Previous</small>An always-on box</a>
+      <a class="next" href="growing.html"><small>Next</small>Growing the house</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

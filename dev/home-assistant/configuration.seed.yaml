@@ -1,4 +1,4 @@
-# The configuration the local rig instance runs (docs/local-ha.md).
+# The configuration the local rig instance runs (docs/developing.html).
 #
 # Mounted read-only over /config/configuration.yaml by compose.yaml, so the
 # instance's behavior is committed here rather than accumulated by hand.

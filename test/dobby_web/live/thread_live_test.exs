@@ -194,7 +194,6 @@ defmodule DobbyWeb.ThreadLiveTest do
 
       refute has_element?(view, "a.rows")
     end
-
   end
 
   describe "a turn" do

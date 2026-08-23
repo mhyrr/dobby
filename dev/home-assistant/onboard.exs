@@ -1,4 +1,4 @@
-# Initializes a freshly started local Home Assistant rig (docs/local-ha.md).
+# Initializes a freshly started local Home Assistant rig (docs/developing.html).
 #
 #     mix run --no-start dev/home-assistant/onboard.exs
 #

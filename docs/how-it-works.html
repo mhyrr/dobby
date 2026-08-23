@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works · Dobby</title>
+<meta name="description" content="The short version: what Dobby can and cannot do, and why you can trust it.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html" aria-current="page">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>How it works</h1>
+    <p class="lede">Enough to predict what Dobby will do. The full design record is in the repository.</p>
+
+    <h2 id="layer">A layer on top of Home Assistant</h2>
+    <p>Home Assistant owns the devices: the protocols, the radios, the state, the automations you already have. Dobby does not replace any of it. Dobby owns the conversation, the household's standing intentions, and the record of what changed and who asked.</p>
+    <p>Inside Dobby there is a hard line. Below it, one small program per device (a device agent) holds every fact and sends every command. Above it, the AI model holds the conversation. The model can do one thing to the house: call one of the tools the device agents offer. It cannot reach Home Assistant, the network, or a calculator. Those paths do not exist.</p>
+
+    <h2 id="truth">Why Dobby cannot lie about a room</h2>
+    <p>You ask for 72. The model calls the thermostat tool. The thermostat's agent checks the number against the hardware's range and your house rules, then sends the command to Home Assistant. The model is told one thing: accepted.</p>
+    <p>What the room does next comes back later from Home Assistant and lands on the board as a word. The model never sees it in the same breath, so it cannot report it. "Set to 72" is the most it can say, and it is what it says. A refusal works the same way: the agent's reason travels up unchanged, and the model repeats it.</p>
+
+    <h2 id="without-model">The house works when the AI does not</h2>
+    <p>A card tap goes straight to the device agent. A schedule fires from a timer straight to the device agent. No model runs in either path. These are not fallbacks; they are how the house runs at eight o'clock every weekday, whether the model is up, slow, or expensive.</p>
+
+    <h2 id="knows">What the model knows</h2>
+    <p>Before every message, the model is handed a list of the devices in your house and their last known state. Those are the only devices that exist to it. A device not on the list, it says it does not have. A phrase that could mean two devices, it asks about. These rules live in code, not in the soul, so no change of personality can remove them.</p>
+
+    <h2 id="restart">Why the house restarts</h2>
+    <p>Each device runs as its own small program, started from the house file. Add or remove a device and the set of programs changes, so Dobby restarts that set. It takes about a second. Every device reads <span class="arg">NOT KNOWN</span> until Home Assistant speaks again. The thread stays up.</p>
+    <p>A model change takes effect on the next reply with no restart. A port or LAN change waits for one. The admin form says which, per field.</p>
+
+    <h2 id="more">The record</h2>
+    <p>The reasoning, and the alternatives we rejected, are in the repository: <span class="arg">dobby-design-jido.md</span> (the architecture), <span class="arg">DESIGN.md</span> (the surface), and <span class="arg">PRODUCT.md</span> (the thesis).</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="agents.html"><small>Previous</small>Your own agent</a>
+      <a class="next" href="developing.html"><small>Next</small>Developing</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

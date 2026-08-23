@@ -6,7 +6,8 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
   reports what actually happened — the development-integration layer of the
   test story (design §12), the one `mix test` deliberately does not cover.
 
-      DOBBY_HOME_MANIFEST=config/homes/local.exs DOBBY_HA_TOKEN=... \\
+      DOBBY_HOME_MANIFEST=config/homes/local.yaml \\
+      DOBBY_HA_URL=http://localhost:8123 DOBBY_HA_TOKEN=... \\
       mix dobby.ha.verify
 
   Prints every device's snapshot once Home Assistant's initial state sync has
@@ -31,6 +32,7 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
   use Mix.Task
 
   alias Dobby.DeviceAgents.Thermostat
+  alias Dobby.HomeAssistant.Connection
 
   @sync_timeout 10_000
   # Generous because it has to hold for cloud-polled devices: a TCC
@@ -46,20 +48,39 @@ defmodule Mix.Tasks.Dobby.Ha.Verify do
 
     Mix.shell().info("home #{inspect(manifest.id)} with #{length(devices)} device(s)\n")
 
-    synced? = await(fn -> Enum.all?(snapshots(), &Map.get(&1, :available)) end, @sync_timeout)
+    ready? =
+      await(
+        fn ->
+          Connection.status() == :connected and
+            Enum.all?(snapshots(), &Map.get(&1, :available))
+        end,
+        @sync_timeout
+      )
 
     Enum.each(snapshots(), &Mix.shell().info(inspect(&1, pretty: true)))
 
-    unless synced? do
-      Mix.raise("""
-      not every device heard from Home Assistant within #{@sync_timeout}ms.
-      Devices still unavailable never got their entity's state — check the
-      entity IDs in the manifest against Developer Tools → States, and the
-      client logs above for connection errors.
-      """)
+    if !ready? do
+      if Connection.status() == :connected do
+        Mix.raise("""
+        not every device heard from Home Assistant within #{@sync_timeout}ms.
+        Devices still unavailable never got their entity's state — check the
+        entity IDs in the manifest against Developer Tools → States, and the
+        client logs above for connection errors.
+        """)
+      else
+        Mix.raise("""
+        Home Assistant did not authenticate within #{@sync_timeout}ms.
+        Check the URL and token, then read the client logs above for the
+        connection refusal.
+        """)
+      end
     end
 
-    Mix.shell().info("\ninitial state sync: ok")
+    if devices == [] do
+      Mix.shell().info("\nHome Assistant connection: ok — no devices configured yet")
+    else
+      Mix.shell().info("\ninitial state sync: ok")
+    end
 
     # Whatever follows --round-trip is a device id unless it is another flag.
     # Nothing forces a manifest to prefix its thermostats with `thermostat:`,

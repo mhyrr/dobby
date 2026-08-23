@@ -24,6 +24,16 @@ defmodule DobbyWeb.HouseLive.Card do
   `DobbyWeb.Flap.read/1`: what a device *looks like* is per-device knowledge,
   and a type that reaches here without a clause gets the row alone, which is
   true of anything.
+
+  ## Editing is the fifth part of a card (TK-018)
+
+  Devices are edited where they live, and a device lives on its card. So the
+  card grew one more line — `edit` and `remove`, in the same quiet lettering
+  the undo uses — and the form opens underneath the row it is about rather than
+  on a page of its own or in a dialog.
+
+  None of it is drawn on a house Dobby cannot write. The affordance and the
+  reason it is missing are one decision, taken once, in `DobbyWeb.HouseLive`.
   """
 
   use DobbyWeb, :html
@@ -36,6 +46,11 @@ defmodule DobbyWeb.HouseLive.Card do
   attr :snapshot, :map, required: true
   attr :undo, :map, default: nil, doc: "the setpoint to go back to, if there is a way back"
   attr :held, :string, default: nil, doc: "why the device said no, if it did"
+  attr :editable, :boolean, default: false, doc: "whether this house can be written at all"
+  attr :editing, :boolean, default: false, doc: "whether this card's form is open"
+  attr :removing, :map, default: nil, doc: "the question and its cost, when a removal was asked"
+  attr :trouble, :string, default: nil, doc: "why the last removal was refused"
+  slot :inner_block, doc: "the form, when this is the card being edited"
 
   def card(%{snapshot: %{type: :thermostat}} = assigns) do
     ~H"""
@@ -44,6 +59,7 @@ defmodule DobbyWeb.HouseLive.Card do
       <div :if={room(@snapshot)} class="detail">Room {room(@snapshot)}</div>
       <.fader :if={settable?(@snapshot)} snapshot={@snapshot} />
       <.aftermath snapshot={@snapshot} undo={@undo} held={@held} />
+      <.editing {assigns} />
     </article>
     """
   end
@@ -53,7 +69,54 @@ defmodule DobbyWeb.HouseLive.Card do
     <article class="card" id={"card-" <> @snapshot.id}>
       <.reading snapshot={@snapshot} />
       <div :if={since(@snapshot)} class="detail">Since {since(@snapshot)}</div>
+      <.editing {assigns} />
     </article>
+    """
+  end
+
+  # What can be done to the device rather than with it. Removal asks first —
+  # not as a dialog, which this surface has already decided against, but as the
+  # line the button turns into, carrying what the removal would do to anything
+  # aiming at this device.
+  attr :snapshot, :map, required: true
+  attr :editable, :boolean, default: false
+  attr :editing, :boolean, default: false
+  attr :removing, :map, default: nil
+  attr :trouble, :string, default: nil
+  slot :inner_block
+
+  defp editing(assigns) do
+    ~H"""
+    <div :if={@editable and not @editing and is_nil(@removing)} class="acts">
+      <button type="button" phx-click="edit" phx-value-device={@snapshot.id}>edit</button>
+      <button type="button" class="takes" phx-click="remove" phx-value-device={@snapshot.id}>
+        remove
+      </button>
+    </div>
+
+    <%!-- The question is a board line and its cost is a sentence, which is why
+          they are two: a clause about schedules shouted in condensed capitals
+          is the record voice used for something it is not for. --%>
+    <p :if={@removing} class="note confirm">{@removing.question}</p>
+    <p :if={@removing && @removing.cost} class="hint">{@removing.cost}</p>
+
+    <div :if={@removing} class="acts">
+      <button
+        type="button"
+        class="takes"
+        phx-click="remove_confirm"
+        phx-value-device={@snapshot.id}
+      >
+        remove
+      </button>
+      <button type="button" class="back" phx-click="cancel">keep it</button>
+    </div>
+
+    <%!-- A refusal about the device this card is about belongs on this card,
+          the same way a held setpoint does. --%>
+    <div :if={@trouble} class="why">{@trouble}</div>
+
+    {render_slot(@inner_block)}
     """
   end
 

@@ -43,6 +43,17 @@ defmodule Dobby.DeviceAgents.Light do
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent
+  def config_type, do: "light"
+
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "light"
+
+  # Nothing to narrow: whether this bulb dims is the bulb's word
+  # (`supported_color_modes`), not the household's.
+  @impl Dobby.DeviceAgent
+  def config_schema, do: []
+
+  @impl Dobby.DeviceAgent
   def validate_device(%Device{bindings: bindings, settings: settings}) do
     with :ok <- require_binding(bindings, :light) do
       if is_map(settings),
@@ -84,14 +95,8 @@ defmodule Dobby.DeviceAgents.Light do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def initial_state(%Device{} = device) do
-    %{
-      dobby_id: device.id,
-      name: device.name,
-      entity_id: Map.fetch!(device.bindings, :light),
-      settings: device.settings
-    }
-  end
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :light)
 
   @doc """
   Whether the discovered color modes include brightness.

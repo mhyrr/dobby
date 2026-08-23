@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The house file · Dobby</title>
+<meta name="description" content="One YAML file: your devices, your rules, and the box's settings.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html" aria-current="page">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>The house file</h1>
+    <p class="lede">One YAML file tells Dobby what the house contains and how the box should behave. You own it. Dobby writes to it too. It never holds a secret, so you can share it.</p>
+
+    <p>In development, <code>DOBBY_HOME_MANIFEST</code> names the file. In an install it is <span class="arg">/opt/dobby/config/home.yaml</span>. Start from the example:</p>
+<pre><code>cp config/homes/example.yaml config/homes/my-house.yaml</code></pre>
+
+    <p>Two sections. <code>house:</code> is your house. <code>system:</code> is the box Dobby runs on.</p>
+
+    <h2 id="house">The house</h2>
+<pre><code><span class="k">house:</span>
+  <span class="k">id:</span> my-house
+  <span class="k">name:</span> Our House
+  <span class="k">timezone:</span> America/New_York
+
+  <span class="k">home_assistant:</span>
+    <span class="k">url:</span> env:DOBBY_HA_URL
+    <span class="k">token:</span> env:DOBBY_HA_TOKEN
+
+  <span class="k">devices:</span>
+    <span class="c"># …one entry per device, below…</span></code></pre>
+
+    <p><strong>Credentials are references.</strong> <code>token: env:DOBBY_HA_TOKEN</code> names an environment variable. Dobby reads it at boot. If the variable is missing, Dobby stops and names it instead of starting a house that cannot reach anything.</p>
+
+    <h2 id="devices">A device entry</h2>
+    <p>Every device has the same six parts.</p>
+
+    <div class="table-wrap">
+    <table>
+      <tr><th>Key</th><th>What it is</th></tr>
+      <tr><td><code>id</code></td><td>How Dobby refers to it, forever. Convention: <span class="arg">type:place</span>, like <span class="arg">thermostat:hall</span>.</td></tr>
+      <tr><td><code>type</code></td><td><span class="arg">thermostat</span>, <span class="arg">light</span>, <span class="arg">vacuum</span>, or <span class="arg">wifi_endpoint</span>.</td></tr>
+      <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
+      <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
+      <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity ids exactly.</td></tr>
+      <tr><td><code>settings</code></td><td>House rules. Optional. They can narrow what the hardware allows, never widen it.</td></tr>
+    </table>
+    </div>
+
+    <p>Entity ids are in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. A device bound to a wrong id shows <span class="arg">NOT KNOWN</span> and stays that way. <a href="running.html#verify">Verify</a> names it.</p>
+
+    <h2 id="types">The four types</h2>
+
+    <h3 id="thermostat">thermostat</h3>
+    <p>Dobby reads it and sets it. The hardware's range comes from Home Assistant. <code>settings</code> narrows that range to what your house allows anyone to ask for.</p>
+<pre><code>- <span class="k">id:</span> thermostat:hall
+  <span class="k">type:</span> thermostat
+  <span class="k">name:</span> hall thermostat
+  <span class="k">aliases:</span> [the thermostat, downstairs thermostat]
+  <span class="k">bindings:</span>
+    <span class="k">climate:</span> climate.hall
+  <span class="k">settings:</span>
+    <span class="k">min_temperature_f:</span> 60
+    <span class="k">max_temperature_f:</span> 78</code></pre>
+    <p>With this range, nobody can set the hall to 90. Not a person at a card, not the model, not an agent over MCP. The thermostat shows <span class="arg">HELD</span> with the reason beside it.</p>
+
+    <h3 id="light">light</h3>
+    <p>Dobby switches it, and dims it if the bulb can dim. The bulb reports that itself. Nothing to set.</p>
+<pre><code>- <span class="k">id:</span> light:living_room
+  <span class="k">type:</span> light
+  <span class="k">name:</span> living room light
+  <span class="k">aliases:</span> [living room lamp]
+  <span class="k">bindings:</span>
+    <span class="k">light:</span> light.living_room</code></pre>
+
+    <h3 id="vacuum">vacuum</h3>
+    <p>Dobby starts it and sends it home.</p>
+<pre><code>- <span class="k">id:</span> vacuum:downstairs
+  <span class="k">type:</span> vacuum
+  <span class="k">name:</span> robot vacuum
+  <span class="k">aliases:</span> [the vacuum, the roomba]
+  <span class="k">bindings:</span>
+    <span class="k">vacuum:</span> vacuum.downstairs</code></pre>
+
+    <h3 id="wifi">wifi_endpoint</h3>
+    <p>Something on the network Dobby can report as reachable or not: a printer, a TV, a speaker. Read only. The usual source is a <span class="arg">binary_sensor</span> from Home Assistant's ping integration.</p>
+<pre><code>- <span class="k">id:</span> wifi:office_printer
+  <span class="k">type:</span> wifi_endpoint
+  <span class="k">name:</span> office printer
+  <span class="k">aliases:</span> [the printer]
+  <span class="k">ha_integration:</span> ping
+  <span class="k">bindings:</span>
+    <span class="k">connectivity:</span> binary_sensor.office_printer</code></pre>
+    <p>A printer that drops off at three in the morning shows on its card and in the log. It does not post into the thread.</p>
+
+    <h2 id="system">The system section</h2>
+    <p>All four settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
+<pre><code><span class="k">system:</span>
+  <span class="k">model:</span> openai:gpt-5.6-luna
+  <span class="k">port:</span> 4000
+  <span class="k">lan:</span> true
+  <span class="k">hostname:</span> dobby.local</code></pre>
+
+    <div class="table-wrap">
+    <table>
+      <tr><th>Key</th><th>Override</th><th>Takes effect</th></tr>
+      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. Any <span class="arg">provider:model</span> ReqLLM speaks.</td></tr>
+      <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
+      <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
+      <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>
+    </table>
+    </div>
+
+    <p>The same four settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
+
+    <h2 id="written">Dobby writes this file too</h2>
+    <p>The forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, a device Dobby proposes in the thread, and an agent over MCP all write to this file. One writer handles every change, so two saves at once queue instead of colliding. Two things to know before you edit by hand:</p>
+    <ul>
+      <li>Hand edits take effect when Dobby restarts.</li>
+      <li>When Dobby writes, it rewrites the whole file. Your comments and key order do not survive.</li>
+    </ul>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line"><span class="c"># This file is written by Dobby, and rewritten in full every time the
+# house or the system panel is changed. Comments and key order do not
+# survive that — the file is the record, not the document.</span></p>
+      <p class="said">The header Dobby puts on a file it has written. If your file starts with it, something other than your editor has saved it.</p>
+    </div>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="index.html"><small>Previous</small>Start</a>
+      <a class="next" href="running.html"><small>Next</small>Running it</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

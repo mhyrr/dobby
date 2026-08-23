@@ -51,3 +51,10 @@ npm-debug.log
 # Local development environment — carries the HA token. .env.example is the
 # committed shape of it.
 /.env
+
+# Agent worktrees. Ephemeral checkouts a subagent works in; git records them
+# as gitlinks if they are ever staged, which is never what anyone meant.
+/.claude/worktrees/
+
+# Impeccable review captures: regenerated every finish round, never source
+/.impeccable/review/

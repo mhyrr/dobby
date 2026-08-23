@@ -13,7 +13,11 @@ defmodule Dobby.DeviceAgents.Light.SetBrightness do
     name: "light_set_brightness",
     description: "Validates a light brightness and emits the Home Assistant call",
     schema: [
-      brightness_percent: [type: :integer, required: true],
+      brightness_percent: [
+        type: :integer,
+        required: true,
+        doc: "How bright to make the light, from 0 to 100."
+      ],
       ref: [type: :string, required: true]
     ]
 

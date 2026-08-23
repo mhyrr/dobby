@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running it · Dobby</title>
+<meta name="description" content="Check the wiring, start Dobby, and put it on the Wi-Fi as dobby.local.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html" aria-current="page">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>Running it</h1>
+    <p class="lede">Check the wiring, give Dobby a voice, and put the house on the Wi-Fi so every phone at home can open it by name.</p>
+
+    <h2 id="environment">The environment</h2>
+    <p>The house file refers to its credentials by name. Three variables cover a house:</p>
+<pre><code>export DOBBY_HA_URL=http://homeassistant.local:8123
+export DOBBY_HA_TOKEN=...
+export ANTHROPIC_API_KEY=...</code></pre>
+    <p>In development, copy <span class="arg">.env.example</span> to <span class="arg">.env</span> and fill it in. Variables exported in the shell still win. <code>mix test</code> ignores all of them: the tests run against a fake Home Assistant, always.</p>
+
+    <h2 id="verify">Verify, then run</h2>
+    <p><code>mix dobby.ha.verify</code> connects to your Home Assistant and prints every device once the first state sync lands. One command checks the connection, the token, the subscription, and every entity id.</p>
+<pre><code>DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix dobby.ha.verify</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">[info] connected to Home Assistant 2026.8.2 at http://homeassistant.local:8123
+home "my-house" with 2 device(s)
+
+%{
+  id: "light:living_room",
+  name: "living room light",
+  type: :light,
+  available: true,
+  power: :on,
+  brightness_percent: 71
+}
+%{
+  id: "thermostat:hall",
+  name: "hall thermostat",
+  type: :thermostat,
+  available: true,
+  target_temperature_f: 70,
+  min_temperature_f: 60,
+  max_temperature_f: 78,
+  current_temperature_f: 72,
+  hvac_mode: :cool
+}
+
+initial state sync: ok</p>
+      <p class="said">Every device <b>available: true</b>. A device that stays unavailable has a wrong entity id. The task stops and tells you which one.</p>
+    </div>
+
+    <p><code>--round-trip</code> also moves a thermostat one degree and back, and waits for Home Assistant to confirm each step. It picks the first thermostat in the file unless you name one. It is a real change, so name a virtual thermostat if you have any doubt.</p>
+<pre><code>DOBBY_HOME_MANIFEST=config/homes/my-house.yaml \
+  mix dobby.ha.verify --round-trip thermostat:demo</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">discovered capabilities: %{min_temperature_f: 45, max_temperature_f: 95, hvac_modes: ["off", "heat", "cool", "auto", "dry", "fan_only"]}
+household policy:        %{min_temperature_f: 60, max_temperature_f: 76}
+accepted range:          60–76
+
+round trip: thermostat:demo setpoint 70 → 69.0 → back
+  accepted 69.0; waiting for the house to confirm ...
+  confirmed at 69.0 after 105ms
+  accepted 70.0; waiting for the house to confirm ...
+  confirmed at 70.0 after 104ms
+round trip: ok — setpoint restored to 70</p>
+      <p class="said">What the hardware allows, what your house allows, and the range that results. Then two confirmations from Home Assistant. A virtual device answers in about a hundred milliseconds. A cloud thermostat can take as long as its polling interval.</p>
+    </div>
+
+    <p>Now start it.</p>
+<pre><code>DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">[info] connected to Home Assistant 2026.8.2 at http://homeassistant.local:8123
+[info] Running DobbyWeb.Endpoint with Bandit 1.12.4 at 127.0.0.1:4000 (http)
+[info] Access DobbyWeb.Endpoint at http://localhost:4000</p>
+      <p class="said">Open <span class="arg">http://localhost:4000/</span>. This machine only, until the next section.</p>
+    </div>
+
+    <h2 id="soul">The soul</h2>
+    <p><span class="arg">config/soul.md</span> is Dobby's voice: how it talks and what it cares about. Edit it like a letter. In an install it is <span class="arg">/opt/dobby/config/soul.md</span>; <code>DOBBY_SOUL</code> points anywhere else.</p>
+    <p>The soul is personality only. The rules that keep Dobby honest live in code, so no rewrite of the voice can remove them. Make it a grump or a saint. It still cannot tell you the room is warm.</p>
+
+    <h2 id="household">The whole household</h2>
+    <p>Set <code>lan: true</code> in the house file, or export <code>DOBBY_LAN=1</code>. Dobby then listens on every interface and announces the machine as <span class="arg">dobby.local</span> for as long as it runs.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">[info] Running DobbyWeb.Endpoint with Bandit 1.12.4 at 0.0.0.0:4000 (http)
+[info] the house answers at http://dobby.local:4000/ (192.168.1.20)</p>
+      <p class="said">Every phone and tablet on the Wi-Fi can now open the name. Keep the address too. An agent that cannot resolve <span class="arg">.local</span> names will need it; see <a href="agents.html#connect">Your own agent</a>.</p>
+    </div>
+
+    <p>Port 4000 is the default. For a bare <span class="arg">http://dobby.local/</span>, run on port 80. On macOS, <code>PORT=80</code> just works. On Linux, put a reverse proxy in front or grant the capability.</p>
+    <p>The trust is the Wi-Fi password. Anyone on the network is the household. There is no login, and <span class="arg">/admin</span> is a room, not a privilege. Do not turn on the LAN bind on a network you would not hand the Wi-Fi password to.</p>
+
+    <h2 id="service">Running as an installed service</h2>
+    <div class="note unwalked">
+      <span class="label">Not yet walked</span>
+      This is what the code is built to do, read from <span class="arg">config/runtime.exs</span>. Nobody has stood up a release on a box in a closet yet. When someone does, this section becomes a page. <a href="box.html">An always-on box</a> is the plan.
+    </div>
+    <p>A release reads <span class="arg">/opt/dobby/config/home.yaml</span> and <span class="arg">/opt/dobby/config/soul.md</span>. The HA token, the model key, <code>DATABASE_URL</code>, and <code>SECRET_KEY_BASE</code> live in the service environment. It listens on this machine only unless <code>system.lan</code> is true. Dobby speaks plain HTTP on the LAN; put a TLS proxy in front before exposing it further.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="house.html"><small>Previous</small>The house file</a>
+      <a class="next" href="box.html"><small>Next</small>An always-on box</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

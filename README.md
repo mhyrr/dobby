@@ -1,24 +1,54 @@
 # Dobby
 
-To start your Phoenix server:
+A house elf for your Home Assistant.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+Dobby is a household agent. Everyone in the house, kids included, talks to
+it in one shared thread, and it answers by doing things: reading the
+thermostat, dimming a light, starting the vacuum, setting a schedule for
+eight o'clock. It does what you said, says what it did, and asks when it is
+not sure.
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Underneath are two layers with a hard line between them. A deterministic
+layer of device agents owns every fact and every action. Above it sits a
+language model that can act only through the closed set of tools those
+agents offer. The model never touches Home Assistant, never does arithmetic,
+and never claims a room got warm. It reports what it commanded; the house
+reports what actually happened.
 
-Ready to run in production? Please [check our deployment guides](https://phoenix.hexdocs.pm/deployment.html).
+## The guide
 
-## Real Home Assistant, locally
+**[mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/)** is the user's
+guide: what you need, the house file section by section, running it and
+putting it on the Wi-Fi, an always-on box, living with it, growing the house,
+sending your own agent at it over MCP, how it works, and developing. Every
+page is written from a walk somebody took, and says so where one has not
+been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
-By default everything — dev server and tests — runs against FakeHA, with no
-Home Assistant anywhere. To run against a real local Home Assistant with
-virtual demo entities (no hardware), see [docs/local-ha.md](docs/local-ha.md).
+## Running it
 
-## Learn more
+```sh
+mix setup
+cp config/homes/example.yaml config/homes/my-house.yaml
+# edit it: your HA's address, your devices
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://phoenix.hexdocs.pm/overview.html
-* Docs: https://phoenix.hexdocs.pm
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+export DOBBY_HA_URL=http://homeassistant.local:8123
+export DOBBY_HA_TOKEN=...            # HA → your profile → Security → long-lived tokens
+export ANTHROPIC_API_KEY=...         # or any provider ReqLLM speaks; see `system.model`
+
+DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix dobby.ha.verify
+DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server
+```
+
+`mix dobby.ha.verify` proves the authenticated state sync before you trust an
+evening to it. Then `/` is the thread, `/house` the cards, `/admin` the
+maintainer's room, and `/mcp` the door for an agent that is not Dobby.
+
+## Developing
+
+`mix test` runs everything against a fake Home Assistant that lives in the
+repo: no HA, no network, no model calls. The local rig with a real HA and
+virtual devices, the two test tiers, and Tidewave are in the guide's
+[Developing](https://mhyrr.github.io/dobby/developing.html) chapter.
+
+The design record lives in [DESIGN.md](DESIGN.md) (the surface) and
+[dobby-design-jido.md](dobby-design-jido.md) (the architecture).

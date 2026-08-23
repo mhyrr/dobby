@@ -10,6 +10,7 @@ defmodule Dobby.HomeAssistant do
   """
 
   alias Dobby.Directive.HACall
+  alias Dobby.HomeAssistant.Entity
 
   @doc """
   Performs a service call against Home Assistant.
@@ -18,6 +19,21 @@ defmodule Dobby.HomeAssistant do
   later and separately, as an inbound state change.
   """
   @callback execute(HACall.t()) :: :ok | {:error, term()}
+
+  @doc """
+  Every entity this client currently knows Home Assistant has.
+
+  A read of what the deterministic layer already learned, and never a fresh
+  request: the client subscribes and fetches current states on every
+  authenticated connection, so by the time anybody asks, the answer is sitting
+  in a process. That is what keeps design §7's boundary intact when the
+  household thread wants to know what Home Assistant has — nothing above this
+  module gets to talk to Home Assistant, including by asking it a question.
+
+  Empty is a real answer: a client that has not connected yet knows nothing,
+  and saying so is better than blocking a conversation on a house that is down.
+  """
+  @callback entities() :: [Entity.t()]
 
   @doc """
   Installs the entity-to-agent routing table built from the manifest bindings.
@@ -35,6 +51,15 @@ defmodule Dobby.HomeAssistant do
 
   @spec configure_routing(%{String.t() => String.t()}) :: :ok
   def configure_routing(routing_table), do: impl().configure_routing(routing_table)
+
+  @doc """
+  Every entity the configured client knows about, sorted by id.
+
+  Sorted here rather than in each client, because two implementations that
+  agree on the contents and disagree on the order are two implementations.
+  """
+  @spec entities() :: [Entity.t()]
+  def entities, do: Enum.sort_by(impl().entities(), & &1.entity_id)
 
   @doc """
   The configured client module.

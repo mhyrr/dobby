@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developing · Dobby</title>
+<meta name="description" content="A local Home Assistant with fake devices, the tests, and Tidewave.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="dobby.css">
+</head>
+<body>
+<!-- DIRECTION: see index.html · seed 8ac72cfd · The Ledger of Proofs -->
+<header class="plate">
+  <div class="band">
+    <span><a href="index.html">Dobby</a><span class="dot">·</span>Guide</span>
+    <a class="who" href="https://github.com/mhyrr/dobby">github.com/mhyrr/dobby</a>
+  </div>
+</header>
+
+<nav class="rail band" aria-label="Chapters">
+  <a href="index.html">Start</a>
+  <a href="house.html">House file</a>
+  <a href="running.html">Running</a>
+  <a href="box.html">The box</a>
+  <a href="living.html">Living</a>
+  <a href="growing.html">Growing</a>
+  <a href="agents.html">Your agent</a>
+  <a href="how-it-works.html">How it works</a>
+  <a href="developing.html" aria-current="page">Developing</a>
+</nav>
+
+<main class="page">
+  <aside class="onpage" aria-label="On this page">
+    <p class="label">On this page</p>
+  </aside>
+
+  <article>
+    <h1>Developing</h1>
+    <p class="lede">A real Home Assistant on your machine with virtual devices, two kinds of tests, and a door for the agent working on Dobby.</p>
+
+    <h2 id="rig">Two rigs</h2>
+    <p><code>mix test</code>, and <code>mix phx.server</code> with no house file named, run against a fake Home Assistant that lives in the repository. No HA, no network, no model calls. No environment variable changes that.</p>
+    <p>The second rig is a real Home Assistant in a container, for testing the real client: connection, token, subscription, service calls. It is disposable. Its state is gitignored, and remaking it costs two commands.</p>
+
+    <h2 id="local-ha">The local Home Assistant</h2>
+    <p>Requires Docker.</p>
+<pre><code>cd dev/home-assistant
+docker compose up -d</code></pre>
+    <p>First boot takes a minute or two. The instance listens on <span class="arg">http://localhost:8123</span>. It runs <span class="arg">configuration.seed.yaml</span>, which turns on HA's <span class="arg">demo</span> integration: virtual thermostats (<span class="arg">climate.hvac</span>, <span class="arg">climate.heatpump</span>, <span class="arg">climate.ecobee</span>), lights, and vacuums.</p>
+
+    <p>Initialize it once. This creates the owner account, sets US units so HA reports in Fahrenheit, finishes onboarding, and mints the token Dobby logs in with. It prints the credentials and saves them nowhere.</p>
+<pre><code>mix run --no-start dev/home-assistant/onboard.exs
+docker compose restart   <span class="c"># so every entity reports in °F</span></code></pre>
+
+    <p>Point Dobby at it. <span class="arg">config/homes/local.yaml</span> is the house file for this rig. It takes its token from <span class="arg">.env</span>.</p>
+<pre><code>cp .env.example .env    <span class="c"># then fill in the token onboard.exs printed</span>
+mix phx.server</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">[info] connected to Home Assistant 2026.8.2 at http://localhost:8123
+home "local" with 4 device(s)
+
+%{
+  id: "thermostat:main",
+  name: "demo thermostat",
+  type: :thermostat,
+  available: true,
+  target_temperature_f: 70,
+  min_temperature_f: 60,
+  max_temperature_f: 76,
+  current_temperature_f: 72,
+  hvac_mode: :cool
+}
+<span class="c">…</span>
+initial state sync: ok</p>
+      <p class="said">From <span class="arg">mix dobby.ha.verify</span> against the rig, August 22, 2026. <a href="running.html#verify">Running it</a> shows the round trip.</p>
+    </div>
+
+    <p>To list what the instance has: <span class="arg">Developer Tools → States</span> in HA, or</p>
+<pre><code>curl -s -H "Authorization: Bearer $DOBBY_HA_TOKEN" \
+  http://localhost:8123/api/states | jq -r '.[].entity_id'</code></pre>
+
+    <p>Credentials for HA integrations (a cloud thermostat's account, a robot's password) go into the HA UI, not into <span class="arg">.env</span> or the repository. Never commit a token.</p>
+
+    <h2 id="roomba">The Roomba</h2>
+    <p>The one integration that needs a human at the robot. In HA: <span class="arg">Settings → Devices &amp; services → Add integration → iRobot Roomba</span>, then enter the robot's IP. When the flow asks for the password, put the robot on its dock and hold its Home button until it plays a tone. HA fetches the credential in that window.</p>
+    <p>Fill the <span class="arg">vacuum.*</span> entity id HA creates into the commented <span class="arg">vacuum:roomba</span> entry in <span class="arg">config/homes/local.yaml</span>, uncomment it, and restart. Verify then shows the robot with its battery.</p>
+
+    <h2 id="tests">Two kinds of tests</h2>
+    <p><strong>Replay</strong> runs on every <code>mix test</code> and in CI, against the fake Home Assistant. It cannot reach a model provider. It proves the machinery.</p>
+    <p><strong>Eval</strong> runs a real model, for real money. It asks whether the model exercises judgment. It has caught a tool description that misled the model, a prompt that let the model act on an ambiguous request, and a model echoing the prompt's framing into a reply.</p>
+<pre><code>mix test                      <span class="c"># replay: no HA, no network, no model calls</span>
+mix test --include eval       <span class="c"># eval: real inference</span>
+mix precommit                 <span class="c"># compile --warnings-as-errors, unused deps, format, test</span></code></pre>
+    <p>A rule for fixtures: if a test seeds what production builds, the test is lying.</p>
+
+    <h2 id="tidewave">Tidewave</h2>
+    <p>In development, the server also serves <a href="https://tidewave.ai/">Tidewave</a> at <span class="arg">/tidewave/mcp</span>, on this machine only. An agent working on Dobby's code can run Elixir in the live node, read its logs, and query the database. The <a href="agents.html">MCP door</a> is for an agent working on the house; this one is for an agent working on Dobby.</p>
+<pre><code>claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">get_logs, get_source_location, get_docs, project_eval,
+execute_sql_query, browser_eval, create_design_canvas</p>
+      <p class="said">Tidewave's tools. Requests from a browser or from another machine are refused.</p>
+    </div>
+
+    <h2 id="reading">Reading the repository</h2>
+    <p><span class="arg">CLAUDE.md</span> at the root is the map. Module docs explain why each thing is the way it is, and what was rejected.</p>
+
+    <p class="colophon">This guide is hand-written HTML under <span class="arg">docs/</span>, served as committed. Edit the page; there is no build.</p>
+
+    <nav class="foot" aria-label="Neighbouring chapters">
+      <a class="prev" href="how-it-works.html"><small>Previous</small>How it works</a>
+      <a class="next" href="index.html"><small>Back to</small>Start</a>
+    </nav>
+  </article>
+</main>
+<script src="dobby.js"></script>
+</body>
+</html>

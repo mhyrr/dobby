@@ -1,5 +1,13 @@
 defmodule Dobby.DeviceAgents.ContactSensor.SyncState do
-  @moduledoc "Translates a Home Assistant contact entity into open or closed."
+  @moduledoc """
+  Translates an inbound HA `state_changed` into contact state.
+
+  HA reports `"on"`/`"off"`, and for every opening class `on` means open —
+  that convention is HA's, decoded here so the rest of the house talks about
+  `open`, a fact, rather than a wire value whose meaning depends on the
+  device class that sent it. Anything else HA says reads as `nil`: an
+  unknown door is not a closed one.
+  """
 
   use Jido.Action,
     name: "contact_sensor_sync_state",

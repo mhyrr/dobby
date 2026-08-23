@@ -1,5 +1,19 @@
 defmodule Dobby.DeviceAgents.OccupancySensor do
-  @moduledoc "A read-only motion, occupancy, or presence sensor."
+  @moduledoc """
+  A motion, occupancy, or presence sensor, which only ever reports.
+
+  Three HA device classes, one household question — "is anyone there" — so
+  they share a type rather than getting one each: a PIR, an mmWave sensor,
+  and a phone-presence entity differ in mechanism, and the mechanism is
+  exactly what Dobby's semantic layer exists to not care about.
+
+  The discovery judgment is the part with teeth. A motion sensor that shares
+  an HA device with a camera or doorbell is *that* device's motion — its
+  agent binds it — and proposing it separately would give the household two
+  names for one corner of the porch. `discovery_bindings/2` yields in that
+  case, which is why this read-only type implements a callback most
+  single-entity types leave to the default.
+  """
 
   use Jido.Agent,
     name: "occupancy_sensor",

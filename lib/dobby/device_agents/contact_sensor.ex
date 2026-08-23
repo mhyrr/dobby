@@ -1,5 +1,20 @@
 defmodule Dobby.DeviceAgents.ContactSensor do
-  @moduledoc "A read-only door, window, or garage contact sensor."
+  @moduledoc """
+  A door, window, or garage contact, which only ever reports.
+
+  A read-only device earns its agent by feeding the world model: "is the
+  patio door open" is a question the thread gets asked, and the direct path
+  and the board need the same answer with no model involved.
+
+  This is deliberately not a generic sensor type, though HA's
+  `binary_sensor` domain would let one exist. The domain holds doors, smoke
+  alarms, motion, and printer connectivity in one bucket, and a generic
+  `SensorAgent` would erase exactly the distinction a household runs on —
+  which of those facts matters, and how much. The device class carries the
+  consequence, so each class family is its own Dobby type: contacts here,
+  presence in `OccupancySensor`, hazards in `SafetySensor`, connectivity in
+  `WifiEndpoint`.
+  """
 
   use Jido.Agent,
     name: "contact_sensor",

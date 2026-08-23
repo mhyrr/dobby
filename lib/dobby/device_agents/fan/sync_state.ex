@@ -1,5 +1,13 @@
 defmodule Dobby.DeviceAgents.Fan.SyncState do
-  @moduledoc "Translates Home Assistant fan state and discovered speed support."
+  @moduledoc """
+  Translates an inbound HA `state_changed` into fan agent state.
+
+  The only way fan readings ever change, as with every type in the library: a
+  command goes out, HA moves the world, and the world comes back through
+  here. The `SET_SPEED` feature bit is decoded at this boundary so that
+  everything above it sees `supports_speed`, a word — the number never
+  travels further than the wire that carried it.
+  """
 
   use Jido.Action,
     name: "fan_sync_state",

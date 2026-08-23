@@ -1,5 +1,13 @@
 defmodule Dobby.DeviceAgents.OccupancySensor.SyncState do
-  @moduledoc "Translates a Home Assistant motion or presence state into occupancy."
+  @moduledoc """
+  Translates an inbound HA `state_changed` into occupancy.
+
+  `"on"` means detected across all three presence classes — HA's convention,
+  decoded here into `occupied` so nothing above this boundary reasons about
+  wire values. Anything else reads as `nil`: a sensor that has not spoken is
+  not an empty room, and `changes/3` keeps that first report out of the
+  moved calculus for the same reason.
+  """
 
   use Jido.Action,
     name: "occupancy_sensor_sync_state",

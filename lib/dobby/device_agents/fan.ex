@@ -1,5 +1,22 @@
 defmodule Dobby.DeviceAgents.Fan do
-  @moduledoc "A household fan with capability-driven speed control."
+  @moduledoc """
+  A fan, as Dobby understands one (design §4.2, §4.3).
+
+  Deterministic and vendor-free, like `Light`: this module knows what a *fan*
+  means, and Home Assistant knows which radio it is on. It is a separate type
+  from `PowerSwitch` even though both turn on and off, because a fan has a
+  speed and the household talks about it — "half speed" is a fan sentence
+  with no switch equivalent.
+
+  Whether speed control exists is *discovered*, not declared: HA's
+  `SET_SPEED` feature bit is the hardware's word, and a fan that only knows
+  on/off cannot be asked for a percentage a manifest promised. The surface is
+  deliberately percentage-only. HA also carries preset modes, direction, and
+  oscillation, and all three were left out on purpose: percentage is the one
+  speed contract every HA fan speaks, while preset strings are each vendor's
+  own vocabulary — binding them would put brand words back into a library
+  built to keep them out.
+  """
 
   use Jido.Agent,
     name: "fan",

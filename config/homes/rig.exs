@@ -89,6 +89,17 @@ config :dobby, Dobby.Home,
       "binary_sensor.basement_smoke" => %{
         state: "off",
         attributes: %{device_class: "smoke"}
+      },
+      "sensor.garage_opener_temperature" => %{
+        # Diagnostic on purpose, and permanently. This is the one rig entity a
+        # type recognizes (a temperature is an environment monitor's word) that
+        # discovery must never offer: HA marks it as the opener's internals,
+        # not the household's air. DiscoveryTest reads this file and holds the
+        # tripwire — remove this entry or the filter, and the suite says so.
+        state: "88.1",
+        attributes: %{device_class: "temperature", unit_of_measurement: "°F"},
+        device_id: "rig-garage-opener",
+        entity_category: "diagnostic"
       }
     }
   ],

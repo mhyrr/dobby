@@ -70,6 +70,35 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
       assert {:ok, []} = Discovery.candidates(type: "environment_monitor")
     end
 
+    test "the rig's own diagnostic entity is never offered, whole-house" do
+      # The test above proves the rule on a fixture this file wrote. This one
+      # proves it against the standing house: `config/homes/rig.exs` keeps a
+      # diagnostic temperature on purpose — an entity a type *recognizes* — so
+      # the filter is exercised by the same file `mix phx.server` boots, not
+      # only by a fixture that could drift from it.
+      rig_entities =
+        Config.Reader.read!("config/homes/rig.exs")
+        |> get_in([:dobby, Dobby.Home, :home_assistant, :entities])
+
+      diagnostics =
+        for {entity_id, entity} <- rig_entities,
+            entity[:entity_category] == "diagnostic",
+            do: entity_id
+
+      assert diagnostics != [], "the rig no longer carries its diagnostic tripwire entity"
+
+      Enum.each(rig_entities, fn {entity_id, entity} -> Fake.put_entity(entity_id, entity) end)
+
+      assert {:ok, candidates} = Discovery.candidates()
+      assert candidates != []
+
+      offered = Enum.flat_map(candidates, &Map.values(&1.bindings))
+
+      for entity_id <- diagnostics do
+        refute entity_id in offered
+      end
+    end
+
     test "a binary_sensor is a wifi endpoint only when it reports connectivity" do
       # `binary_sensor` is HA's bucket — doors, motion, moisture and the ping
       # integration all land in it — so the domain alone is not the question.

@@ -114,32 +114,42 @@ defmodule Dobby.DeviceAgents.LibraryTest do
       %{device: "speaker:kitchen"},
       "media_player",
       "media_play",
+      "Play",
       false
     )
 
-    assert_accepted(Tools.LockSecure, %{device: "lock:front"}, "lock", "lock")
+    assert_accepted(Tools.LockSecure, %{device: "lock:front"}, "lock", "lock", "Locked")
 
     assert_accepted(
       Tools.AccessCoverClose,
       %{device: "cover:garage"},
       "cover",
-      "close_cover"
+      "close_cover",
+      "Closed"
     )
 
-    assert_accepted(Tools.PowerSwitchTurnOff, %{device: "switch:porch"}, "switch", "turn_off")
+    assert_accepted(
+      Tools.PowerSwitchTurnOff,
+      %{device: "switch:porch"},
+      "switch",
+      "turn_off",
+      "Off"
+    )
 
     assert_accepted(
       Tools.FanSetSpeed,
       %{device: "fan:bedroom", speed_percent: 65},
       "fan",
-      "set_percentage"
+      "set_percentage",
+      "65%"
     )
 
     assert_accepted(
       Tools.ShadeSetPosition,
       %{device: "shade:office", position: 20},
       "cover",
-      "set_cover_position"
+      "set_cover_position",
+      "20%"
     )
 
     assert agent_state("speaker:kitchen").playback == :playing
@@ -223,7 +233,7 @@ defmodule Dobby.DeviceAgents.LibraryTest do
     assert Fake.trace() == []
   end
 
-  defp assert_accepted(tool, args, domain, service, commanded? \\ true) do
+  defp assert_accepted(tool, args, domain, service, reading, commanded? \\ true) do
     assert {:ok, %{accepted: true, device: device, name: name} = result} =
              Jido.Exec.run(tool, args)
 
@@ -232,8 +242,9 @@ defmodule Dobby.DeviceAgents.LibraryTest do
     # The thread's record line is written from this exact shape:
     # `Dobby.Conversation.Turn` matches on accepted/device/name, and
     # `Interventions.reading/1` renders the commanded value. A write result
-    # the thread cannot read is a command the thread never mentions.
-    assert Dobby.Interventions.reading(result)
+    # the thread cannot read is a command the thread never mentions — and
+    # the expected string matters: a truthy assert once passed on "Nil".
+    assert Dobby.Interventions.reading(result) == reading
 
     assert_receive {:ha_call, %HACall{domain: ^domain, service: ^service}}, 2_000
 

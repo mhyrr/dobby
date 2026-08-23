@@ -73,8 +73,15 @@ defmodule Dobby.DeviceAgents.Doorbell do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Doorbell.SyncState
 
+  # A ring is a person at the door commanding the bell — the cleanest
+  # "somebody did something at the device" in the library, so it belongs in
+  # the thread (Greg, 2026-08-23). The timestamp carries the ring:
+  # `last_event` stays "ring" between two rings and would only announce the
+  # first. Whether the house also says something out loud is the owner's
+  # call, deferred to voice-channel config (TK-028). Camera and motion
+  # movements stay observed, off the thread.
   @impl Dobby.DeviceAgent
-  def intervention?(_attribute), do: false
+  def intervention?(attribute), do: attribute == :last_event_at
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device)

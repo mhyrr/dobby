@@ -70,6 +70,12 @@ defmodule Dobby.DeviceAgents.Speaker do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Speaker.SyncState
 
+  # Deliberately silent in the thread, unlike the other write-capable types
+  # (Greg, 2026-08-23). Home Assistant cannot tell the Sonos app from a hand
+  # on the device, and a speaker moves with every track — marking playback
+  # or volume as interventions would narrate normal listening. What the
+  # thread should say about music is TK-029's design question; nothing here
+  # changes until it is answered.
   @impl Dobby.DeviceAgent
   def intervention?(_attribute), do: false
 

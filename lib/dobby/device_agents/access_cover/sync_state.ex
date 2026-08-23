@@ -25,17 +25,19 @@ defmodule Dobby.DeviceAgents.AccessCover.SyncState do
 
     keys = [:available, :cover_state, :position]
 
+    commanded? = commanded?(previous, next)
+
     case DeviceAgent.changes(previous, next, keys) do
       %{changed: []} ->
-        {:ok, next}
+        {:ok, consume_echo(next, commanded?)}
 
       %{changed: changed, moved: moved} ->
-        {:ok, next,
+        {:ok, consume_echo(next, commanded?),
          [
            DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
              changed: changed,
              moved: moved,
-             commanded?: commanded?(previous, next)
+             commanded?: commanded?
            )
          ]}
     end
@@ -68,8 +70,17 @@ defmodule Dobby.DeviceAgents.AccessCover.SyncState do
   defp position(value) when is_float(value) and value >= 0 and value <= 100, do: round(value)
   defp position(_value), do: nil
 
+  # `:closing` is the echo still in flight; `:closed` is it landing.
   defp commanded?(%{last_command: %{result: :accepted, action: :close}}, next),
-    do: next.cover_state == :closed
+    do: next.cover_state in [:closing, :closed]
 
   defp commanded?(_previous, _next), do: false
+
+  # One-shot for the same reason the lock's echo is (see Lock.SyncState):
+  # the only closed value is :closed, so a standing accepted command would
+  # swallow every hand-close of the garage forever.
+  defp consume_echo(%{cover_state: :closed} = next, true),
+    do: Map.put(next, :last_command, nil)
+
+  defp consume_echo(next, _commanded?), do: next
 end

@@ -180,6 +180,93 @@ defmodule Dobby.InterventionsTest do
     end
   end
 
+  describe "a person at the door" do
+    # The ring rides the event timestamp: `last_event` stays "ring" between
+    # two rings, so only `last_event_at` moves per press. The first report
+    # after boot is the house learning the bell exists, and stays silent.
+    test "a ring is somebody's, and the thread says so" do
+      seed_house(%{
+        "event.front_door" => %{
+          state: "2026-08-23T12:00:00+00:00",
+          attributes: %{event_type: "ring", device_class: "doorbell"}
+        }
+      })
+
+      settle!()
+      assert system_lines() == []
+
+      Fake.inject_state_changed("event.front_door", %{
+        state: "2026-08-23T18:30:00+00:00",
+        attributes: %{event_type: "ring", device_class: "doorbell"}
+      })
+
+      assert_receive {:system_line, %Message{text: "front doorbell", meta: meta}}, 2_000
+      assert meta["value"] == "Ring"
+      assert meta["via"] == "changed at the front doorbell"
+    end
+  end
+
+  describe "a hand on the deadbolt" do
+    # The echo of Dobby's secure command is one-shot: consumed when the lock
+    # reports locked. Without that, the standing accepted command would make
+    # every later hand-lock read as Dobby's echo, forever — the thread must
+    # list every state change of a lock.
+    test "re-locking after Dobby once secured is still somebody's hand" do
+      seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert eventually(fn -> agent_state("lock:front").lock_state == :locked end)
+      settle!()
+
+      # The echo of Dobby's own command writes no line; the tool's caller
+      # already announced it.
+      assert system_lines() == []
+
+      Fake.inject_state_changed("lock.front_door", %{state: "unlocked", attributes: %{}})
+
+      assert_receive {:system_line,
+                      %Message{text: "front door lock", meta: %{"value" => "Unlocked"}}},
+                     2_000
+
+      Fake.inject_state_changed("lock.front_door", %{state: "locked", attributes: %{}})
+
+      assert_receive {:system_line,
+                      %Message{text: "front door lock", meta: %{"value" => "Locked"}}},
+                     2_000
+    end
+
+    test "the garage door's echo is one-shot the same way" do
+      seed_house(%{
+        "cover.garage_door" => %{state: "open", attributes: %{current_position: 100}}
+      })
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.AccessCoverClose, %{device: "cover:garage"})
+
+      assert eventually(fn -> agent_state("cover:garage").cover_state == :closed end)
+      settle!()
+      assert system_lines() == []
+
+      Fake.inject_state_changed("cover.garage_door", %{
+        state: "open",
+        attributes: %{current_position: 100}
+      })
+
+      assert_receive {:system_line, %Message{text: "garage door", meta: %{"value" => "Open"}}},
+                     2_000
+
+      Fake.inject_state_changed("cover.garage_door", %{
+        state: "closed",
+        attributes: %{current_position: 0}
+      })
+
+      assert_receive {:system_line, %Message{text: "garage door", meta: %{"value" => "Closed"}}},
+                     2_000
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   defp system_lines do

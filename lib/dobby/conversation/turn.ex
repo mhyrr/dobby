@@ -29,6 +29,45 @@ defmodule Dobby.Conversation.Turn do
   every delta would put `thermostat_set_temperature` in the middle of Dobby's
   reply.
 
+  ## Two of those events race, so the fold does not trust their order
+
+  `:tool_started` carries the arguments and `:tool_completed` carries the
+  result, and each reaches this task as its own `send/2` from its own freshly
+  spawned process: jido dispatches an `Emit` directive through
+  `Task.Supervisor.start_child/2`, and two such tasks have no happens-before
+  between them. On a loaded machine the completion arrives first two to three
+  times in a hundred — measured, not feared (`TurnOrderingReproTest`).
+
+  Sorting the stream would be the obvious answer and is not available: it is a
+  blocking enumerable, and holding events back to sort them would hold every
+  delta until the turn was over. So the fold absorbs the disorder instead, in
+  two places.
+
+  **`seq` settles the state word.** Each step remembers the seq that last wrote
+  it and refuses a lower one. Without that, a completion folded first puts
+  Ready on the board and the late start overwrites it with Listening — a word
+  going backwards on a board whose whole claim is that it can only show what
+  somebody set it to. And because `meta["steps"]` is built from the same map,
+  the persisted reply would record a finished step as still running for as long
+  as the thread is kept.
+
+  **The activity rows are written at the end.** A call's arguments and its
+  result arrive on different events, so a row written the moment the result
+  lands can be written before the arguments exist. That is how the log came to
+  hold a tool call against no device. Accumulating both and writing in
+  `finish/1` is ordering-independent by construction.
+
+  The alternative was to move only the rows and leave the fold alone. Rejected:
+  it repairs a column nothing reads yet and leaves the board walking its word
+  backwards, which is the half a person can see.
+
+  The cost, accepted: a turn that raises mid-stream never reaches `finish/1`
+  and loses its tool rows, where before they were already written. It was
+  losing the `request` row that way already, so what survived was a call with
+  no request around it — half a record. The person-visible line is not part of
+  the trade: `record_intervention/2` reads the result alone, needs no
+  ordering, and stays where it happens.
+
   ## Failure is a line in the thread, not a silence
 
   A request that fails, is cancelled, or comes back empty writes a system line
@@ -118,16 +157,31 @@ defmodule Dobby.Conversation.Turn do
       fail(request_id, "something went wrong answering that")
   end
 
+  @doc """
+  Folds a request's runtime events into a finished turn.
+
+  Public because ordering independence is a property of *this fold*, and the
+  only way to test a property of a fold is to hand it an order. The runtime
+  will not let a caller choose one — which of the two tool events arrives first
+  is the scheduler's business (see the note above) — so the rate at which it
+  goes wrong is measured by running the real path many times, and what happens
+  when it does is settled here, by handing the fold the swapped order on
+  purpose.
+  """
+  @spec fold(Enumerable.t(), String.t(), Speaker.t()) :: :ok
+  def fold(events, request_id, %Speaker{} = speaker) when is_binary(request_id) do
+    events
+    |> Enum.reduce(new_turn(request_id, speaker), &handle/2)
+    |> finish()
+  end
+
   defp ask(utterance, speaker, request_id, opts) do
     opts = Keyword.put(opts, :request_id, request_id)
 
     case DobbyAgent.stream(utterance, opts) do
       {:ok, %{events: events}} ->
         ThreadEvents.turn_started(request_id)
-
-        events
-        |> Enum.reduce(new_turn(request_id, speaker), &handle/2)
-        |> finish()
+        fold(events, request_id, speaker)
 
       {:error, :dobby_not_running} ->
         fail(request_id, "Dobby isn't running")
@@ -144,6 +198,7 @@ defmodule Dobby.Conversation.Turn do
       started_at: System.monotonic_time(:millisecond),
       steps: %{},
       arguments: %{},
+      calls: %{},
       order: [],
       text: %{},
       result: nil,
@@ -163,45 +218,47 @@ defmodule Dobby.Conversation.Turn do
     %{turn | text: Map.put(turn.text, seq, text)}
   end
 
-  defp handle(%Event{kind: :tool_started, data: data}, turn) do
+  # This event owns the arguments and the label built from them; only the
+  # `seq` guard stops it from also owning the state word after the fact.
+  defp handle(%Event{kind: :tool_started, seq: seq, data: data}, turn) do
     id = data[:tool_call_id] || data[:tool_name]
     arguments = data[:arguments] || %{}
+    label = Dobby.Tools.label(data[:tool_name] || "", arguments)
 
-    step = %{
-      id: id,
-      label: Dobby.Tools.label(data[:tool_name] || "", arguments),
-      state: :running,
-      detail: nil
-    }
+    turn
+    |> Map.update!(:arguments, &Map.put(&1, id, arguments))
+    |> advance(id, fn
+      nil ->
+        %{id: id, label: label, state: :running, detail: nil, seq: seq}
 
-    ThreadEvents.step(turn.request_id, step)
+      # Overtaken. The result is already in and its word stands; the only thing
+      # this event still has that the step lacks is the label the arguments
+      # made, so that is the only thing it is allowed to change.
+      %{seq: known} = step when known > seq ->
+        %{step | label: label}
 
-    %{
-      turn
-      | steps: Map.put(turn.steps, id, step),
-        order: turn.order ++ [id],
-        # `:tool_completed` carries the result and not the arguments, so what
-        # the call was *for* has to be kept from the start of it. Without this
-        # the activity log records a tool call against no device, which is the
-        # one column `TK-004` reads by.
-        arguments: Map.put(turn.arguments, id, arguments)
-    }
+      step ->
+        %{step | label: label, state: :running, detail: nil, seq: seq}
+    end)
   end
 
-  defp handle(%Event{kind: :tool_completed, data: data}, turn) do
+  defp handle(%Event{kind: :tool_completed, seq: seq, data: data}, turn) do
     id = data[:tool_call_id] || data[:tool_name]
     {state, detail} = outcome(data[:result])
 
-    step =
-      turn.steps
-      |> Map.get(id, %{id: id, label: Dobby.Tools.label(data[:tool_name] || "", %{})})
-      |> Map.merge(%{state: state, detail: detail})
+    # What the step is called until the start of it arrives with the arguments
+    # that make the better name.
+    label = Dobby.Tools.label(data[:tool_name] || "", %{})
 
-    ThreadEvents.step(turn.request_id, step)
-    record_tool_call(turn, data, Map.get(turn.arguments, id, %{}), state)
     record_intervention(turn, data)
 
-    %{turn | steps: Map.put(turn.steps, id, step)}
+    turn
+    |> Map.update!(:calls, &Map.put(&1, id, %{data: data, state: state}))
+    |> advance(id, fn
+      nil -> %{id: id, label: label, state: state, detail: detail, seq: seq}
+      %{seq: known} = step when known > seq -> step
+      step -> %{step | state: state, detail: detail, seq: seq}
+    end)
   end
 
   defp handle(%Event{kind: :request_completed, data: data}, turn) do
@@ -219,6 +276,28 @@ defmodule Dobby.Conversation.Turn do
   end
 
   defp handle(%Event{}, turn), do: turn
+
+  # Republished only when the merge actually moved something, so an event that
+  # was overtaken and had nothing left to add cannot make the board flicker.
+  # `seq` is bookkeeping and does not go out: `Dobby.ThreadEvents` promises a
+  # step with a label, a state and a detail, and that is what a surface renders.
+  defp advance(turn, id, merge) do
+    known = Map.get(turn.steps, id)
+
+    case merge.(known) do
+      ^known ->
+        turn
+
+      step ->
+        ThreadEvents.step(turn.request_id, Map.delete(step, :seq))
+
+        %{
+          turn
+          | steps: Map.put(turn.steps, id, step),
+            order: if(known, do: turn.order, else: turn.order ++ [id])
+        }
+    end
+  end
 
   # A device that declined is not a failure of Dobby's, and the board says so
   # with a different word. `accepted: false` is the write-acknowledgment
@@ -242,12 +321,15 @@ defmodule Dobby.Conversation.Turn do
 
   defp finish(%{error: error} = turn) when not is_nil(error) do
     detail = describe(error)
+    record_tool_calls(turn)
     record_request(turn, %{ok: false, error: detail})
     fail(turn.request_id, sentence(error), detail)
     catch_up()
   end
 
   defp finish(turn) do
+    record_tool_calls(turn)
+
     case reply_text(turn) do
       "" ->
         record_request(turn, %{ok: false, error: "empty reply"})
@@ -385,7 +467,26 @@ defmodule Dobby.Conversation.Turn do
     end
   end
 
-  defp record_tool_call(turn, data, arguments, state) do
+  # In `turn.order`, which is the order the calls opened in, so a request that
+  # made three of them reads back as the story it was. Written here rather than
+  # as each result lands because the arguments and the result arrive on
+  # separate events and either can be late; by now both are in.
+  #
+  # A step in `order` with nothing in `calls` is a call that opened and never
+  # resolved. It gets no row: the row's whole content would be that there is no
+  # content, and the `request` row written next says the turn ended badly.
+  defp record_tool_calls(turn) do
+    Enum.each(turn.order, fn id ->
+      case Map.fetch(turn.calls, id) do
+        {:ok, call} -> record_tool_call(turn, id, call)
+        :error -> :ok
+      end
+    end)
+  end
+
+  defp record_tool_call(turn, id, %{data: data, state: state}) do
+    arguments = Map.get(turn.arguments, id, %{})
+
     Activity.record(%{
       kind: "tool_call",
       actor: turn.speaker,

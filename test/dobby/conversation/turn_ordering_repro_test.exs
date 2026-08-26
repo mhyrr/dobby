@@ -38,8 +38,14 @@ if System.get_env("REPRO_RUNS") not in [nil, ""] do
     `Task.Supervisor.start_child/2`), so there is no happens-before between them.
     When they land in the wrong order it shows twice over: the activity row
     records a tool call against no device, and the step the board is showing goes
-    backwards from done to running. One cause, so one assertion — a failure that
+    backwards from done to running. One cause, so one assertion — a run that
     reported only the nil device would hide half of what broke.
+
+    Both halves are outcomes, not orderings. The race is still there after the
+    fix and always will be; what changed is that the fold absorbs it. A
+    disordered turn now publishes `done`, then `done` again under the better
+    label the arguments make, and that is a pass. Asserting the events arrived
+    as `running, done` would only be counting the scheduler's coin flips.
     """
 
     use Dobby.RigCase, async: false
@@ -89,14 +95,17 @@ if System.get_env("REPRO_RUNS") not in [nil, ""] do
 
         Turn.run(utterance, speaker, react_opts(script))
 
-        assert_receive {:step, _request_id, %{state: first}}, 5_000
-        assert_receive {:step, _request_id, %{state: second}}, 5_000
+        assert_receive {:step, _request_id, %{state: _first}}, 5_000
+        assert_receive {:step, _request_id, %{state: last}}, 5_000
 
         assert [entry] = Activity.recent() |> Enum.filter(&(&1.kind == "tool_call"))
 
-        # Asserted as one tuple so a failure prints the arrival order beside its
-        # consequence, which is what makes the cause readable from the output.
-        assert {[:running, :done], "thermostat:main"} == {[first, second], entry.device}
+        # Not the arrival order — no fix can change that, and asserting it
+        # would only count how often the scheduler swapped two sends. What is
+        # asserted is what the swap used to cost: the word the step comes to
+        # rest on, and whether the row knows what it moved. Both as one tuple,
+        # so a failure prints them together.
+        assert {:done, "thermostat:main"} == {last, entry.device}
       end
     end
 

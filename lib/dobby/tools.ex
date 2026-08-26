@@ -58,6 +58,27 @@ defmodule Dobby.Tools do
 
   def device_name(_arguments), do: "a device"
 
+  @doc """
+  Coerces a model-supplied number toward the integer the schema declares.
+
+  `:integer` renders as `"integer"` in the JSON schema, which is the truth;
+  this is for models that send `"60"` or `60.0` anyway, because we have
+  watched them do it. A value that will not read as a number passes through
+  unchanged, so NimbleOptions still names the field in its refusal.
+  """
+  @spec to_percent(term()) :: term()
+  def to_percent(value) when is_integer(value), do: value
+  def to_percent(value) when is_float(value), do: round(value)
+
+  def to_percent(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, _rest} -> number
+      :error -> value
+    end
+  end
+
+  def to_percent(value), do: value
+
   defp module(tool_name) do
     Enum.find(Dobby.Home.tools(), fn tool -> tool.name() == tool_name end)
   end

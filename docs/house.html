@@ -69,7 +69,7 @@
     <table>
       <tr><th>Key</th><th>What it is</th></tr>
       <tr><td><code>id</code></td><td>How Dobby refers to it, forever. Convention: <span class="arg">type:place</span>, like <span class="arg">thermostat:hall</span>.</td></tr>
-      <tr><td><code>type</code></td><td><span class="arg">thermostat</span>, <span class="arg">light</span>, <span class="arg">vacuum</span>, or <span class="arg">wifi_endpoint</span>.</td></tr>
+      <tr><td><code>type</code></td><td>One of the semantic types below. A type describes what the device means in the house, not who made it.</td></tr>
       <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
       <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
       <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity IDs exactly.</td></tr>
@@ -79,7 +79,11 @@
 
     <p>Entity ids are in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. A device bound to a wrong id shows <span class="arg">NOT KNOWN</span> and stays that way. <a href="running.html#verify">Verify</a> names it.</p>
 
-    <h2 id="types">The four types</h2>
+    <h2 id="types">The device types</h2>
+
+    <p>Home Assistant owns brands, accounts, radios, and protocols. Dobby owns the household contract. A Sonos room and a Cast speaker are both <span class="arg">speaker</span>. A Ring and a Reolink doorbell are both <span class="arg">doorbell</span>. Add one device entry for each household object you want Dobby to manage.</p>
+
+    <p>Some Home Assistant devices expose several entities. Keep them in one Dobby entry. A doorbell can bind its ring event, camera, and motion sensor. An environment monitor can bind temperature and humidity. Discovery proposes the complete binding map when Home Assistant says those entities share one device.</p>
 
     <h3 id="thermostat">thermostat</h3>
     <p>Dobby reads it and sets it. The hardware's range comes from Home Assistant. <code>settings</code> narrows that range to what your house allows anyone to ask for.</p>
@@ -102,6 +106,27 @@
   <span class="k">aliases:</span> [living room lamp]
   <span class="k">bindings:</span>
     <span class="k">light:</span> light.living_room</code></pre>
+
+    <h3 id="library">The common library</h3>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Type</th><th>Bindings</th><th>What Dobby offers</th></tr>
+      <tr><td><code>speaker</code></td><td><code>media_player</code></td><td>Status, play, pause, and volume. Sonos is an example integration, not a separate type.</td></tr>
+      <tr><td><code>camera</code></td><td><code>camera</code>; optional <code>motion</code></td><td>Status and motion. Streams and snapshots stay on Home Assistant's authenticated media path.</td></tr>
+      <tr><td><code>doorbell</code></td><td><code>event</code>; optional <code>camera</code> and <code>motion</code></td><td>The last ring event, camera availability, and motion.</td></tr>
+      <tr><td><code>lock</code></td><td><code>lock</code></td><td>Status and secure. Dobby does not offer unlock.</td></tr>
+      <tr><td><code>access_cover</code></td><td><code>cover</code></td><td>Status and close for a garage door, gate, powered door, or window. Dobby does not offer open.</td></tr>
+      <tr><td><code>power_switch</code></td><td><code>switch</code></td><td>Status, on, and off for a plug, outlet, or relay.</td></tr>
+      <tr><td><code>shade</code></td><td><code>cover</code></td><td>Status, open, close, and position for a blind, curtain, shutter, shade, or awning.</td></tr>
+      <tr><td><code>fan</code></td><td><code>fan</code></td><td>Status, on, off, and speed when the device reports speed support.</td></tr>
+      <tr><td><code>environment_monitor</code></td><td>One or more of <code>temperature</code>, <code>humidity</code>, <code>carbon_dioxide</code>, <code>air_quality</code>, <code>pm25</code>, <code>volatile_organic_compounds</code>, and <code>illuminance</code></td><td>Readings and units. Read only.</td></tr>
+      <tr><td><code>contact_sensor</code></td><td><code>contact</code></td><td>Open or closed for a door, window, or garage contact. Read only.</td></tr>
+      <tr><td><code>occupancy_sensor</code></td><td><code>occupancy</code></td><td>Motion, occupancy, or presence. Read only.</td></tr>
+      <tr><td><code>safety_sensor</code></td><td><code>alarm</code></td><td>Smoke, carbon monoxide, gas, water, heat, or cold alarm state. Read only.</td></tr>
+    </table>
+    </div>
+
+    <p>The action limit is part of each type. It does not depend on the model behaving well. Locks cannot be unlocked, access covers cannot be opened, and safety sensors cannot be actuated through the thread, a schedule, or MCP.</p>
 
     <h3 id="vacuum">vacuum</h3>
     <p>Dobby starts it and sends it home.</p>

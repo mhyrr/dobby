@@ -16,9 +16,11 @@ defmodule Dobby.DobbyAgent do
   manifest narrows it to this house per request, via the `:tools` option on
   `ask/3`. `Dobby.Home.tools/0` supplies that.
 
-  The guarantee is unchanged and arguably improved: the model still sees only
-  tools for devices this house actually has, and adding a device type is still
-  a new module plus a manifest line with no central list to edit.
+  The model still sees only tools for devices this house actually has. Jido's
+  literal restriction means a new registered type must also add its tools to
+  the declaration below. `LibraryContractTest` compares this declaration with
+  `Dobby.Home.library/0`, so the test suite refuses either list drifting from
+  the other.
   """
 
   @id "dobby"
@@ -128,6 +130,31 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.LightTurnOn,
       Dobby.Tools.LightTurnOff,
       Dobby.Tools.LightSetBrightness,
+      Dobby.Tools.SpeakerGetStatus,
+      Dobby.Tools.SpeakerPlay,
+      Dobby.Tools.SpeakerPause,
+      Dobby.Tools.SpeakerSetVolume,
+      Dobby.Tools.CameraGetStatus,
+      Dobby.Tools.DoorbellGetStatus,
+      Dobby.Tools.LockGetStatus,
+      Dobby.Tools.LockSecure,
+      Dobby.Tools.AccessCoverGetStatus,
+      Dobby.Tools.AccessCoverClose,
+      Dobby.Tools.PowerSwitchGetStatus,
+      Dobby.Tools.PowerSwitchTurnOn,
+      Dobby.Tools.PowerSwitchTurnOff,
+      Dobby.Tools.ShadeGetStatus,
+      Dobby.Tools.ShadeOpen,
+      Dobby.Tools.ShadeClose,
+      Dobby.Tools.ShadeSetPosition,
+      Dobby.Tools.FanGetStatus,
+      Dobby.Tools.FanTurnOn,
+      Dobby.Tools.FanTurnOff,
+      Dobby.Tools.FanSetSpeed,
+      Dobby.Tools.EnvironmentMonitorGetStatus,
+      Dobby.Tools.ContactSensorGetStatus,
+      Dobby.Tools.OccupancySensorGetStatus,
+      Dobby.Tools.SafetySensorGetStatus,
       Dobby.Tools.VacuumGetStatus,
       Dobby.Tools.VacuumStart,
       Dobby.Tools.VacuumDock,

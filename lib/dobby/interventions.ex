@@ -106,11 +106,43 @@ defmodule Dobby.Interventions do
            "temperature_f"
          ]) do
       value when is_number(value) -> "#{round(value)}°"
-      _absent -> nil
+      _absent -> state_reading(source)
     end
   end
 
   def reading(_source), do: nil
+
+  defp state_reading(source) do
+    # `last_event` is the doorbell's ring, and it is a string because Home
+    # Assistant's event types are; the rest are Dobby's own state atoms. The
+    # explicit nil head matters: nil is an atom, and without it an absent
+    # state key reads as the word "Nil" instead of falling through to the
+    # percent readings.
+    case first_of(source, [
+           :lock_state,
+           :cover_state,
+           :shade_state,
+           :power,
+           :playback,
+           :last_event
+         ]) do
+      nil ->
+        percent_reading(source)
+
+      value when is_atom(value) or is_binary(value) ->
+        value |> to_string() |> String.replace("_", " ") |> String.capitalize()
+
+      _other ->
+        percent_reading(source)
+    end
+  end
+
+  defp percent_reading(source) do
+    case first_of(source, [:position, :speed_percent, :volume_percent]) do
+      value when is_number(value) -> "#{round(value)}%"
+      _absent -> nil
+    end
+  end
 
   defp first_of(source, keys), do: Enum.find_value(keys, &Map.get(source, &1))
 end

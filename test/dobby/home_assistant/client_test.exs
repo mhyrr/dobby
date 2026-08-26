@@ -80,6 +80,41 @@ defmodule Dobby.HomeAssistant.ClientTest do
   end
 
   describe "initial state synchronization" do
+    test "catalogue entities carry the registry metadata needed for compound discovery" do
+      states = [
+        %{
+          "entity_id" => "event.front_door",
+          "state" => "2026-08-23T12:00:00Z",
+          "attributes" => %{
+            "device_class" => "doorbell",
+            "friendly_name" => "Front door",
+            "supported_features" => 3
+          }
+        }
+      ]
+
+      entity_registry = [
+        %{
+          "entity_id" => "event.front_door",
+          "device_id" => "ha-device-front-door",
+          "platform" => "reolink",
+          "entity_category" => nil
+        }
+      ]
+
+      url = HAServer.start!(owner: self(), states: states, entity_registry: entity_registry)
+      client = start_client!(url)
+      :ok = Client.configure_routing(client, %{"event.front_door" => "doorbell:front"})
+
+      assert_receive {:dispatched, "event.front_door", _state, _attributes}, 1_000
+
+      assert [entity] = Client.entities(client)
+      assert entity.device_id == "ha-device-front-door"
+      assert entity.platform == "reolink"
+      assert entity.device_class == "doorbell"
+      assert entity.supported_features == 3
+    end
+
     test "routing installed before connect: current states fan out on auth" do
       states = [
         %{
@@ -310,6 +345,45 @@ defmodule Dobby.HomeAssistant.ClientTest do
       assert_receive {:dispatched, "climate.hvac", "heat", %{}}, 1_000
 
       assert Client.execute(client, call()) == :ok
+    end
+  end
+
+  describe "the entity registry" do
+    defp registry_client!(url) do
+      client = start_client!(url)
+      :ok = Client.configure_routing(client, %{"climate.hvac" => "thermostat:main"})
+
+      assert_receive {:ha_server, :connected, handler}, 1_000
+      assert_receive {:ha_server, :received, %{"type" => "config/entity_registry/list"}}, 1_000
+
+      handler
+    end
+
+    test "a reconnect re-fetches the registry along with the states" do
+      url = HAServer.start!(owner: self())
+      handler = registry_client!(url)
+
+      send(handler, :close)
+
+      # Devices renamed or re-platformed during the outage must not leave
+      # discovery proposing from stale metadata.
+      assert_receive {:ha_server, :connected, _handler}, 1_000
+      assert_receive {:ha_server, :received, %{"type" => "config/entity_registry/list"}}, 1_000
+    end
+
+    test "a registry update event triggers a refetch rather than a guess" do
+      # HA's entity_registry_updated event names what changed, but the client
+      # deliberately refetches the whole registry: one code path, and a
+      # complete answer instead of a patch applied to a maybe-stale copy.
+      url = HAServer.start!(owner: self())
+      handler = registry_client!(url)
+
+      send(
+        handler,
+        {:push, %{type: "event", event: %{event_type: "entity_registry_updated", data: %{}}}}
+      )
+
+      assert_receive {:ha_server, :received, %{"type" => "config/entity_registry/list"}}, 1_000
     end
   end
 

@@ -211,6 +211,18 @@ defmodule Dobby.HomeConfig.WriterTest do
                "thermostat:main",
                "light:living_room",
                "vacuum:robo",
+               "speaker:kitchen",
+               "camera:back_yard",
+               "doorbell:front",
+               "lock:front",
+               "cover:garage",
+               "switch:coffee",
+               "shade:dining",
+               "fan:bedroom",
+               "monitor:office",
+               "contact:patio",
+               "occupancy:hall",
+               "safety:basement",
                "wifi:kitchen_tv",
                "wifi:office_printer"
              ]

@@ -33,9 +33,8 @@ defmodule Dobby.HomeConfig.Discovery do
   discovery is for what is missing.
 
   *Unrecognized* entities, meaning every entity no device type says it could
-  manage. A household Home Assistant has hundreds of entities and Dobby has
-  four device types; offering the other several hundred would bury the four
-  that matter. Each type answers for itself
+  manage. A household Home Assistant has hundreds of entities; offering every
+  one would bury the curated devices that matter. Each type answers for itself
   (`c:Dobby.DeviceAgent.matches_entity?/1`), so a new device type widens this
   by existing.
   """
@@ -44,15 +43,16 @@ defmodule Dobby.HomeConfig.Discovery do
   alias Dobby.HomeAssistant.Entity
   alias Dobby.HomeConfig.Types
 
-  @typedoc """
-  One entity Dobby could manage and does not, with the type it looks like.
-  """
+  @typedoc "One HA device Dobby could manage and does not."
   @type candidate :: %{
           entity_id: String.t(),
           type: String.t(),
-          binding: String.t(),
+          binding: String.t() | nil,
+          bindings: %{String.t() => String.t()},
           suggested_name: String.t(),
-          state: String.t() | nil
+          state: String.t() | nil,
+          device_id: String.t() | nil,
+          platform: String.t() | nil
         }
 
   @doc """
@@ -69,8 +69,13 @@ defmodule Dobby.HomeConfig.Discovery do
 
       candidates =
         HomeAssistant.entities()
-        |> Enum.reject(&MapSet.member?(bound, &1.entity_id))
-        |> Enum.flat_map(&describe(&1, modules))
+        |> Enum.filter(&is_nil(&1.entity_category))
+        |> Enum.group_by(&Entity.group_key/1)
+        |> Enum.map(fn {key, entities} -> {key, Enum.sort_by(entities, & &1.entity_id)} end)
+        |> Enum.sort_by(fn {_key, entities} ->
+          Enum.min_by(entities, & &1.entity_id).entity_id
+        end)
+        |> Enum.flat_map(fn {_key, entities} -> describe(entities, modules, bound) end)
 
       {:ok, candidates}
     end
@@ -89,23 +94,21 @@ defmodule Dobby.HomeConfig.Discovery do
   def validate_entry(entry) when is_map(entry) do
     type = Map.get(entry, "type")
 
-    with {:ok, module} <- fetch_type(type),
-         {:ok, binding} <- only_binding(module),
-         entity_id when is_binary(entity_id) <-
-           get_in(entry, ["bindings", Atom.to_string(binding)]),
+    with {:ok, _module} <- fetch_type(type),
+         bindings when is_map(bindings) <- Map.get(entry, "bindings"),
          {:ok, candidates} <- candidates(type: type) do
-      if Enum.any?(candidates, &(&1.entity_id == entity_id)) do
+      if Enum.any?(candidates, &(&1.bindings == bindings)) do
         :ok
       else
         {:error,
-         "Home Assistant does not currently report #{inspect(entity_id)} as an unbound #{type}; run discover_entities again"}
+         "Home Assistant does not currently report #{inspect(Map.values(bindings))} as an unbound #{type}; run discover_entities again"}
       end
     else
       {:error, reason} ->
         {:error, reason}
 
       _missing_or_unrecognized ->
-        {:error, "the proposed device does not name the entity binding for #{type}"}
+        {:error, "the proposed device does not name the entity bindings for #{type}"}
     end
   end
 
@@ -123,16 +126,6 @@ defmodule Dobby.HomeConfig.Discovery do
     case Types.fetch(type) do
       {:ok, module} -> {:ok, module}
       :error -> {:error, "unknown device type #{inspect(type)}; #{Types.roll_call()}"}
-    end
-  end
-
-  defp only_binding(module) do
-    case module.subscribed_bindings() do
-      [binding] ->
-        {:ok, binding}
-
-      _other ->
-        {:error, "#{module.config_type()} cannot be proposed from one Home Assistant entity"}
     end
   end
 
@@ -162,35 +155,51 @@ defmodule Dobby.HomeConfig.Discovery do
   defp wanted_types(other),
     do: {:error, "type must be a device type name, got #{inspect(other)}"}
 
-  # The first type that claims an entity wins. Today the four are disjoint, and
-  # if two ever overlap, a candidate offered once under one name is a better
-  # answer than the same entity offered twice.
-  defp describe(%Entity{} = entity, modules) do
-    case Enum.find(modules, & &1.matches_entity?(entity)) do
-      nil ->
-        []
-
-      module ->
-        [
-          %{
-            entity_id: entity.entity_id,
-            type: module.config_type(),
-            binding: binding_for(module),
-            suggested_name: Entity.label(entity),
-            state: entity.state
-          }
-        ]
-    end
+  # Each module chooses its anchor and, for a compound type, its related
+  # bindings. A physical HA device can still yield more than one semantic
+  # candidate when that is true — an AV receiver can be both a speaker and a
+  # television — so de-duplication is by type and binding set, not group alone.
+  defp describe(entities, modules, bound) do
+    modules
+    |> Enum.flat_map(fn module ->
+      entities
+      |> Enum.filter(&module.matches_entity?/1)
+      |> Enum.flat_map(&candidate(&1, entities, module, bound))
+    end)
+    |> Enum.uniq_by(&{&1.type, &1.bindings})
   end
 
-  # Which binding key the entity id belongs under, so the model copies an id
-  # rather than guessing a keyword. Every type Dobby has subscribes to exactly
-  # one binding; a future type with two would have to be told apart by more
-  # than its domain, and this says so rather than picking one.
-  defp binding_for(module) do
-    case module.subscribed_bindings() do
-      [only] -> Atom.to_string(only)
-      _several -> nil
+  defp candidate(anchor, entities, module, bound) do
+    case Dobby.DeviceAgent.discovery_bindings(module, anchor, entities) do
+      {:ok, bindings} when map_size(bindings) > 0 ->
+        if Enum.any?(bindings, fn {_binding, entity_id} ->
+             MapSet.member?(bound, entity_id)
+           end) do
+          []
+        else
+          string_bindings = Map.new(bindings, fn {key, value} -> {Atom.to_string(key), value} end)
+
+          [{binding, entity_id}] =
+            if map_size(string_bindings) == 1,
+              do: Map.to_list(string_bindings),
+              else: [{nil, anchor.entity_id}]
+
+          [
+            %{
+              entity_id: entity_id,
+              type: module.config_type(),
+              binding: binding,
+              bindings: string_bindings,
+              suggested_name: Entity.label(anchor),
+              state: anchor.state,
+              device_id: anchor.device_id,
+              platform: anchor.platform
+            }
+          ]
+        end
+
+      :ignore ->
+        []
     end
   end
 end

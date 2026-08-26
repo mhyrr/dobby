@@ -74,7 +74,9 @@ lib/dobby_web/
 
 ## Adding a device type
 
-One module implementing `Dobby.DeviceAgent` plus its actions. No central switch
+One module implementing `Dobby.DeviceAgent` plus its actions. Register it in
+`Dobby.HomeConfig.Types`, then add its tools to the literal declaration in
+`Dobby.DobbyAgent` that Jido requires at compile time. No central switch
 statement changes — that is the point of the behaviour, and a change that adds
 a `case` over device types somewhere central is the design being lost.
 
@@ -88,6 +90,14 @@ judgment is per-device knowledge and lives with the device.
 `Dobby.DeviceAgent` also carries what every type shares: `initial_state/2`
 builds the identity map, `changes/3` separates what differs from what actually
 moved, and `command/3` is the write protocol every caller uses.
+
+Every registered type must also have
+`test/dobby/device_agents/<module_name>_test.exs`. That file invokes
+`device_agent_contract Module, ...` for the shared manifest, discovery, state,
+snapshot, tool, and schedule checks. `LibraryContractTest` fails when a type is
+registered without that file and contract. Add type-specific capability,
+refusal, state-change, and HA-call scenarios in the same file; the shared
+contract is the floor, not the complete test plan.
 
 ## The Home Assistant boundary
 

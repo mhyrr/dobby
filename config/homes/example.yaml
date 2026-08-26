@@ -37,7 +37,7 @@ house:
   # One entry per device Dobby manages.
   #
   #   id        how Dobby refers to it, forever. Convention is type:place.
-  #   type      one of: thermostat, light, vacuum, wifi_endpoint.
+  #   type      one of the semantic device types shown below.
   #   name      what the household calls it, in the words they actually use.
   #   aliases   the other words they use for the same thing.
   #   bindings  which Home Assistant entity is which part of this device.
@@ -68,6 +68,108 @@ house:
       aliases: [living room lamp]
       bindings:
         light: light.living_room
+
+    # A speaker from any HA integration. Play, pause, and volume appear only
+    # when the media player reports those capabilities.
+    - id: speaker:kitchen
+      type: speaker
+      name: kitchen speaker
+      aliases: []
+      bindings:
+        media_player: media_player.kitchen
+
+    # A camera is read-only in Dobby. A related motion entity is optional.
+    - id: camera:back_yard
+      type: camera
+      name: back yard camera
+      aliases: []
+      bindings:
+        camera: camera.back_yard
+        motion: binary_sensor.back_yard_motion
+
+    # Home Assistant represents a doorbell ring as an event. Its camera and
+    # motion sensor remain parts of the same household device.
+    - id: doorbell:front
+      type: doorbell
+      name: front doorbell
+      aliases: []
+      bindings:
+        event: event.front_door
+        camera: camera.front_door
+        motion: binary_sensor.front_door_motion
+
+    # Secure-direction actions only. Dobby can lock and close. It never offers
+    # conversational unlock or open for access devices.
+    - id: lock:front
+      type: lock
+      name: front door lock
+      aliases: []
+      bindings:
+        lock: lock.front_door
+
+    - id: cover:garage
+      type: access_cover
+      name: garage door
+      aliases: []
+      bindings:
+        cover: cover.garage_door
+
+    # Plugs, outlets, and relays use the switch domain. A light remains a
+    # light when Home Assistant exposes it through the light domain.
+    - id: switch:coffee
+      type: power_switch
+      name: coffee station
+      aliases: []
+      bindings:
+        switch: switch.coffee_station
+
+    # Non-access covers can move both ways. Position appears only when HA says
+    # the hardware supports it.
+    - id: shade:dining
+      type: shade
+      name: dining room shade
+      aliases: []
+      bindings:
+        cover: cover.dining_shade
+
+    - id: fan:bedroom
+      type: fan
+      name: bedroom fan
+      aliases: []
+      bindings:
+        fan: fan.bedroom
+
+    # Several readings from one HA device become one environment monitor.
+    - id: monitor:office
+      type: environment_monitor
+      name: office air
+      aliases: []
+      bindings:
+        temperature: sensor.office_temperature
+        humidity: sensor.office_humidity
+
+    - id: contact:patio
+      type: contact_sensor
+      name: patio door
+      aliases: []
+      bindings:
+        contact: binary_sensor.patio_door
+
+    - id: occupancy:hall
+      type: occupancy_sensor
+      name: hall occupancy
+      aliases: []
+      bindings:
+        occupancy: binary_sensor.hall_occupancy
+
+    # Life-safety sensors are read-only. Sirens and alarm panels are different
+    # actors and are not exposed through this type.
+    - id: safety:basement
+      type: safety_sensor
+      name: basement smoke detector
+      aliases: []
+      bindings:
+        alarm: binary_sensor.basement_smoke
 
     # A robot vacuum Dobby can start and send home.
     - id: vacuum:downstairs

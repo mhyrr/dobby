@@ -51,12 +51,52 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
 
     test "an entity no device type could manage is left out rather than listed" do
       # A household Home Assistant has hundreds of these. Offering them would
-      # bury the four kinds Dobby can actually do something with.
+      # bury the kinds Dobby can actually do something with.
       Fake.put_entity("sensor.outdoor_humidity", %{state: "61", attributes: %{}})
-      Fake.put_entity("media_player.kitchen", %{state: "idle", attributes: %{}})
+      Fake.put_entity("weather.home", %{state: "sunny", attributes: %{}})
 
       assert {:ok, candidates} = Discovery.candidates()
       assert candidates == []
+    end
+
+    test "diagnostic entities are not proposed as household devices" do
+      Fake.put_entity("sensor.receiver_temperature", %{
+        state: "102",
+        attributes: %{device_class: "temperature"},
+        device_id: "living-room-receiver",
+        entity_category: "diagnostic"
+      })
+
+      assert {:ok, []} = Discovery.candidates(type: "environment_monitor")
+    end
+
+    test "the rig's own diagnostic entity is never offered, whole-house" do
+      # The test above proves the rule on a fixture this file wrote. This one
+      # proves it against the standing house: `config/homes/rig.exs` keeps a
+      # diagnostic temperature on purpose — an entity a type *recognizes* — so
+      # the filter is exercised by the same file `mix phx.server` boots, not
+      # only by a fixture that could drift from it.
+      rig_entities =
+        Config.Reader.read!("config/homes/rig.exs")
+        |> get_in([:dobby, Dobby.Home, :home_assistant, :entities])
+
+      diagnostics =
+        for {entity_id, entity} <- rig_entities,
+            entity[:entity_category] == "diagnostic",
+            do: entity_id
+
+      assert diagnostics != [], "the rig no longer carries its diagnostic tripwire entity"
+
+      Enum.each(rig_entities, fn {entity_id, entity} -> Fake.put_entity(entity_id, entity) end)
+
+      assert {:ok, candidates} = Discovery.candidates()
+      assert candidates != []
+
+      offered = Enum.flat_map(candidates, &Map.values(&1.bindings))
+
+      for entity_id <- diagnostics do
+        refute entity_id in offered
+      end
     end
 
     test "a binary_sensor is a wifi endpoint only when it reports connectivity" do
@@ -67,9 +107,9 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
         attributes: %{friendly_name: "Office Printer", device_class: "connectivity"}
       })
 
-      Fake.put_entity("binary_sensor.hall_motion", %{
+      Fake.put_entity("binary_sensor.hall_battery", %{
         state: "off",
-        attributes: %{friendly_name: "Hall Motion", device_class: "motion"}
+        attributes: %{friendly_name: "Hall Battery", device_class: "battery"}
       })
 
       assert {:ok, candidates} = Discovery.candidates()
@@ -85,7 +125,8 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
 
       assert {:error, reason} = Discovery.candidates(type: "media_player")
       assert reason =~ "unknown device type"
-      assert reason =~ "thermostat, light, vacuum, wifi_endpoint"
+      assert reason =~ "thermostat, light, speaker"
+      assert reason =~ "safety_sensor, vacuum, wifi_endpoint"
     end
 
     test "an entity with no friendly name suggests its id and says so plainly" do
@@ -120,6 +161,69 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
 
       assert {:ok, [candidate]} = Discovery.candidates(type: "wifi_endpoint")
       assert candidate.suggested_name == "On The Wire"
+    end
+  end
+
+  describe "compound devices" do
+    test "a doorbell is proposed once with its event, camera, and motion bindings" do
+      boot_house!([])
+
+      Fake.put_entity("event.front_door", %{
+        state: "2026-08-23T12:00:00+00:00",
+        attributes: %{friendly_name: "Front Door", device_class: "doorbell"},
+        device_id: "front-door-device",
+        platform: "ring"
+      })
+
+      Fake.put_entity("camera.front_door", %{
+        state: "idle",
+        attributes: %{friendly_name: "Front Door Camera"},
+        device_id: "front-door-device",
+        platform: "ring"
+      })
+
+      Fake.put_entity("binary_sensor.front_door_motion", %{
+        state: "off",
+        attributes: %{device_class: "motion"},
+        device_id: "front-door-device",
+        platform: "ring"
+      })
+
+      assert {:ok, [candidate]} = Discovery.candidates(type: "doorbell")
+
+      assert candidate.bindings == %{
+               "event" => "event.front_door",
+               "camera" => "camera.front_door",
+               "motion" => "binary_sensor.front_door_motion"
+             }
+
+      assert candidate.device_id == "front-door-device"
+      assert candidate.platform == "ring"
+
+      assert {:ok, []} = Discovery.candidates(type: "camera")
+      assert {:ok, []} = Discovery.candidates(type: "occupancy_sensor")
+    end
+
+    test "readings on one HA device become one environment monitor" do
+      boot_house!([])
+
+      for {entity_id, class, state} <- [
+            {"sensor.office_temperature", "temperature", "72.4"},
+            {"sensor.office_humidity", "humidity", "41"}
+          ] do
+        Fake.put_entity(entity_id, %{
+          state: state,
+          attributes: %{device_class: class},
+          device_id: "office-air-device"
+        })
+      end
+
+      assert {:ok, [candidate]} = Discovery.candidates(type: "environment_monitor")
+
+      assert candidate.bindings == %{
+               "temperature" => "sensor.office_temperature",
+               "humidity" => "sensor.office_humidity"
+             }
     end
   end
 end

@@ -28,6 +28,14 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
   @climate "climate.main_floor"
 
   setup do
+    boot_house!([
+      thermostat_device("thermostat:main", "main thermostat", entity: @climate),
+      light_device("light:living_room", "living room light", entity: "light.living_room"),
+      vacuum_device("vacuum:robo", "robot vacuum", entity: "vacuum.robo"),
+      wifi_device("wifi:kitchen_tv", "kitchen TV", "binary_sensor.kitchen_tv"),
+      wifi_device("wifi:office_printer", "office printer", "binary_sensor.office_printer")
+    ])
+
     seed_house(%{
       @climate => thermostat_entity(current: 68, target: 68),
       "binary_sensor.kitchen_tv" => %{state: "on", attributes: %{}},
@@ -165,5 +173,18 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
 
   defp world_model do
     agent_state(DobbyAgent.id()) |> Map.get(:world_model) || %{}
+  end
+
+  defp wifi_device(id, name, entity_id) do
+    %{
+      id: id,
+      name: name,
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.WifiEndpoint,
+      network: :home_wifi,
+      ha_integration: :ping,
+      bindings: %{connectivity: entity_id},
+      settings: %{}
+    }
   end
 end

@@ -9,6 +9,13 @@ defmodule Dobby.DeviceAgents.VacuumTest do
 
   use Dobby.RigCase, async: false
 
+  import Dobby.DeviceAgentContract
+
+  device_agent_contract(Dobby.DeviceAgents.Vacuum,
+    bindings: %{vacuum: "vacuum.contract"},
+    entity: [entity_id: "vacuum.contract"]
+  )
+
   alias Dobby.Tools.{VacuumDock, VacuumGetStatus, VacuumStart}
 
   @vacuum "vacuum:robo"

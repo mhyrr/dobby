@@ -47,7 +47,7 @@ defmodule Dobby.DeviceAgents.Light.SetBrightness do
 
   defp authorize(state, percent) do
     cond do
-      not state.available ->
+      state.available != true ->
         {:error, "#{state.name} is unavailable"}
 
       not Light.dimmable?(state) ->

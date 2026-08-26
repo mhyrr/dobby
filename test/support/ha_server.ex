@@ -22,6 +22,7 @@ defmodule Dobby.HAServer do
     * `:owner` — the test pid;
     * `:token` — the access token `auth` must present (default `"rig-token"`);
     * `:states` — the `get_states` result (default `[]`);
+    * `:entity_registry` — the `config/entity_registry/list` result (default `[]`);
     * `:call_service` — `:ok` to answer success (default), `{:error, code,
       message}` to refuse, `:silent` to never answer.
   """
@@ -90,6 +91,11 @@ defmodule Dobby.HAServer do
     defp handle_message(%{"type" => "get_states", "id" => id}, config) do
       states = Map.get(config, :states, [])
       {:push, frame(%{id: id, type: "result", success: true, result: states}), config}
+    end
+
+    defp handle_message(%{"type" => "config/entity_registry/list", "id" => id}, config) do
+      entries = Map.get(config, :entity_registry, [])
+      {:push, frame(%{id: id, type: "result", success: true, result: entries}), config}
     end
 
     defp handle_message(%{"type" => "call_service", "id" => id}, config) do

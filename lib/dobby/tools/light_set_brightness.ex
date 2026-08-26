@@ -40,20 +40,8 @@ defmodule Dobby.Tools.LightSetBrightness do
 
   @impl true
   def on_before_validate_params(params) do
-    {:ok, Map.update(params, :brightness_percent, nil, &to_percent/1)}
+    {:ok, Map.update(params, :brightness_percent, nil, &Dobby.Tools.to_percent/1)}
   end
-
-  defp to_percent(value) when is_integer(value), do: value
-  defp to_percent(value) when is_float(value), do: round(value)
-
-  defp to_percent(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {number, _rest} -> number
-      :error -> value
-    end
-  end
-
-  defp to_percent(value), do: value
 
   @impl true
   def run(%{device: device_id, brightness_percent: percent}, _context) do

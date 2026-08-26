@@ -52,13 +52,48 @@ test? = config_env() == :test
 # hands back the one manifest shape `Dobby.Home` has always taken. It is called
 # from here because it is pure — runtime.exs runs with the dependencies loaded
 # and the application not started.
+#
+# Read once rather than inside the cond, because the raise below has to know
+# whether the environment is what chose this path.
+manifest_env = if test?, do: nil, else: System.get_env("DOBBY_HOME_MANIFEST")
+
 home_path =
   cond do
     test? -> "config/homes/rig.exs"
-    path = System.get_env("DOBBY_HOME_MANIFEST") -> path
+    manifest_env -> manifest_env
     config_env() == :prod -> "/opt/dobby/config/home.yaml"
     true -> "config/homes/rig.exs"
   end
+
+# A variable exported in a shell outlives the file it names. This one still
+# said `local.exs` after YAML became canonical and the file became
+# `local.yaml`, and because the real environment is sourced after .env above,
+# the stale export beat the corrected line .env.example has carried all along.
+# What the boot reported was a missing path — never the variable that chose
+# it, which is the sentence that ends the search.
+#
+# By here the two layers have already been flattened into one environment, so
+# the message cannot say which of them holds the bad value. It says both, and
+# says which one wins, because that ambiguity is the trap itself: correcting
+# .env changes nothing while an export shadows it.
+#
+# `Dobby.HomeConfig.load!/1` cannot carry this and should not learn how — every
+# other caller hands it a path whose provenance it already knows. This is the
+# one place a path arrives from the environment, so this is where the
+# environment gets named.
+if manifest_env && not File.regular?(manifest_env) do
+  nearby =
+    case Path.wildcard("config/homes/*") do
+      [] -> ""
+      files -> " This tree has: #{Enum.join(files, ", ")}."
+    end
+
+  raise ArgumentError,
+        "DOBBY_HOME_MANIFEST names #{manifest_env}, and there is no such file. " <>
+          "It is set in this shell or in .env, and an export beats .env — so a " <>
+          "stale export survives every correction made there. Point it at a home " <>
+          "file, or clear it in both to boot the rig." <> nearby
+end
 
 home = Dobby.HomeConfig.load!(home_path)
 

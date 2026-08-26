@@ -12,6 +12,16 @@ defmodule Dobby.HomeAssistant.Client do
   loss answers in-flight calls with `{:error, :disconnected}` rather than
   crashing anybody, and reconnection is automatic with capped backoff.
 
+  Boot survives the *slow* failures too, and that is the harder half. A host
+  that refuses the connection says so at once; a host that accepts it and then
+  stalls — a wedged HAOS, a reverse proxy holding the socket open, a box
+  mid-reboot — used to hold this process for the whole transport timeout,
+  which is the same five seconds `Dobby.Home.init/1` has to ask for the
+  routing table. So connecting happens in a process of its own and the socket
+  is handed back (`Mint.HTTP.controlling_process/2`), and the handshake that
+  follows is on a clock, because an open socket that never speaks reports
+  nothing to anybody (TK-017).
+
   On every authenticated connection — first or reconnect — the client
   subscribes to `state_changed` and then fetches current states, fanning the
   routed ones out to their device agents. That is `Fake.configure_routing/1`'s
@@ -39,6 +49,19 @@ defmodule Dobby.HomeAssistant.Client do
   # sooner; this only catches a healthy socket with a silent server.
   @execute_timeout 10_000
 
+  # How long one connect attempt may take before it is abandoned. It runs in
+  # its own process, so this bounds a socket rather than the mailbox — but it
+  # is still what a wedged host costs before the retry.
+  @connect_timeout 5_000
+
+  # And how long the handshake that follows may take. Connecting is the only
+  # step the transport puts a clock on: after it, an HTTP upgrade that is never
+  # answered and an `auth_required` that never arrives look exactly like a
+  # healthy connection with nothing to say. Generous, because it is a LAN round
+  # trip and two frames, and the cost of firing early is a reconnect loop
+  # against a house that was merely slow.
+  @handshake_timeout 10_000
+
   @initial_backoff 1_000
   @max_backoff 30_000
 
@@ -51,6 +74,11 @@ defmodule Dobby.HomeAssistant.Client do
     :websocket,
     upgrade_status: nil,
     status: :disconnected,
+    # The process doing the blocking part, and the attempt it belongs to. Every
+    # message from a connect carries its attempt number, so an answer from an
+    # attempt this process has already given up on is recognisable as one.
+    connector: nil,
+    attempt: 0,
     routing: nil,
     # Every entity Home Assistant has reported, routed or not (TK-010). The
     # routing table decides who *hears* about an entity; this is the client
@@ -62,7 +90,8 @@ defmodule Dobby.HomeAssistant.Client do
     pending: %{},
     next_id: 1,
     backoff: @initial_backoff,
-    initial_backoff: @initial_backoff
+    initial_backoff: @initial_backoff,
+    handshake_timeout: @handshake_timeout
   ]
 
   # -- client ----------------------------------------------------------------
@@ -136,6 +165,7 @@ defmodule Dobby.HomeAssistant.Client do
       token: token,
       backoff: initial_backoff,
       initial_backoff: initial_backoff,
+      handshake_timeout: Keyword.get(opts, :handshake_timeout, @handshake_timeout),
       # The seam client tests observe delivery through. Production always
       # dispatches to the routed device agent.
       dispatch: Keyword.get(opts, :dispatch, &Dobby.HomeAssistant.dispatch_state_changed/4)
@@ -178,6 +208,40 @@ defmodule Dobby.HomeAssistant.Client do
 
   def handle_info(:connect, state), do: {:noreply, state}
 
+  def handle_info({:ha_connected, attempt, conn}, %{attempt: attempt} = state),
+    do: {:noreply, upgrade(%{state | connector: nil}, conn)}
+
+  # A connection from an attempt this process has moved on from. Ownership has
+  # already been transferred here, so closing it is not tidiness — it is the
+  # only place left that can.
+  def handle_info({:ha_connected, _attempt, conn}, state) do
+    Mint.HTTP.close(conn)
+    {:noreply, state}
+  end
+
+  def handle_info({:ha_connect_failed, attempt, reason}, %{attempt: attempt} = state),
+    do: {:noreply, retry(%{state | connector: nil}, reason)}
+
+  def handle_info({:ha_connect_failed, _attempt, _reason}, state), do: {:noreply, state}
+
+  # The connector died instead of answering. Whatever socket it had died with
+  # it, so there is nothing to close and everything to retry. A normal exit is
+  # the ordinary end of an attempt that already reported, and says nothing.
+  def handle_info({:DOWN, monitor, :process, pid, reason}, %{connector: {pid, monitor}} = state) do
+    case reason do
+      :normal -> {:noreply, %{state | connector: nil}}
+      reason -> {:noreply, retry(%{state | connector: nil}, reason)}
+    end
+  end
+
+  def handle_info({:DOWN, _monitor, :process, _pid, _reason}, state), do: {:noreply, state}
+
+  def handle_info({:handshake_timeout, attempt}, %{attempt: attempt, status: status} = state)
+      when status in [:connecting, :authenticating],
+      do: {:noreply, disconnect(state, :handshake_timeout)}
+
+  def handle_info({:handshake_timeout, _attempt}, state), do: {:noreply, state}
+
   def handle_info(_message, %{conn: nil} = state), do: {:noreply, state}
 
   def handle_info(message, state) do
@@ -195,19 +259,60 @@ defmodule Dobby.HomeAssistant.Client do
 
   # -- connection ------------------------------------------------------------
 
+  # Returns immediately, always. Everything that can block about connecting
+  # happens in the spawned process; this one goes back to its mailbox, which
+  # is where `Dobby.Home.init/1` is waiting.
   defp attempt_connect(state) do
     endpoint = endpoint(state.url)
+    client = self()
+    attempt = state.attempt + 1
 
-    with {:ok, conn} <-
-           Mint.HTTP.connect(endpoint.http_scheme, endpoint.host, endpoint.port,
-             protocols: [:http1],
-             transport_opts: [timeout: 5_000]
-           ),
-         {:ok, conn, ref} <- Mint.WebSocket.upgrade(endpoint.ws_scheme, conn, endpoint.path, []) do
-      %{state | conn: conn, ref: ref, status: :connecting}
-    else
+    # Monitored rather than linked: a connector that crashes must cost a retry,
+    # not the client. Restarting the client would lose the routing table, which
+    # only `Dobby.Home` at boot ever installs.
+    connector = spawn_monitor(fn -> connect(client, attempt, endpoint) end)
+
+    %{state | status: :connecting, attempt: attempt, connector: connector}
+  end
+
+  # Mint's documented handover, in its documented order: the connection struct
+  # is sent first so the client is holding it before any socket message can
+  # arrive, and ownership follows. The upgrade is deliberately left undone —
+  # it belongs to whichever process is going to read the answer.
+  defp connect(client, attempt, endpoint) do
+    case Mint.HTTP.connect(endpoint.http_scheme, endpoint.host, endpoint.port,
+           protocols: [:http1],
+           transport_opts: [timeout: @connect_timeout]
+         ) do
+      {:ok, conn} ->
+        send(client, {:ha_connected, attempt, conn})
+
+        case Mint.HTTP.controlling_process(conn, client) do
+          {:ok, _conn} ->
+            :ok
+
+          # The client has a connection whose socket it does not own, and this
+          # process is about to exit and close it underneath. Better told than
+          # discovered.
+          {:error, reason} ->
+            send(client, {:ha_connect_failed, attempt, reason})
+        end
+
       {:error, reason} ->
-        retry(state, reason)
+        send(client, {:ha_connect_failed, attempt, reason})
+    end
+  end
+
+  defp upgrade(state, conn) do
+    endpoint = endpoint(state.url)
+
+    case Mint.WebSocket.upgrade(endpoint.ws_scheme, conn, endpoint.path, []) do
+      {:ok, conn, ref} ->
+        # From here the house has a fixed time to say `auth_required`, answer
+        # the auth, and let `auth_ok` land. Nothing under this reports a socket
+        # that is open and mute.
+        Process.send_after(self(), {:handshake_timeout, state.attempt}, state.handshake_timeout)
+        %{state | conn: conn, ref: ref, status: :connecting}
 
       # A failed upgrade means the TCP connection is already up. Retrying
       # forever without closing it leaks a socket per attempt.
@@ -337,9 +442,9 @@ defmodule Dobby.HomeAssistant.Client do
   defp handle_message(state, %{"type" => "auth_ok"} = message) do
     Logger.info("connected to Home Assistant #{message["ha_version"]} at #{state.url}")
 
-    # Announced rather than answered on request: a surface asking this process
-    # whether it is connected would queue behind the reconnect it is in the
-    # middle of. See `Dobby.HomeAssistant.Connection`.
+    # Announced rather than answered on request: the surface that most wants
+    # to know the connection is down is the one a dead client could never
+    # answer. See `Dobby.HomeAssistant.Connection`.
     Connection.publish(__MODULE__, :connected)
 
     %{state | status: :connected, backoff: state.initial_backoff}

@@ -206,9 +206,9 @@ defmodule DobbyWeb.AdminLiveTest do
     end
 
     # The connection is a fact about the world, not about the process, and it
-    # arrives as a transition rather than being asked for — the client spends
-    # its bad minutes blocked in a connect, which is exactly when a synchronous
-    # status call would be waited on.
+    # arrives as a transition rather than being asked for — a client that has
+    # died cannot answer a status call, and that is the moment the panel most
+    # needs to be right.
     test "a lost connection to Home Assistant reaches the panel", %{conn: conn} do
       {:ok, view, _html} = open(conn, :topology)
 

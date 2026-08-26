@@ -17,6 +17,7 @@ defmodule Dobby.HomeAssistant.ClientTest do
   alias Dobby.HAServer
   alias Dobby.HomeAssistant.Client
   alias Dobby.HomeAssistant.Connection
+  alias Dobby.StalledHost
 
   defp start_client!(url, opts \\ []) do
     test = self()
@@ -33,6 +34,22 @@ defmodule Dobby.HomeAssistant.ClientTest do
          opts
        )}
     )
+  end
+
+  # Wall-clock, because the thing under test is how long the client makes a
+  # caller wait. An exit is timing too: a call that gives up at its deadline
+  # took its deadline.
+  defp timed(fun) do
+    started = System.monotonic_time(:millisecond)
+
+    result =
+      try do
+        fun.()
+      catch
+        :exit, reason -> {:exit, reason}
+      end
+
+    {System.monotonic_time(:millisecond) - started, result}
   end
 
   defp call(entity_id \\ "climate.hvac", temperature \\ 72) do
@@ -76,6 +93,64 @@ defmodule Dobby.HomeAssistant.ClientTest do
 
       assert Client.execute(client, call()) == {:error, :disconnected}
       assert Process.alive?(client)
+    end
+  end
+
+  describe "a house that accepts the connection and then goes silent" do
+    # Not "the client cannot connect" — refused and unresolvable have always
+    # been survived, because they answer immediately. What this block is for is
+    # that a *slow* failure used to be served from inside the client's own
+    # mailbox, and the caller waiting on that mailbox at boot is
+    # `Dobby.Home.init/1` (TK-017).
+
+    test "does not hold the mailbox the house boots through" do
+      host = StalledHost.start!(owner: self())
+      client = start_client!(host.https)
+
+      # The client is now inside a connect that will never complete. Waited on
+      # generously: the first `:https` connect in a VM loads the operating
+      # system's trust store before it opens a socket at all, and that happens
+      # in the connector — which is the point, but it means the accept is not
+      # the prompt event it looks like.
+      assert_receive {:stalled_host, :accepted}, 15_000
+
+      # Exactly the call `Dobby.Home.init/1` makes, at the moment it makes it:
+      # after the client has started connecting and before it has got
+      # anywhere. Its deadline is `GenServer.call/2`'s default five seconds,
+      # and a blocking connect burns every one of them.
+      {elapsed, result} = timed(fn -> Client.configure_routing(client, %{}) end)
+
+      assert elapsed < 1_000,
+             "configure_routing took #{elapsed}ms while the client was connecting; " <>
+               "Dobby.Home.init/1 has 5_000ms for the whole of boot"
+
+      assert result == :ok
+      assert Process.alive?(client)
+    end
+
+    test "is given up on and tried again, so the client is there when the house is" do
+      host = StalledHost.start!(owner: self())
+      client = start_client!(host.http, handshake_timeout: 200)
+
+      # Over http the connection itself is made at once, and it is the
+      # WebSocket upgrade that goes unanswered. An open socket with nobody on
+      # the far end of it is the failure nothing below reports: no error, no
+      # close, and — until the handshake was put on a clock — no retry either.
+      assert_receive {:stalled_host, :accepted}, 5_000
+      assert_receive {:stalled_host, :accepted}, 5_000
+      assert_receive {:stalled_host, :accepted}, 5_000
+
+      # Honest about it the whole time, rather than hopeful.
+      assert Client.execute(client, call()) == {:error, :disconnected}
+
+      # And the house comes home to the address the client is already knocking
+      # at. Nobody tells it; it was already trying.
+      StalledHost.stop(host)
+      HAServer.start!(owner: self(), port: host.port)
+
+      assert_receive {:ha_server, :connected, _handler}, 5_000
+      assert_receive {:ha_server, :received, %{"type" => "auth"}}, 2_000
+      assert_receive {:ha_server, :received, %{"type" => "subscribe_events"}}, 2_000
     end
   end
 
@@ -402,8 +477,9 @@ defmodule Dobby.HomeAssistant.ClientTest do
       assert_receive {:home_assistant, :connected}, 1_000
       assert Connection.status(Client) == :connected
 
-      # Announced on the way down, never asked for: the client spends its bad
-      # minutes blocked in a connect, which is when a question would hang.
+      # Announced on the way down, never asked for. A client that has *died*
+      # cannot answer a question at all, and that is the state a health panel
+      # most wants to render.
       send(handler, :close)
 
       assert_receive {:home_assistant, :reconnecting}, 1_000

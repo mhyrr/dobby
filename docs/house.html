@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The house file · Dobby</title>
-<meta name="description" content="One YAML file: your devices, your rules, and the box's settings.">
+<title>The house, written down · Dobby</title>
+<meta name="description" content="The explicit source of truth for Dobby's managed devices, household names, bindings, limits, and system settings.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html" aria-current="page">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html" aria-current="page">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -35,8 +35,12 @@
   </aside>
 
   <article>
-    <h1>The house file</h1>
-    <p class="lede">One YAML file tells Dobby what the house contains and how the box should behave. You own it. Dobby writes to it too. It never holds a secret, so you can share it.</p>
+    <h1>The house, written down</h1>
+    <p class="lede">Dobby's understanding of the house is not hidden in a model prompt. It has an explicit source of truth.</p>
+
+    <h2 id="source">One house model, four ways to write it</h2>
+    <p>The shared thread, the forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, an outside agent over MCP, and a text editor can all change the same model. One writer validates and serializes every application change.</p>
+    <p>YAML is the current durable representation. It records which devices Dobby manages, what the household calls them, how they bind to Home Assistant, which settings narrow their capabilities, and how the Dobby server should run. The file never holds a secret, so you can share it.</p>
 
     <p>In development, <code>DOBBY_HOME_MANIFEST</code> names the file. In an install it is <span class="arg">/opt/dobby/config/home.yaml</span>. Start from the example:</p>
 <pre><code>cp config/homes/example.yaml config/homes/my-house.yaml</code></pre>
@@ -68,7 +72,7 @@
       <tr><td><code>type</code></td><td><span class="arg">thermostat</span>, <span class="arg">light</span>, <span class="arg">vacuum</span>, or <span class="arg">wifi_endpoint</span>.</td></tr>
       <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
       <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
-      <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity ids exactly.</td></tr>
+      <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity IDs exactly.</td></tr>
       <tr><td><code>settings</code></td><td>House rules. Optional. They can narrow what the hardware allows, never widen it.</td></tr>
     </table>
     </div>
@@ -155,8 +159,8 @@
     </div>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="index.html"><small>Previous</small>Start</a>
-      <a class="next" href="running.html"><small>Next</small>Running it</a>
+      <a class="prev" href="agents.html"><small>Previous</small>Let other agents speak house</a>
+      <a class="next" href="box.html"><small>Next</small>A place for Dobby to live</a>
     </nav>
   </article>
 </main>

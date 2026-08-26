@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dobby · Guide</title>
-<meta name="description" content="A house elf for your Home Assistant. Anyone at home can ask it for things in plain words, and it does them. How to set it up and live with it.">
+<title>Dobby · The house elf for Home Assistant</title>
+<meta name="description" content="Dobby gives everyone at home one shared household agent, with Home Assistant running the machinery underneath.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
 <body>
 <!--
 DIRECTION · seed 8ac72cfd
-THESIS: A user's guide that proves itself the way the board does — every section with an outcome ends on the instrument's own face, a word on a flap or the literal line the terminal printed — and refuses the docs-site default of a sidebar, a search box and a hero.
+THESIS: Sell the magic. Prove the machinery. Household situations come first. Every promise with a visible consequence ends on the instrument's own face.
 OWN-WORLD: The departure board, read rather than operated: bronze plate, cool enamel flap cards, brass rules; Barlow for what a person reads, Barlow Condensed for the instrument talking; five state colours and nowhere else; square corners. Dark is the board at night; light is the printed manual on cream enamel.
-STORY: A person with a Home Assistant installs Dobby, describes their house, talks to it, grows it, sends their own agent at it — and at every step knows what they should see, so they never take the guide's word for it.
-FIRST VIEWPORT: Plate "Dobby · Guide" on a brass rule; the chapter rail; the mark beside "Dobby" at 3rem; the lede; the contents sheet. Signature interaction: a proof's flap lands on its word (420ms, ease-out) the first time it scrolls into view.
+STORY: A person with a Home Assistant sees what a house-scoped agent changes, learns why the design is bounded, then brings it home and opens the machinery.
+FIRST VIEWPORT: Plate "Dobby · Guide" on a brass rule; the chapter rail; the mark beside "Dobby" at 3rem; the category, the human problem, and the first household exchange. Signature interaction: a proof's flap lands on its word (420ms, ease-out) the first time it scrolls into view.
 FORM: The Ledger of Proofs — candidate 6 of 7, the roll. Code-led.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->
@@ -27,13 +27,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html" aria-current="page">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -62,98 +62,95 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       </svg>
       <h1>Dobby</h1>
     </div>
-    <p class="lede">A house elf for your Home Assistant. Anyone at home can ask it for things in plain words, and it does them.</p>
+    <p class="lede">The house elf for Home Assistant.</p>
 
-    <p>You set up Home Assistant. The rest of the house asks you to change the thermostat. Dobby gives them someone else to ask: one shared thread, always open, with a housemate in it who runs things. "Set it to 70." "Make it cozy." "Send the vacuum out." "I want it at 70 by eight on weekdays." Dobby does what you said, says what it did, and asks when it is not sure.</p>
+    <h2 id="remote-control">You built a smart home. Somehow, you became its remote control.</h2>
+    <p>You know which dashboard to open. You know what the thermostat is called. You know which automation does what.</p>
+    <p>Everyone else asks you.</p>
+    <p>Dobby gives them someone else to ask.</p>
 
-    <p>What that gets you, on top of a working Home Assistant:</p>
-    <ul>
-      <li><strong>Anyone at home can run the house.</strong> Kids included. No app to learn, no dashboard, no automation editor. The kitchen tablet and every phone open the same thread, and whoever speaks, their name goes on what changed. When somebody turns the heat up, the thread says who.</li>
-      <li><strong>It keeps its word.</strong> Say "70 by eight on weekdays" once and it happens at eight on weekdays, with no AI in the loop, so it happens when the model is down too. And "set to 70" means exactly that: the thermostat took the command. Dobby never tells you the room is warm. The board shows you that, when Home Assistant reports it. You stop checking.</li>
-      <li><strong>It asks before it guesses.</strong> Two thermostats and you said "the thermostat"? It asks which. A device it does not have, it says so. A number the house does not allow, it declines and gives you the reason. Nothing happens to your house that nobody asked for.</li>
-      <li><strong>Setup is a conversation.</strong> Tell Dobby what you have, and it finds the devices in Home Assistant and proposes them. One yes adopts the lot. Or point Claude Code, or any MCP client, at Dobby and let the AI you already use do it.</li>
+    <ul class="thread">
+      <li><span class="who">Maya</span><p class="say">Set it to 70.</p></li>
+      <li><span class="who">Dobby</span><p class="say">Which thermostat—the main thermostat or the downstairs thermostat?</p></li>
+      <li><span class="who">Greg</span><p class="say">Send the vacuum out.</p></li>
+      <li><span class="who">Dobby</span><p class="say">I told the robot vacuum to start cleaning.</p></li>
     </ul>
 
-    <p>You describe the house in one file and give Dobby a voice in another. Home Assistant keeps running the devices. Dobby runs the house.</p>
+    <p>Everyone at home talks to the same Dobby. It knows the devices the household chose to manage. It knows their names, their allowed actions, and the standing instructions people have set. It asks when a request could mean two things.</p>
+    <p><strong>Home Assistant still runs the machinery. Dobby makes the house feel run.</strong></p>
+
+    <h2 id="run">A smart home that feels run</h2>
+    <p>A family should not have to understand the automation system to benefit from it. Someone is cold. Someone wants the vacuum to run. Someone wants the same temperature every weekday morning. Someone wants to see why a schedule was held. Each request should feel like asking a competent person who lives there.</p>
+    <p>Dobby is not a private chat account attached to a few devices. It is one house-scoped agent. The shared thread keeps the household conversation. The activity record keeps what the house did. A phone, the kitchen tablet, and an outside agent are different doors into the same house.</p>
+
+    <h2 id="machinery">Magic above. Machinery below.</h2>
+    <p>Dobby uses a language model where language is ambiguous. It uses deterministic code where the house must be exact.</p>
+
+    <ol class="architecture" aria-label="A request travels from a person through Dobby and the deterministic device layer to Home Assistant and the physical house">
+      <li>you</li>
+      <li>Dobby</li>
+      <li>house tools</li>
+      <li>device agents</li>
+      <li>Home Assistant</li>
+      <li>the physical house</li>
+    </ol>
+
+    <p><strong>Dobby's model cannot call a Home Assistant service.</strong> It can ask the downstairs thermostat agent to set a temperature. That agent knows which entity represents the thermostat, what the hardware supports, what the household allows, and which Home Assistant command to emit.</p>
+    <p>On the control path, the model speaks house. It does not speak Home Assistant services. The model gets capabilities, not plumbing.</p>
+
+    <div class="proof">
+      <p class="label">Household rules outrank the model</p>
+      <p class="line">thermostat_set_temperature("hall thermostat", 85)
+→ refused: 85° is above the hall thermostat's maximum of 78°
+→ no Home Assistant call</p>
+      <p class="said">The device agent owns the range. The same refusal applies to the thread, a card, a schedule, and an outside agent.</p>
+    </div>
+
+    <p>A model can still misunderstand a person and choose a valid action on a valid device. Dobby does not pretend otherwise. The design limits the available devices and actions, validates every request, and turns unresolved ambiguity into a question.</p>
+
+    <h2 id="remember">Tell it once. The house remembers.</h2>
+    <p>“Set the thermostat to 70” changes something now. “Set it to 70 at seven every weekday” teaches the house what to do later.</p>
+    <p>Dobby interprets the second request once. It stores a named schedule with a device, an action, a value, a time, and the person who asked. At seven, deterministic code reads that record and calls the device agent. The model does not reinterpret the sentence each morning.</p>
+
+    <div class="proof">
+      <p class="label">What Dobby writes down</p>
+      <p class="line">morning warmup
+weekday at 07:00 · downstairs thermostat · set_temperature 70°
+created by Greg · ready</p>
+      <p class="said">Creating the schedule changes nothing now. When it fires, the activity record shows the stored instruction and its result.</p>
+    </div>
+
+    <h2 id="one">One house. One Dobby.</h2>
+    <p>Dobby belongs to the place, not to one person's account. Names give each request context and attribution. They are not permission tiers. The full transcript persists, and Dobby reasons over a recent working window from that shared record.</p>
+    <p>Today that shared place is the web thread. Ambient voice, faster local speech, local models where they help, richer household preferences, and fewer screens are the destination. Voice will not make Dobby intelligent. It will make Dobby disappear.</p>
+
+    <h2 id="today">What Dobby is today</h2>
+    <p>Dobby is early software that you run yourself. These parts work now:</p>
+    <ul>
+      <li><strong>One persistent household thread</strong> with named speakers, a direct thermostat control on the house page, and a full activity record.</li>
+      <li><strong>Named schedules</strong> that the model can author and deterministic code can fire without a model call.</li>
+      <li><strong>A curated house model</strong> with sixteen household device types, from thermostats and lights to speakers, locks, doorbells, cameras, shades, fans, and sensors.</li>
+      <li><strong>Conversational adoption</strong> that discovers Home Assistant entities, proposes managed devices, and writes nothing until somebody confirms.</li>
+      <li><strong>One constrained tool set</strong> for Dobby's own model and outside agents over MCP.</li>
+    </ul>
+    <p>The permanent-box deployment has not been walked yet. Ambient voice does not exist yet. The guide says so where those edges appear.</p>
 
     <h2 id="contents">Contents</h2>
     <ol class="sheet">
-      <li><a href="house.html"><span class="n">01</span><span class="t">The house file</span><span class="d">One YAML file: your devices, your rules, and the box's settings.</span></a></li>
-      <li><a href="running.html"><span class="n">02</span><span class="t">Running it</span><span class="d">Check the wiring, start Dobby, put it on the Wi-Fi as dobby.local.</span></a></li>
-      <li><a href="box.html"><span class="n">03</span><span class="t">An always-on box</span><span class="d">Hardware we propose for a machine in a closet running both. Not yet walked.</span></a></li>
-      <li><a href="living.html"><span class="n">04</span><span class="t">Living with Dobby</span><span class="d">How to talk to it, what it says back, the board, the cards, the admin, schedules.</span></a></li>
-      <li><a href="growing.html"><span class="n">05</span><span class="t">Growing the house</span><span class="d">Four ways to add a device, and the whole house in one conversation.</span></a></li>
-      <li><a href="agents.html"><span class="n">06</span><span class="t">Your own agent</span><span class="d">Mint a token, connect Claude Code, let it do the setup. With a real session.</span></a></li>
-      <li><a href="how-it-works.html"><span class="n">07</span><span class="t">How it works</span><span class="d">The short version: what Dobby can and cannot do, and why you can trust it.</span></a></li>
-      <li><a href="developing.html"><span class="n">08</span><span class="t">Developing</span><span class="d">A local Home Assistant with fake devices, the tests, and Tidewave.</span></a></li>
+      <li><a href="living.html"><span class="n">01</span><span class="t">Living with Dobby</span><span class="d">Picture the shared thread, the cards, the household record, and a weekday morning.</span></a></li>
+      <li><a href="how-it-works.html"><span class="n">02</span><span class="t">Magic above. Machinery below.</span><span class="d">Why Dobby can interpret language without giving the model the keys to Home Assistant.</span></a></li>
+      <li><a href="growing.html"><span class="n">03</span><span class="t">Teach Dobby your house</span><span class="d">Discover, propose, and confirm the small household model Dobby manages.</span></a></li>
+      <li><a href="running.html"><span class="n">04</span><span class="t">Bring Dobby home</span><span class="d">Check the wiring, start Dobby, and give the household one address.</span></a></li>
+      <li><a href="agents.html"><span class="n">05</span><span class="t">Let other agents speak house</span><span class="d">Give another agent the house tools without giving it Home Assistant's plumbing.</span></a></li>
+      <li><a href="house.html"><span class="n">06</span><span class="t">The house, written down</span><span class="d">The explicit source of truth for managed devices, names, bindings, and limits.</span></a></li>
+      <li><a href="box.html"><span class="n">07</span><span class="t">A place for Dobby to live</span><span class="d">The proposed always-on hardware. Honest about what has not been walked.</span></a></li>
+      <li><a href="developing.html"><span class="n">08</span><span class="t">Build Dobby</span><span class="d">A testable house-facing contract, a local Home Assistant, and the development tools.</span></a></li>
     </ol>
-
-    <h2 id="need">What you need</h2>
-    <ul>
-      <li><strong>A Home Assistant you can reach</strong>, and a long-lived access token. In HA: your profile → <span class="arg">Security</span> → <span class="arg">Long-lived access tokens</span>. It is shown once. Copy it straight into your environment.</li>
-      <li><strong>Elixir 1.18 or later, and PostgreSQL.</strong> <code>mix setup</code> installs the rest.</li>
-      <li><strong>A model API key.</strong> An Anthropic key works out of the box. <code>system.model</code> in the house file switches to any other provider.</li>
-      <li><strong>mDNS</strong>, so the house can open <span class="arg">dobby.local</span>. macOS has it. On Linux, install Avahi (<code>avahi-daemon</code> and <code>avahi-utils</code>).</li>
-    </ul>
-
-    <h2 id="five-minutes">The five-minute path</h2>
-    <p>Clone, set up, copy the example house file, and edit it. The example has a comment on every line you might change.</p>
-<pre><code>git clone https://github.com/mhyrr/dobby.git &amp;&amp; cd dobby
-mix setup
-cp config/homes/example.yaml config/homes/my-house.yaml
-<span class="c"># edit it: your HA's address, your devices</span></code></pre>
-
-    <p>Export the credentials, then check the wiring before you trust it with an evening.</p>
-<pre><code>export DOBBY_HA_URL=http://homeassistant.local:8123
-export DOBBY_HA_TOKEN=...
-export ANTHROPIC_API_KEY=...
-
-DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix dobby.ha.verify</code></pre>
-
-    <div class="proof">
-      <p class="label">What you should see</p>
-      <p class="line">[info] connected to Home Assistant 2026.8.2 at http://homeassistant.local:8123
-home "my-house" with 2 device(s)
-
-%{
-  id: "light:living_room",
-  name: "living room light",
-  type: :light,
-  available: true,
-  power: :on,
-  brightness_percent: 71
-}
-%{
-  id: "thermostat:hall",
-  name: "hall thermostat",
-  type: :thermostat,
-  available: true,
-  target_temperature_f: 70,
-  min_temperature_f: 60,
-  max_temperature_f: 78,
-  current_temperature_f: 72,
-  hvac_mode: :cool
-}
-
-initial state sync: ok</p>
-      <p class="said">Every device <b>available: true</b> with readings. If one stays unavailable, its entity id is wrong, and the task names it.</p>
-    </div>
-
-    <p>Start it and open it.</p>
-<pre><code>DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server</code></pre>
-
-    <div class="proof">
-      <p class="label">What you should see</p>
-      <div class="row"><span class="name">hall thermostat</span><span class="val">70°</span><span class="st flap" data-st="acting">Cooling</span></div>
-      <div class="row"><span class="name">living room light</span><span class="val">71%</span><span class="st flap" data-st="set">Set</span></div>
-      <div class="row"><span class="name">office printer</span><span class="val"></span><span class="st flap" data-st="acting">Awake</span></div>
-      <p class="said">At <span class="arg">http://localhost:4000/</span>: your devices on the board, each with a reading and a word, and the thread below. For a moment after boot a device reads <span class="arg">NOT KNOWN</span>. The first sync from Home Assistant fills it in.</p>
-    </div>
 
     <p class="colophon">Hand-written HTML, served as committed. <a href="https://github.com/mhyrr/dobby/tree/main/docs">The source is the page.</a></p>
 
     <nav class="foot" aria-label="Next chapter">
-      <a class="next" href="house.html"><small>Next</small>The house file</a>
+      <a class="next" href="living.html"><small>Next</small>Living with Dobby</a>
     </nav>
   </article>
 </main>

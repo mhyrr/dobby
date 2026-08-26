@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Your own agent · Dobby</title>
-<meta name="description" content="Mint a token, connect Claude Code, and let the AI you already use set the house up.">
+<title>Let other agents speak house · Dobby</title>
+<meta name="description" content="Give another agent Dobby's constrained household tools without exposing Home Assistant service plumbing.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html" aria-current="page">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html" aria-current="page">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -35,8 +35,13 @@
   </aside>
 
   <article>
-    <h1>Your own agent</h1>
-    <p class="lede">The AI you already use can set the house up. Dobby serves its tools over MCP at <span class="arg">/mcp</span>: mint a token, point Claude Code at it, and describe your house once.</p>
+    <h1>Let other agents speak house</h1>
+    <p class="lede">Dobby is not a walled garden. Another agent can use the household capabilities without getting Home Assistant's plumbing.</p>
+
+    <h2 id="boundary">One constrained household capability model</h2>
+    <p>Dobby's own model and an outside agent over MCP use the same house-specific tool modules. A house with no vacuum exposes no vacuum tools. A lock exposes <span class="arg">secure</span> and never <span class="arg">unlock</span>. Every tool call reaches the same device validation and gets the same refusal.</p>
+    <p>Cards and schedules enter one layer lower. They bypass model tools and converge on the same device-agent command boundary. The caller changes. The managed devices, allowed actions, household limits, and Home Assistant boundary do not.</p>
+    <p>Dobby serves the outside door over MCP at <span class="arg">/mcp</span>. Claude Code is the concrete example below. Any client that speaks streamable HTTP can use it.</p>
 
     <h2 id="token">Mint a token</h2>
     <p>On <span class="arg">/admin</span>, in the System section, mint a token with a label for the agent that will hold it: <span class="arg">Ann's laptop</span>, <span class="arg">the kitchen Mac</span>. Every call made with the token is logged under that label. The token is shown once.</p>
@@ -66,7 +71,7 @@ dobby: http://192.168.1.20:4000/mcp (HTTP) - ✔ Connected</p>
     </div>
 
     <h2 id="tools">What it can do</h2>
-    <p>Everything Dobby's own model can: read and set devices, write schedules, discover, propose, and confirm. The tool list is your house's. A house with no vacuum offers no vacuum tools. Every call runs the same checks and gets the same refusals as the thread.</p>
+    <p>The MCP client can read and set managed devices, write schedules, discover recognized Home Assistant entities, and propose or confirm house changes. It does not receive the Dobby conversation. It receives the same house tool modules Dobby's model receives.</p>
 
     <div class="proof">
       <p class="label">What you should see</p>
@@ -109,12 +114,13 @@ thermostat_get_status, thermostat_set_temperature, wifi_get_status</p>
       type: light</p>
     </div>
 
-    <h2 id="say">Tell it what you have</h2>
-    <p>"Dobby at 192.168.1.20:4000 runs my house. I have a thermostat, three lights, and a robot vacuum, all on Home Assistant. Set them up." The agent discovers what Home Assistant sees, proposes each device, and confirms them. The house restarts into its new shape, and the cards fill in as Home Assistant reports.</p>
+    <h2 id="say">Describe the house once</h2>
+    <p>First ask the agent to find the matches and show its work: “Dobby at 192.168.1.20:4000 runs my house. I have a thermostat, three lights, and a robot vacuum, all on Home Assistant. Discover them and show me the proposals. Do not apply them yet.”</p>
+    <p>The agent returns the numbered proposals with the exact names, types, aliases, and Home Assistant bindings. Read them. Then say: “Confirm proposals 4 through 8.” Only that second turn authorizes the agent to write the house. Dobby restarts with the confirmed devices, and the cards fill in as Home Assistant reports.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="growing.html"><small>Previous</small>Growing the house</a>
-      <a class="next" href="how-it-works.html"><small>Next</small>How it works</a>
+      <a class="prev" href="running.html"><small>Previous</small>Bring Dobby home</a>
+      <a class="next" href="house.html"><small>Next</small>The house, written down</a>
     </nav>
   </article>
 </main>

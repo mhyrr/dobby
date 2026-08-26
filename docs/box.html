@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>An always-on box · Dobby</title>
-<meta name="description" content="Hardware we propose for a machine in a closet that runs Home Assistant and Dobby together.">
+<title>A place for Dobby to live · Dobby</title>
+<meta name="description" content="The not-yet-walked hardware proposal for running Dobby and Home Assistant on permanent household machines.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html" aria-current="page">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html" aria-current="page">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -35,8 +35,10 @@
   </aside>
 
   <article>
-    <h1>An always-on box</h1>
-    <p class="lede">A laptop is where you try Dobby. A house needs a machine that is always on, running Home Assistant and Dobby together. This is the hardware we propose.</p>
+    <h1>A place for Dobby to live</h1>
+    <p class="lede">You can meet Dobby on a laptop. A house elf needs somewhere permanent to live.</p>
+
+    <p>A household service needs a machine that stays on. It can share one physical box with Home Assistant while each system keeps its own operating environment. This page describes the hardware we propose.</p>
 
     <div class="note unwalked">
       <span class="label">A proposal, not a walk</span>
@@ -79,13 +81,13 @@
     </ul>
 
     <h2 id="then">Then what</h2>
-    <p>With the box up, follow the rest of the guide: <a href="house.html">describe the house</a>, <a href="running.html#verify">verify</a>, set <code>lan: true</code>, and open <span class="arg">dobby.local</span> from the kitchen. The release steps (building it, the systemd unit, upgrades, restoring a backup) are still owed a walk.</p>
+    <p>With the box up, <a href="house.html">write down the house</a>, <a href="running.html#verify">verify every device</a>, set <code>lan: true</code>, and open <span class="arg">dobby.local</span> from the kitchen. The release steps—building it, the systemd unit, upgrades, and restoring a backup—are still owed a walk.</p>
 
     <p class="colophon">Prices and parts: <a href="https://www.nabucasa.com/news/2026-01-08-green-pricing-change/">Nabu Casa on Green pricing</a> · <a href="https://www.xda-developers.com/i-used-an-intel-n100-mini-pc-as-a-proxmox-node/">an N100 as a Proxmox node</a>.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="running.html"><small>Previous</small>Running it</a>
-      <a class="next" href="living.html"><small>Next</small>Living with Dobby</a>
+      <a class="prev" href="house.html"><small>Previous</small>The house, written down</a>
+      <a class="next" href="developing.html"><small>Next</small>Build Dobby</a>
     </nav>
   </article>
 </main>

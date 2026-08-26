@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Growing the house · Dobby</title>
-<meta name="description" content="Four ways to add a device, and the whole house in one conversation.">
+<title>Teach Dobby your house · Dobby</title>
+<meta name="description" content="Discover what Home Assistant knows, propose a smaller household model, and confirm exactly what Dobby may manage.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html" aria-current="page">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html" aria-current="page">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -35,37 +35,53 @@
   </aside>
 
   <article>
-    <h1>Growing the house</h1>
-    <p class="lede">Four ways to add a device. They all end in the same file, and nothing enters the house until somebody says yes.</p>
+    <h1>Teach Dobby your house</h1>
+    <p class="lede">Home Assistant may know about hundreds of entities. Dobby acts on only the things the household deliberately chose to manage.</p>
 
-    <h2 id="four-ways">Four ways</h2>
-    <ol>
-      <li><strong>Say it.</strong> "What does Home Assistant have that we don't?" Dobby lists what it found and proposes an entry for the one you name. Say yes, and it is added.</li>
-      <li><strong>The cards.</strong> On <span class="arg">/house</span>: <span class="arg">edit</span> and <span class="arg">remove</span> on each card, <span class="arg">add a device</span> at the foot. The form asks only what the device type needs.</li>
-      <li><strong>The file.</strong> Edit <span class="arg">home.yaml</span> and restart Dobby.</li>
-      <li><strong>Your own agent.</strong> Anything the first way can do, an agent over MCP can do. See <a href="agents.html">Your own agent</a>.</li>
-    </ol>
-    <p>Every way runs the same checks. An entry that would not boot from the file is refused at the form, in the thread, and over MCP, with the same sentence.</p>
+    <p>That is the point. Dobby's working house should be smaller, cleaner, and closer to household language than Home Assistant's full entity registry.</p>
+
+    <h2 id="conversation">Describe. Discover. Propose. Confirm.</h2>
+    <p>Start with a question:</p>
+
+    <ul class="thread">
+      <li><span class="who">Greg</span><p class="say">What does Home Assistant have that Dobby doesn't?</p></li>
+      <li><span class="who">Dobby</span><p class="say">I found kitchen lights, a robot vacuum, a front door lock, and three sensors that are not in the managed house.</p></li>
+      <li><span class="who">Greg</span><p class="say">Add the kitchen lights.</p></li>
+      <li><span class="who">Dobby</span><p class="say">I can add <span class="arg">light.kitchen_lights</span> as “kitchen lights.” Proposal 1 is ready. Should I apply it?</p></li>
+    </ul>
+
+    <p>Discovery can inspect recognized Home Assistant entities that are not yet managed. It does not dump every entity into the normal conversation. The proposal translates technical entities into a household device with a stable id, name, aliases, type, and exact binding map.</p>
 
     <h2 id="proposals">Proposed is not done</h2>
-    <p>When Dobby or an agent adds a device, it happens in two steps. First a <em>proposal</em>: Dobby checks the entity exists, is not already in use, and the id is free, then gives the proposal a number. Nothing is written. Then a <em>confirmation</em>: somebody says yes to that number, and the entry goes into the file. The house restarts with the new device.</p>
-    <p>Dobby says "proposed" until the yes lands, and "added" only after. It does not blur the two.</p>
+    <p>Dobby separates suggesting a house change from making it.</p>
+    <p>First comes a <strong>proposal</strong>. Dobby checks that the entity exists, no managed device already uses it, and the new id is free. It returns the exact entry it would write and gives the proposal a number. Nothing changes.</p>
+    <p>Then comes a <strong>confirmation</strong>. Somebody confirms that number. The entry goes into the house file, and Dobby restarts the managed devices with the new one included.</p>
 
     <div class="proof">
-      <p class="label">What you should see</p>
+      <p class="label">What you should see before confirmation</p>
       <p class="line">{"applied":false,"proposal":{"id":1,"device":"light:kitchen","name":"kitchen lights",
   "type":"light","status":"proposed","proposed_by":"Maya's walkthrough",
   "entry":{"id":"light:kitchen","type":"light","name":"kitchen lights",
            "aliases":["the kitchen light"],"bindings":{"light":"light.kitchen_lights"}}}}</p>
-      <p class="said">A proposal as the tool returns it: <b>applied: false</b>, a number, and the exact entry it would write. In the thread, Dobby says the same in a sentence.</p>
+      <p class="said"><b>applied: false</b>, a proposal number, and the exact entry. Dobby says “proposed” until confirmation succeeds. It says “added” only after.</p>
     </div>
 
-    <h2 id="whole-house">The whole house in one breath</h2>
-    <p>You do not have to add devices one at a time. Tell Dobby what you have: "the thermostat, these four lights, the vacuum, the printer, all on Home Assistant." Dobby asks Home Assistant once, proposes every match as one numbered list, and one yes adopts the lot.</p>
-    <p>Anything you named that Home Assistant does not show, Dobby says it cannot see. It will not guess. And each entry stays "proposed" until its own confirmation applies. However many devices you confirm at once, the house restarts once.</p>
+    <h2 id="whole-house">The house can grow in one breath</h2>
+    <p>You do not have to name each device in a separate turn. Say: “We have the downstairs thermostat, these four lights, the robot vacuum, and the printer. They are all in Home Assistant.”</p>
+    <p>Dobby asks discovery once, matches the recognized devices, and presents one numbered set of proposals. Anything you named that Home Assistant does not show stays unmatched. One clear confirmation can apply the proposed set. However many entries it applies, the managed house restarts once.</p>
+    <p>This lets a person describe the important shape of the house. The confirmation still preserves the exact boundary.</p>
+
+    <h2 id="four-ways">Four doors, one house model</h2>
+    <ol>
+      <li><strong>Conversation.</strong> Discover, propose, and confirm in the shared thread.</li>
+      <li><strong>The cards.</strong> On <span class="arg">/house</span>, edit or remove a card and add a device from a form that asks only what its type needs.</li>
+      <li><strong>The house file.</strong> Edit <span class="arg">home.yaml</span> and restart Dobby.</li>
+      <li><strong>An outside agent.</strong> Use the same discovery, proposal, and confirmation tools over MCP. See <a href="agents.html">Let other agents speak house</a>.</li>
+    </ol>
+    <p>All four paths end in the same explicit house model. Forms, conversation, and MCP use the same writer. Invalid entries fail before the managed house restarts.</p>
 
     <h2 id="not-known">The moment after</h2>
-    <p>A new device reads <span class="arg">NOT KNOWN</span> for a moment. The house has a new device and has not heard from Home Assistant about it yet. The first sync fills it in.</p>
+    <p>A new device reads <span class="arg">NOT KNOWN</span> for a moment. Dobby has taken on the device but has not yet received its state from Home Assistant. The first sync fills it in.</p>
 
     <div class="proof">
       <p class="label">What you should see</p>
@@ -75,11 +91,11 @@
     </div>
 
     <h2 id="removing">Removing one</h2>
-    <p><span class="arg">remove</span> on a card asks once, in place: <span class="arg">Remove kitchen lights?</span> with <span class="arg">remove</span> and <span class="arg">keep it</span>. Then the entry leaves the file and the house restarts without it. There is no undo; add it back if you change your mind.</p>
+    <p><span class="arg">remove</span> on a card asks once, in place: <span class="arg">Remove kitchen lights?</span> with <span class="arg">remove</span> and <span class="arg">keep it</span>. Then the entry leaves the file and the managed house restarts without it. There is no undo. Add it again if you change your mind.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="living.html"><small>Previous</small>Living with Dobby</a>
-      <a class="next" href="agents.html"><small>Next</small>Your own agent</a>
+      <a class="prev" href="how-it-works.html"><small>Previous</small>Magic above. Machinery below.</a>
+      <a class="next" href="running.html"><small>Next</small>Bring Dobby home</a>
     </nav>
   </article>
 </main>

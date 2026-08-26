@@ -435,6 +435,42 @@ pre .s {
   color: var(--st-set);
 }
 
+/* The whole request path, small enough to hold in one look. It is a diagram,
+   not a code sample, so it does not get the copy affordance that JS adds to
+   every pre. */
+.architecture {
+  max-width: var(--measure);
+  margin: 1.35rem 0 1.6rem;
+  padding: 0.8rem 1rem;
+  list-style: none;
+  background: var(--flap);
+  border-top: 2px solid var(--flap-edge);
+  border-bottom: 1px solid var(--seam);
+  text-align: center;
+}
+
+.architecture li {
+  margin: 0;
+  font-family: var(--cond);
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.architecture li + li::before {
+  content: "\2193";
+  display: block;
+  margin: 0.08rem 0;
+  color: var(--brass);
+  font-family: var(--body);
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
 .copy {
   position: absolute;
   top: 0.45rem;

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How it works · Dobby</title>
-<meta name="description" content="The short version: what Dobby can and cannot do, and why you can trust it.">
+<title>Magic above. Machinery below. · Dobby</title>
+<meta name="description" content="How Dobby puts a house-scoped language model above a deterministic household device layer, with Home Assistant underneath.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html" aria-current="page">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html">Developing</a>
 </nav>
 
@@ -35,33 +35,93 @@
   </aside>
 
   <article>
-    <h1>How it works</h1>
-    <p class="lede">Enough to predict what Dobby will do. The full design record is in the repository.</p>
+    <h1>Magic above. Machinery below.</h1>
+    <p class="lede">Why Dobby can interpret household language without asking your thermostat to be intelligent.</p>
 
-    <h2 id="layer">A layer on top of Home Assistant</h2>
-    <p>Home Assistant owns the devices: the protocols, the radios, the state, the automations you already have. Dobby does not replace any of it. Dobby owns the conversation, the household's standing intentions, and the record of what changed and who asked.</p>
-    <p>Inside Dobby there is a hard line. Below it, one small program per device (a device agent) holds every fact and sends every command. Above it, the AI model holds the conversation. The model can do one thing to the house: call one of the tools the device agents offer. It cannot reach Home Assistant, the network, or a calculator. Those paths do not exist.</p>
+    <h2 id="layer">Home Assistant is the machinery</h2>
+    <p>Home Assistant already solved the ugly problem: protocols, integrations, radios, vendor clouds, device state, and hardware abstraction. Dobby would be foolish to rebuild it.</p>
+    <p>Home Assistant owns the devices and the automations you already have. Dobby owns one shared conversation, the smaller set of devices the household chose to manage, named standing intentions, and the record of what changed and who asked.</p>
+    <p><strong>Home Assistant knows how the technical house works. Dobby gives the lived-in house explicit names and limits.</strong></p>
 
-    <h2 id="truth">Why Dobby cannot lie about a room</h2>
-    <p>You ask for 72. The model calls the thermostat tool. The thermostat's agent checks the number against the hardware's range and your house rules, then sends the command to Home Assistant. The model is told one thing: accepted.</p>
-    <p>What the room does next comes back later from Home Assistant and lands on the board as a word. The model never sees it in the same breath, so it cannot report it. "Set to 72" is the most it can say, and it is what it says. A refusal works the same way: the agent's reason travels up unchanged, and the model repeats it.</p>
+    <h2 id="model">The lived-in house has a different object model</h2>
+    <p>Home Assistant must describe everything it can connect to. Dobby needs a smaller model that matches household language.</p>
 
-    <h2 id="without-model">The house works when the AI does not</h2>
-    <p>A card tap goes straight to the device agent. A schedule fires from a timer straight to the device agent. No model runs in either path. These are not fallbacks; they are how the house runs at eight o'clock every weekday, whether the model is up, slow, or expensive.</p>
+    <div class="table-wrap">
+    <table>
+      <tr><th>The technical house</th><th>The lived-in house</th></tr>
+      <tr><td><code>climate.downstairs</code></td><td>the downstairs thermostat</td></tr>
+      <tr><td>a hardware range of 45–95°F</td><td>a household-approved range of 60–78°F</td></tr>
+      <tr><td>a service call with a data map</td><td>set this thermostat to 70°</td></tr>
+      <tr><td>a cron expression and target</td><td>the named “morning warmup” intention</td></tr>
+      <tr><td>every entity in the registry</td><td>the managed devices this household chose</td></tr>
+    </table>
+    </div>
 
-    <h2 id="knows">What the model knows</h2>
-    <p>Before every message, the model is handed a list of the devices in your house and their last known state. Those are the only devices that exist to it. A device not on the list, it says it does not have. A phrase that could mean two devices, it asks about. These rules live in code, not in the soul, so no change of personality can remove them.</p>
+    <p>The manifest, schedule rows, and speaker names hold that meaning outside the model. Dobby does not hide the household inside a long prompt and hope the model remembers it.</p>
 
-    <h2 id="restart">Why the house restarts</h2>
-    <p>Each device runs as its own small program, started from the house file. Add or remove a device and the set of programs changes, so Dobby restarts that set. It takes about a second. Every device reads <span class="arg">NOT KNOWN</span> until Home Assistant speaks again. The thread stays up.</p>
-    <p>A model change takes effect on the next reply with no restart. A port or LAN change waits for one. The admin form says which, per field.</p>
+    <h2 id="semantics">The deterministic layer contains household semantics</h2>
+    <p>A Home Assistant entity reports what hardware can technically do. Dobby's device agent decides what an allowed operation means here.</p>
+    <p>The thermostat agent intersects the hardware range with the household range. The lock agent can secure a lock but offers no unlock action. An access-cover agent can close a garage door but offers no open action. Those limits apply before any Home Assistant call exists.</p>
+    <p>This is also where a future device profile can encode vendor-specific meaning: whether changing a setpoint overrides a vendor schedule, or whether “70 by eight” needs thermal lead time. Those rules are not implemented today. The architecture gives them a deterministic home instead of asking the model to guess.</p>
 
-    <h2 id="more">The record</h2>
-    <p>The reasoning, and the alternatives we rejected, are in the repository: <span class="arg">dobby-design-jido.md</span> (the architecture), <span class="arg">DESIGN.md</span> (the surface), and <span class="arg">PRODUCT.md</span> (the thesis).</p>
+    <h2 id="vocabulary">The model gets capabilities, not plumbing</h2>
+    <p>A generic Home Assistant service tool would make the model choose a domain, service, entity ID, and arbitrary data:</p>
+<pre><code>call_service(domain, service, data)</code></pre>
+    <p>Dobby's normal control path gives it a small typed action instead:</p>
+<pre><code>thermostat_set_temperature(device, temperature_f)</code></pre>
+    <p><code>device</code> can only name a thermostat in Dobby's managed roster. The action validates the value in the thermostat agent. The tool adds transport and nothing else.</p>
+    <p>Discovery is the deliberate exception. While teaching Dobby the house, discovery tools expose recognized, unmanaged Home Assistant entity IDs and proposed binding maps. The model can use them to propose a device. It still cannot call a Home Assistant service.</p>
+
+    <h2 id="trust">The model can be wrong. The house still enforces its limits.</h2>
+    <p>Before each message, Dobby gives the model the managed devices and their last known state. Unknown devices are absent from the control vocabulary. Unsupported actions do not exist as tools. Out-of-range values fail inside the device agent.</p>
+    <p>The language layer also carries a rule: ambiguity is a refusal to act. A replay suite and real-model evals test that judgment. This is not a mathematical guarantee. A model can misunderstand a person and choose a valid action on a valid device. The architecture bounds the action; it does not make language perfect.</p>
+
+    <h2 id="truth">Three kinds of truth</h2>
+    <p>Dobby keeps three moments separate.</p>
+
+    <h3>Intended</h3>
+    <p>What somebody asked Dobby to do: “Set downstairs to 72.” The thread records the request.</p>
+
+    <h3>Accepted by Dobby</h3>
+    <p>The device agent validated the request and emitted the Home Assistant call. The tool can now say “downstairs thermostat set to 72.” Home Assistant may not have heard the call yet.</p>
+
+    <h3>Observed</h3>
+    <p>Home Assistant later reports a new setpoint, current temperature, or operating mode. That state lands on the board and in the activity record.</p>
+
+    <p><strong>Accepted is not observed.</strong> Dobby never collapses the three into one fluent sentence. A refusal follows the same path in reverse: the device agent's reason reaches the model unchanged.</p>
+
+    <div class="proof">
+      <p class="label">One setpoint, three records</p>
+      <p class="line">intended  Greg: “Set downstairs to 72.”
+accepted  downstairs thermostat accepted 72°
+observed  target 72° · current 67° · WARMING</p>
+      <p class="said">The last line can arrive only from Home Assistant. Dobby never invents it from the request.</p>
+    </div>
+
+    <h2 id="without-model">When AI disappears</h2>
+    <p>If the model provider is unavailable while Dobby itself is running:</p>
+    <ul>
+      <li>existing Dobby schedules still fire;</li>
+      <li>the thermostat card still works;</li>
+      <li>Home Assistant keeps running its own devices and automations;</li>
+      <li>conversation that requires model reasoning stops.</li>
+    </ul>
+    <p>A card tap and a schedule firing go straight to the device agent. Neither path calls a model. If the Dobby server stops, Dobby-owned schedules stop with it. Home Assistant continues doing what Home Assistant owns.</p>
+
+    <h2 id="house-agent">One long-lived household agent</h2>
+    <p>One Dobby process corresponds to the house. Messages from named speakers enter the same thread, and the transcript survives restarts in PostgreSQL. The model reasons over a recent working window from that record. The household keeps the complete transcript even when the model's context window does not.</p>
+    <p>That is the difference between a house that accumulates a record and a chat window that vanishes when somebody closes it.</p>
+
+    <h2 id="restart">Why the managed house restarts</h2>
+    <p>Each managed device runs as its own small process, started from the house file. Add or remove a device and the set of processes changes, so Dobby restarts that set. It takes about a second. Every device reads <span class="arg">NOT KNOWN</span> until Home Assistant speaks again. The thread stays up.</p>
+    <p>A model change takes effect on the next reply. A port or LAN change waits for a restart. The admin form says which, per field.</p>
+
+    <h2 id="more">The full record</h2>
+    <p>The reasoning and rejected alternatives are in the repository: <span class="arg">dobby-design-jido.md</span> for the architecture, <span class="arg">DESIGN.md</span> for the surface, and <span class="arg">PRODUCT.md</span> for the product thesis.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="agents.html"><small>Previous</small>Your own agent</a>
-      <a class="next" href="developing.html"><small>Next</small>Developing</a>
+      <a class="prev" href="living.html"><small>Previous</small>Living with Dobby</a>
+      <a class="next" href="growing.html"><small>Next</small>Teach Dobby your house</a>
     </nav>
   </article>
 </main>

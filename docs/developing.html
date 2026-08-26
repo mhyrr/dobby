@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Developing · Dobby</title>
-<meta name="description" content="A local Home Assistant with fake devices, the tests, and Tidewave.">
+<title>Build Dobby · Dobby</title>
+<meta name="description" content="Test Dobby's house-facing contract without a physical house, then exercise the real Home Assistant client locally.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -19,13 +19,13 @@
 
 <nav class="rail band" aria-label="Chapters">
   <a href="index.html">Start</a>
-  <a href="house.html">House file</a>
-  <a href="running.html">Running</a>
-  <a href="box.html">The box</a>
   <a href="living.html">Living</a>
-  <a href="growing.html">Growing</a>
-  <a href="agents.html">Your agent</a>
   <a href="how-it-works.html">How it works</a>
+  <a href="growing.html">Teach the house</a>
+  <a href="running.html">Bring it home</a>
+  <a href="agents.html">Agents</a>
+  <a href="house.html">House file</a>
+  <a href="box.html">The box</a>
   <a href="developing.html" aria-current="page">Developing</a>
 </nav>
 
@@ -35,8 +35,10 @@
   </aside>
 
   <article>
-    <h1>Developing</h1>
-    <p class="lede">A real Home Assistant on your machine with virtual devices, two kinds of tests, and a door for the agent working on Dobby.</p>
+    <h1>Build Dobby</h1>
+    <p class="lede">Dobby's house-facing contract is testable without a physical house.</p>
+
+    <p>The repository includes a deterministic fake for the full application and a disposable Home Assistant for the real network boundary. Use both. One proves household behavior without a provider or a house. The other proves the wiring against Home Assistant itself.</p>
 
     <h2 id="rig">Two rigs</h2>
     <p><code>mix test</code>, and <code>mix phx.server</code> with no house file named, run against a fake Home Assistant that lives in the repository. No HA, no network, no model calls. No environment variable changes that.</p>
@@ -74,7 +76,7 @@ home "local" with 4 device(s)
 }
 <span class="c">…</span>
 initial state sync: ok</p>
-      <p class="said">From <span class="arg">mix dobby.ha.verify</span> against the rig, August 22, 2026. <a href="running.html#verify">Running it</a> shows the round trip.</p>
+      <p class="said">From <span class="arg">mix dobby.ha.verify</span> against the rig, August 22, 2026. <a href="running.html#verify">Bring Dobby home</a> shows the round trip.</p>
     </div>
 
     <p>To list what the instance has: <span class="arg">Developer Tools → States</span> in HA, or</p>
@@ -85,7 +87,7 @@ initial state sync: ok</p>
 
     <h2 id="roomba">The Roomba</h2>
     <p>The one integration that needs a human at the robot. In HA: <span class="arg">Settings → Devices &amp; services → Add integration → iRobot Roomba</span>, then enter the robot's IP. When the flow asks for the password, put the robot on its dock and hold its Home button until it plays a tone. HA fetches the credential in that window.</p>
-    <p>Fill the <span class="arg">vacuum.*</span> entity id HA creates into the commented <span class="arg">vacuum:roomba</span> entry in <span class="arg">config/homes/local.yaml</span>, uncomment it, and restart. Verify then shows the robot with its battery.</p>
+    <p>Fill the <span class="arg">vacuum.*</span> entity ID HA creates into the commented <span class="arg">vacuum:roomba</span> entry in <span class="arg">config/homes/local.yaml</span>, uncomment it, and restart. Verify then shows the robot with its battery.</p>
 
     <h2 id="tests">Two kinds of tests</h2>
     <p><strong>Replay</strong> runs on every <code>mix test</code> and in CI, against the fake Home Assistant. It cannot reach a model provider. It proves the machinery.</p>
@@ -112,7 +114,7 @@ execute_sql_query, browser_eval, create_design_canvas</p>
     <p class="colophon">This guide is hand-written HTML under <span class="arg">docs/</span>, served as committed. Edit the page; there is no build.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
-      <a class="prev" href="how-it-works.html"><small>Previous</small>How it works</a>
+      <a class="prev" href="box.html"><small>Previous</small>A place for Dobby to live</a>
       <a class="next" href="index.html"><small>Back to</small>Start</a>
     </nav>
   </article>

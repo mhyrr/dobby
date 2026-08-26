@@ -11,9 +11,9 @@ defmodule Dobby.HomeAssistant.Connection do
   **A transition, not a question.** The client announces `:connected` and
   `:reconnecting` as they happen, and the last one stands in a
   `:persistent_term` cell that anybody may read. Asking the client itself would
-  be a synchronous call into a process that spends its bad minutes blocked in
-  `Mint.HTTP.connect/4` — so the one surface that most wants to know the
-  connection is down is the one that would hang waiting to be told.
+  be a synchronous call into the process whose trouble is the subject of the
+  question — and a client that has *died* cannot answer at all, which is
+  exactly the state a health panel exists to show.
 
   `:persistent_term` because the write is rare (a real transition, not a poll)
   and the read is on every render. The values are atoms, which are immediate

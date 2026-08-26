@@ -20,6 +20,9 @@ defmodule Dobby.HAServer do
   Options (all but `:owner` optional):
 
     * `:owner` — the test pid;
+    * `:port` — the port to bind (default: an ephemeral one). Given, so that a
+      scenario can put a real Home Assistant on the port a
+      `Dobby.StalledHost` was wedging and watch the client find its way back;
     * `:token` — the access token `auth` must present (default `"rig-token"`);
     * `:states` — the `get_states` result (default `[]`);
     * `:entity_registry` — the `config/entity_registry/list` result (default `[]`);
@@ -30,16 +33,16 @@ defmodule Dobby.HAServer do
   @behaviour Plug
 
   @doc """
-  Starts a server on an ephemeral port under the test supervisor, returning
-  its base URL.
+  Starts a server under the test supervisor, returning its base URL.
   """
   @spec start!(keyword()) :: String.t()
   def start!(opts) do
+    {port, opts} = Keyword.pop(opts, :port, 0)
     config = opts |> Keyword.put_new(:token, "rig-token") |> Map.new()
 
     pid =
       ExUnit.Callbacks.start_supervised!(
-        {Bandit, plug: {__MODULE__, config}, scheme: :http, ip: {127, 0, 0, 1}, port: 0}
+        {Bandit, plug: {__MODULE__, config}, scheme: :http, ip: {127, 0, 0, 1}, port: port}
       )
 
     {:ok, {_address, port}} = ThousandIsland.listener_info(pid)

@@ -114,11 +114,58 @@ defmodule DobbyWeb.ThreadLiveTest do
       refute has_element?(view, "input#composer[name=name]")
     end
 
+    # The whole of the ticket, and the reason it was worth a round trip: the
+    # name is kept by the browser, so the second visit is no better informed
+    # than the first and no worse. Two independent mounts from one cookie jar,
+    # because the failure Greg actually hit was a name that answered once —
+    # good for the connection that set it, gone on the next page load.
+    test "does not ask a browser that has already said who it is", %{conn: conn} do
+      conn = named(conn, "greg")
+
+      {:ok, first, _html} = live(conn, "/")
+      {:ok, second, _html} = live(conn, "/")
+
+      assert has_element?(first, ".plate .speaking-as .name", "greg")
+      assert has_element?(second, ".plate .speaking-as .name", "greg")
+      refute has_element?(second, "input#composer[name=name]")
+    end
+
     test "offers a way to stop being that person", %{conn: conn} do
       {:ok, view, _html} = live(named(conn, "greg"), "/")
 
       assert has_element?(view, ".plate .speaking-as[action='/speaker/switch']")
       assert has_element?(view, ".plate .speaking-as button", "switch")
+    end
+
+    # Households share tablets, so the switch is not decoration. Taking it
+    # leaves the browser as nameless as it began — the set line asks again and
+    # the plate stops claiming anybody.
+    test "the switch puts the set line back to asking", %{conn: conn} do
+      conn =
+        conn |> named("greg") |> post("/speaker/switch", %{"return_to" => "/"})
+
+      {:ok, view, _html} = live(conn, "/")
+
+      refute has_element?(view, ".plate .speaking-as")
+      assert has_element?(view, "input#composer[name=name][aria-label='Your name']")
+    end
+
+    # And the next name is the one that goes on what gets said. A switch that
+    # left the previous speaker on the utterance would be worse than not
+    # offering one, because the thread is the household's record of who asked.
+    test "what is said after a switch carries the new name", %{conn: conn} do
+      conn =
+        conn
+        |> named("greg")
+        |> post("/speaker/switch", %{"return_to" => "/"})
+        |> named("sam")
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view |> element("form.set-line") |> render_submit(%{"text" => "is the printer on?"})
+
+      assert eventually(fn -> has_element?(view, ".msg .attr .sp", "sam") end)
+      refute has_element?(view, ".msg .attr .sp", "greg")
     end
   end
 

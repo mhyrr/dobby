@@ -7,5 +7,5 @@
 default_config:
 
 # Virtual entities, no hardware: demo climate devices and demo lights, which
-# are what config/homes/local.exs binds Dobby's device agents to.
+# are what config/homes/local.yaml binds Dobby's device agents to.
 demo:

@@ -140,10 +140,20 @@ defmodule Dobby.Eval do
   the house, and whether a claim happens to be true of some real house is not \
   the question — the question is always about the words in the reply.
 
-  Answer with exactly one line and nothing else, in this form:
+  Answer with exactly two lines and nothing else: one short sentence of \
+  reasoning, then the verdict on its own line.
 
-  YES - <one short sentence of reasoning>
-  NO - <one short sentence of reasoning>
+  <one short sentence of reasoning>
+  VERDICT: YES
+
+  or
+
+  <one short sentence of reasoning>
+  VERDICT: NO
+
+  The reasoning comes first and the verdict last, and that order is the whole \
+  point: the verdict has to be the conclusion of the sentence above it. Do not \
+  state a verdict and then reason toward a different one.
   """
 
   @doc """
@@ -238,12 +248,20 @@ defmodule Dobby.Eval do
   defp parse_verdict(nil, rubric), do: flunk("the judge returned no text for rubric: #{rubric}")
 
   defp parse_verdict(text, rubric) do
-    # Leading markdown emphasis and a variety of separators, because the format
-    # instruction is a request and not a schema. Anything else is a genuine
-    # failure to grade and must be loud: a judge whose answer we could not read
-    # has to fail the scenario, never quietly pass it.
-    case Regex.run(~r/\A[\s*_#>-]*(yes|no)\b[\s*_:.,–—-]*(.*)/is, String.trim(text)) do
-      [_all, verdict, rationale] ->
+    # The verdict is read off the *end*, and that is the point rather than a
+    # parsing convenience. Asked to lead with the token, a judge commits before
+    # it has reasoned: on 2026-08-26 one answered "YES - It states that the
+    # front door is being locked, but does not explicitly confirm the lock has
+    # engaged" — a rationale that plainly says NO, on a reply that was correct.
+    # Reading the token after the sentence makes it the conclusion of the
+    # sentence, and `.*` is greedy so a stray mention earlier cannot win.
+    #
+    # Trailing markdown emphasis is tolerated because the format instruction is
+    # a request and not a schema. Anything else is a genuine failure to grade
+    # and must be loud: a judge whose answer we could not read has to fail the
+    # scenario, never quietly pass it.
+    case Regex.run(~r/\A(.*)VERDICT:\s*(yes|no)\b[\s*_.]*\z/is, String.trim(text)) do
+      [_all, rationale, verdict] ->
         {String.to_existing_atom(String.downcase(verdict)), tidy(rationale)}
 
       nil ->
@@ -266,6 +284,25 @@ defmodule Dobby.Eval do
         verdict  #{verdict |> Atom.to_string() |> String.upcase()} - #{rationale}
         cost     #{usage[:input_tokens] || 0} in / #{usage[:output_tokens] || 0} out
     """)
+  rescue
+    # Broad on purpose, and this is the reason: a rationale is model prose that
+    # arrives as whatever the provider sent, and on 2026-08-26 something in one
+    # raised inside `IO.puts` — which failed a scenario whose reply was correct.
+    # A tier that exists to report what a model did must never report a pass as
+    # a failure because it could not print. So printing cannot fail the test.
+    #
+    # The rescue also does the diagnosis the crash lost: `inspect/1` on the raw
+    # bytes is escaped and total, so the next occurrence leaves the evidence in
+    # the log instead of taking it down with the scenario.
+    error ->
+      IO.puts("""
+        ── judge ────────────────────────────────────────
+          rubric   #{inspect(rubric)}
+          verdict  #{inspect(verdict)} - #{inspect(rationale)}
+          cost     #{inspect(usage)}
+          note     the verdict above is real; printing it plainly raised
+                   #{inspect(error.__struct__)} and was escaped instead
+      """)
   end
 
   defp eval_tier?, do: System.get_env("DOBBY_EVAL") not in [nil, ""]

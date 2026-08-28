@@ -51,7 +51,7 @@
     <ul>
       <li><strong>A reachable Home Assistant</strong> and one long-lived access token. In Home Assistant: your profile → <span class="arg">Security</span> → <span class="arg">Long-lived access tokens</span>. Home Assistant shows the token once.</li>
       <li><strong>Elixir 1.18 or later and PostgreSQL.</strong> <code>mix setup</code> installs the project dependencies.</li>
-      <li><strong>A model provider key.</strong> An Anthropic key works with the default configuration. The <code>system.model</code> setting can select another provider and model that ReqLLM supports.</li>
+      <li><strong>An <a href="https://openrouter.ai/">OpenRouter</a> account.</strong> Dobby has no model of its own and speaks to one provider: every model it can answer with is served through OpenRouter, so the account is a requirement and not one choice among several. Sign up, add a few dollars of credit, and create a key under <a href="https://openrouter.ai/settings/keys">Settings → Keys</a>. The default model is GPT-5.6 Luna; <code>system.model</code> selects another OpenRouter model without changing credentials. A household request costs well under a cent on either model that has been walked.</li>
       <li><strong>mDNS for the household address.</strong> macOS includes it. On Linux, install Avahi with <code>avahi-daemon</code> and <code>avahi-utils</code>.</li>
     </ul>
 
@@ -66,7 +66,7 @@ cp config/homes/example.yaml config/homes/my-house.yaml
     <p>The house file refers to its credentials by name. Three variables cover a house:</p>
 <pre><code>export DOBBY_HA_URL=http://homeassistant.local:8123
 export DOBBY_HA_TOKEN=...
-export ANTHROPIC_API_KEY=...</code></pre>
+export OPENROUTER_API_KEY=...</code></pre>
     <p>In development, copy <span class="arg">.env.example</span> to <span class="arg">.env</span> and fill it in. Variables exported in the shell still win. <code>mix test</code> ignores all of them: the tests run against a fake Home Assistant, always.</p>
 
     <h2 id="verify">Verify, then run</h2>

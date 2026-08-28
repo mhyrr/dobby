@@ -62,7 +62,7 @@ defmodule Dobby.Eval do
   end
 
   @doc """
-  Reasoning options for whichever model the run is pointed at.
+  Per-request model options for whichever model the run is pointed at.
 
   Reasoning models take `reasoning_effort` and reject sampling parameters;
   ReqLLM already drops temperature and renames max_tokens for them, so the only
@@ -70,16 +70,32 @@ defmodule Dobby.Eval do
   are small and mostly unambiguous — `:low` is the default, and
   DOBBY_EVAL_REASONING overrides it when a scenario deserves more.
 
-  Gated on the model's *declared capability* rather than a name pattern, so
-  pointing the alias at a non-reasoning model does not send a parameter it will
-  reject.
+  The default is gated on the model's *declared capability* rather than a name
+  pattern, so pointing the alias at a non-reasoning model does not send a
+  parameter it will reject. An explicit DOBBY_EVAL_REASONING is sent regardless:
+  a model OpenRouter serves before LLMDB catalogs it (GLM 5.3 Flash, 2026-08-28)
+  resolves as unverified with no capabilities at all, and the person setting the
+  variable knows what the model takes better than an empty catalog entry does.
+
+  DOBBY_EVAL_PROVIDER_SORT is OpenRouter's `provider.sort` — `latency`,
+  `throughput` or `price` — for measuring what routing does to time to first
+  token. Sent only when set; no other provider has the field.
   """
   @spec llm_opts() :: keyword()
-  def llm_opts do
-    if reasoning_model?() do
-      [reasoning_effort: String.to_existing_atom(System.get_env("DOBBY_EVAL_REASONING", "low"))]
-    else
-      []
+  def llm_opts, do: reasoning_opts() ++ routing_opts()
+
+  defp reasoning_opts do
+    case {System.get_env("DOBBY_EVAL_REASONING"), reasoning_model?()} do
+      {blank, true} when blank in [nil, ""] -> [reasoning_effort: :low]
+      {blank, false} when blank in [nil, ""] -> []
+      {effort, _declared} -> [reasoning_effort: String.to_existing_atom(effort)]
+    end
+  end
+
+  defp routing_opts do
+    case System.get_env("DOBBY_EVAL_PROVIDER_SORT") do
+      blank when blank in [nil, ""] -> []
+      sort -> [openrouter_provider: %{sort: sort}]
     end
   end
 

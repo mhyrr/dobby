@@ -155,8 +155,9 @@ Real, in the repo:
 - A working system with replay tests for the application rig and a separate
   eval suite against real models.
 - Measured cost and latency per household request, not estimated (§6.5).
-- Voice fidelity across two providers, asserted structurally in
-  `test/dobby/soul_test.exs`.
+- Soul installation, asserted structurally in `test/dobby/soul_test.exs`, and
+  voice fidelity against real models, measured with opposed calibration souls
+  in `test/dobby/eval/soul_eval_test.exs`.
 - `dobby-design-jido.md` — the design of record, written from working code.
   Its header still stamps "Draft v0.11" though commit 9c0b7c8 and TK-003
   call it v0.12; the content is v0.12.

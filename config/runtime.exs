@@ -144,6 +144,11 @@ if not test? do
     config :jido_ai, :model_aliases, %{capable: model}
   end
 
+  # How the model answers — how hard it reasons, what OpenRouter optimizes for
+  # — read by DobbyAgent on every request, the way the alias is. No environment
+  # override: the file is the durable place, and the eval tier has its own.
+  config :dobby, :llm_opts, Dobby.HomeConfig.System.llm_opts(home.system)
+
   # Opening Dobby to the household: bind every interface and advertise this
   # machine on the LAN for as long as the server runs (Dobby.LanBeacon). Off by
   # default — loopback is explicit in every environment, and putting a machine

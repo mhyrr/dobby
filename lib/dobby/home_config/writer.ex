@@ -311,20 +311,35 @@ defmodule Dobby.HomeConfig.Writer do
     end
   end
 
-  # The `:capable` alias is the one system setting that is only ever read at the
+  # The `:capable` alias is a system setting that is only ever read at the
   # moment it is used, which is exactly why design §2.1 made the agent name an
   # alias instead of a provider: swapping the model is configuration, and here
-  # it is configuration that does not need a restart.
+  # it is configuration that does not need a restart. `reasoning` and `routing`
+  # reach the model the same way, as options on each request.
   defp apply_system(previous, incoming) do
     exported_model = System.get_env("DOBBY_MODEL")
 
-    live =
+    live_model =
       if incoming.model != previous.model and incoming.model != nil and is_nil(exported_model) do
         Application.put_env(:jido_ai, :model_aliases, %{capable: incoming.model})
         [:model]
       else
         []
       end
+
+    # Put as one value even when one field changed: what the model is told is
+    # the section's whole answer, and `HomeConfig.System.llm_opts/1` is the one
+    # place the file's words become the provider's.
+    live_options =
+      for field <- [:reasoning, :routing],
+          Map.get(incoming, field) != Map.get(previous, field),
+          do: field
+
+    if live_options != [] do
+      Application.put_env(:dobby, :llm_opts, HomeConfig.System.llm_opts(incoming))
+    end
+
+    live = live_model ++ live_options
 
     # A model *removed* is the committed default coming back, and the committed
     # default is a compile-time value this process no longer holds. So it waits,

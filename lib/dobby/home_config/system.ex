@@ -2,24 +2,48 @@ defmodule Dobby.HomeConfig.System do
   @moduledoc """
   The `system` half of the home file: the box, rather than the house (TK-018).
 
-  Four settings, and they are here because `config/runtime.exs` used to gate
+  Four of these settings are here because `config/runtime.exs` used to gate
   three of them behind `config_env() == :dev` — a household running a release
   could not choose a model or reach the box from the kitchen without a rebuild,
   which is exactly the swap the `:capable` alias exists to make (broken items 1
   and 3 in the ticket).
 
+  Two more say how the model answers rather than which one does. `reasoning`
+  is how hard a reasoning model thinks before it replies; `routing` is what
+  OpenRouter optimizes for when it picks the endpoint that serves the model.
+  Both are the household's business: between them they decide what a reply
+  costs and how long the thread waits for its first word, and a model chosen
+  for speed (GLM 5.3 Flash, TK-034) is only fast with both set. They live here
+  and not in `config/config.exs` for the reason the model does — changing them
+  is a file edit, never a release.
+
   What is *not* here is as deliberate. `DATABASE_URL` and `SECRET_KEY_BASE` are
   an operator's business and stay environment-only: household-facing knobs go
   in the file a household owns, and nothing else does.
 
-  Two of the four can be changed while Dobby is running and two cannot — see
-  `Dobby.HomeConfig.Writer`, which says so out loud rather than pretending.
+  Three of the six can be changed while Dobby is running — the model and the
+  two about how it answers, all read at the moment of use — and three cannot.
+  See `Dobby.HomeConfig.Writer`, which says so out loud rather than pretending.
   """
+
+  @reasoning_levels ["low", "medium", "high"]
+  @reasoning_effort %{"low" => :low, "medium" => :medium, "high" => :high}
+  @routing_goals ["latency", "throughput", "price"]
 
   @schema [
     model: [
       type: :string,
-      doc: "What the `:capable` alias resolves to, e.g. `anthropic:claude-sonnet-4-5`."
+      doc: "What the `:capable` alias resolves to, e.g. `openrouter:openai/gpt-5.6-luna`."
+    ],
+    reasoning: [
+      type: {:in, @reasoning_levels},
+      doc:
+        "How hard a reasoning model thinks before it answers: low, medium or high, with unset leaving the provider's default."
+    ],
+    routing: [
+      type: {:in, @routing_goals},
+      doc:
+        "What OpenRouter optimizes for when it picks the endpoint that serves the model: latency, throughput or price."
     ],
     port: [
       type: :pos_integer,
@@ -38,10 +62,12 @@ defmodule Dobby.HomeConfig.System do
 
   @mdns_hostname ~r/\A[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.local\z/
 
-  defstruct model: nil, port: nil, lan: false, hostname: nil
+  defstruct model: nil, reasoning: nil, routing: nil, port: nil, lan: false, hostname: nil
 
   @type t :: %__MODULE__{
           model: String.t() | nil,
+          reasoning: String.t() | nil,
+          routing: String.t() | nil,
           port: pos_integer() | nil,
           lan: boolean(),
           hostname: String.t() | nil
@@ -56,6 +82,30 @@ defmodule Dobby.HomeConfig.System do
   """
   @spec schema() :: keyword()
   def schema, do: @schema
+
+  @doc """
+  What the section tells the model on every request.
+
+  The file's words become the provider's here and nowhere else: `reasoning: low`
+  is ReqLLM's `reasoning_effort`, and `routing: latency` is OpenRouter's
+  `provider.sort`. `Dobby.DobbyAgent` reads the result at the moment of each
+  request, the way it reads the alias, so a change the writer applies is in
+  effect at the next reply and a restart is never part of trying a setting.
+
+  `routing` is an OpenRouter field and is documented as one. OpenRouter is
+  Dobby's provider (TK-034); a model reached some other way would be sent an
+  option it does not know, and that is the file's mistake to make, named.
+  """
+  @spec llm_opts(t()) :: keyword()
+  def llm_opts(%__MODULE__{reasoning: reasoning, routing: routing}) do
+    Enum.reject(
+      [
+        reasoning_effort: reasoning && Map.fetch!(@reasoning_effort, reasoning),
+        openrouter_provider: routing && %{sort: routing}
+      ],
+      fn {_option, value} -> is_nil(value) end
+    )
+  end
 
   @doc """
   Builds the section from the file's raw `system:` map.

@@ -347,13 +347,22 @@ defmodule Dobby.HomeConfigTest do
     test "an unknown setting is named, with what the section holds" do
       assert {:error, message} = load(@house <> "system:\n  modle: openai:gpt-5.6-luna\n")
       assert message =~ ~s(unknown setting "modle")
-      assert message =~ "model, port, lan, hostname"
+      assert message =~ "model, reasoning, routing, port, lan, hostname"
     end
 
     test "a port that is not a port is named" do
       assert {:error, message} = load(@house <> "system:\n  port: four thousand\n")
       assert message =~ "system:"
       assert message =~ ":port"
+    end
+
+    test "a reasoning level or a routing goal outside the file's words is named" do
+      assert {:error, message} = load(@house <> "system:\n  reasoning: extreme\n")
+      assert message =~ "system:"
+      assert message =~ ":reasoning"
+
+      assert {:error, message} = load(@house <> "system:\n  routing: nitro\n")
+      assert message =~ ":routing"
     end
 
     test "a hostname is one safe mDNS name" do
@@ -371,10 +380,12 @@ defmodule Dobby.HomeConfigTest do
       assert config.system.model == nil
     end
 
-    test "the section carries the three knobs runtime.exs used to gate behind dev" do
+    test "the section carries the knobs runtime.exs used to gate behind dev, and how the model answers" do
       system = """
       system:
         model: openai:gpt-5.6-luna
+        reasoning: low
+        routing: latency
         port: 4001
         lan: true
         hostname: dobby.local
@@ -384,10 +395,33 @@ defmodule Dobby.HomeConfigTest do
 
       assert config.system == %Dobby.HomeConfig.System{
                model: "openai:gpt-5.6-luna",
+               reasoning: "low",
+               routing: "latency",
                port: 4001,
                lan: true,
                hostname: "dobby.local"
              }
+    end
+  end
+
+  # The file's words become the provider's in one place, and the tests for it
+  # are the tests for that place: nothing set is nothing sent.
+  describe "what the section tells the model" do
+    test "nothing set is nothing sent, so the provider's defaults apply" do
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{}) == []
+    end
+
+    test "the file's words become the provider's, and only the ones the file set" do
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{reasoning: "low"}) ==
+               [reasoning_effort: :low]
+
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{routing: "latency"}) ==
+               [openrouter_provider: %{sort: "latency"}]
+
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{
+               reasoning: "high",
+               routing: "price"
+             }) == [reasoning_effort: :high, openrouter_provider: %{sort: "price"}]
     end
   end
 
@@ -444,7 +478,9 @@ defmodule Dobby.HomeConfigTest do
 
   describe "writing a house back out" do
     test "a house round trips through YAML unchanged" do
-      yaml = @house <> "system:\n  model: openai:gpt-5.6-luna\n  lan: true\n"
+      yaml =
+        @house <>
+          "system:\n  model: openai:gpt-5.6-luna\n  reasoning: low\n  routing: latency\n  lan: true\n"
 
       assert {:ok, config} = load(yaml)
       assert {:ok, again} = load(HomeConfig.to_yaml(config))
@@ -539,7 +575,34 @@ defmodule Dobby.HomeConfigTest do
       {:ok, config} = HomeConfig.load("config/homes/example.yaml")
 
       assert config.system.model == nil
+      assert config.system.reasoning == nil
+      assert config.system.routing == nil
       refute File.read!(".env.example") =~ ~r/^DOBBY_MODEL=/m
+    end
+
+    # The second model ships as three commented lines, and a commented example
+    # that would not load is a trap: uncommented, it must be a house.
+    test "the example's GLM 5.3 Flash block is a house that loads, once uncommented" do
+      flash =
+        "config/homes/example.yaml"
+        |> File.read!()
+        |> String.replace(~r/^  # (model: openrouter:z-ai|reasoning:|routing:)/m, "  \\1")
+
+      assert {:ok, config} = load(flash)
+      assert config.system.model == "openrouter:z-ai/glm-5.3-flash"
+      assert config.system.reasoning == "low"
+      assert config.system.routing == "latency"
+
+      assert Dobby.HomeConfig.System.llm_opts(config.system) ==
+               [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
+    end
+
+    test "the local house answers with GLM 5.3 Flash, with the two settings that make it fast" do
+      assert {:ok, config} = HomeConfig.load("config/homes/local.yaml")
+
+      assert config.system.model == "openrouter:z-ai/glm-5.3-flash"
+      assert config.system.reasoning == "low"
+      assert config.system.routing == "latency"
     end
 
     test "this house survived the migration with every real value on it" do

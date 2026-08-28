@@ -489,6 +489,37 @@ defmodule DobbyWeb.AdminLiveTest do
       # things in words.
       assert has_element?(view, "select[name='system[lan]'] option[value=true]", "yes")
       refute has_element?(view, ".system input[type=checkbox]")
+
+      # A closed set of words is offered as those words, with a blank for the
+      # default: the board offers what the file accepts instead of refusing
+      # what was typed.
+      assert has_element?(view, "select[name='system[reasoning]'] option[value='']", "default")
+      assert has_element?(view, "select[name='system[reasoning]'] option[value=low]", "low")
+      assert has_element?(view, "select[name='system[routing]'] option[value=latency]", "latency")
+    end
+
+    # How the model answers is read on every request, like the alias, so it is
+    # the other setting a save can honestly say is in effect now.
+    test "how the model answers takes effect now, from the panel", %{conn: conn} do
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      {:ok, view, _html} = open(conn, :system)
+
+      view
+      |> form("form#system", system: %{"reasoning" => "low", "routing" => "latency"})
+      |> render_submit()
+
+      assert has_element?(view, ".field .effect", "In effect now")
+      refute has_element?(view, ".field .effect.waiting")
+
+      assert Application.get_env(:dobby, :llm_opts) ==
+               [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
     end
 
     # The `:capable` alias is the one setting read at the moment it is used,

@@ -196,9 +196,18 @@ house:
 # is optional. DOBBY_MODEL, PORT and DOBBY_LAN override their matching fields
 # while exported, so a one-off experiment does not mean editing this file.
 system:
-  # Which model answers. Unset means the committed default, which needs an
-  # Anthropic key. Any provider ReqLLM speaks, as `provider:model`.
-  # model: openai:gpt-5.6-luna
+  # Which model answers, as `openrouter:author/model`. Unset means the
+  # committed default, GPT-5.6 Luna — the model Dobby is built and tested
+  # against first — so a house that says nothing follows the default when it
+  # moves. Name it to pin it:
+  # model: openrouter:openai/gpt-5.6-luna
+  #
+  # The other model that has been walked. GLM 5.3 Flash gets its first word
+  # out in well under a second and costs about the same per reply, and it is
+  # only that fast with the two lines under it, so the three go together.
+  # model: openrouter:z-ai/glm-5.3-flash
+  # reasoning: low       # how hard the model thinks first: low, medium or high
+  # routing: latency     # what OpenRouter optimizes for: latency, throughput or price
 
   # The port the surface is served on.
   port: 4000

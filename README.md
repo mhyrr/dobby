@@ -26,6 +26,11 @@ been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
 ## Running it
 
+You need a reachable Home Assistant, PostgreSQL, and an
+[OpenRouter](https://openrouter.ai/) account. Dobby speaks to one model
+provider, and every model it can answer with is served through OpenRouter, so
+the account is a requirement rather than one choice among several.
+
 ```sh
 mix setup
 cp config/homes/example.yaml config/homes/my-house.yaml
@@ -33,7 +38,7 @@ cp config/homes/example.yaml config/homes/my-house.yaml
 
 export DOBBY_HA_URL=http://homeassistant.local:8123
 export DOBBY_HA_TOKEN=...            # HA → your profile → Security → long-lived tokens
-export ANTHROPIC_API_KEY=...         # or any provider ReqLLM speaks; see `system.model`
+export OPENROUTER_API_KEY=...        # one key; `system.model` selects the model
 
 DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix dobby.ha.verify
 DOBBY_HOME_MANIFEST=config/homes/my-house.yaml mix phx.server

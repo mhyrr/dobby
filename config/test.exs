@@ -43,12 +43,12 @@ if System.get_env("DOBBY_EVAL") in [nil, ""] do
 
   config :req_llm,
     anthropic_api_key: "rig-fake-key-never-valid",
-    openai_api_key: "rig-fake-key-never-valid"
+    openai_api_key: "rig-fake-key-never-valid",
+    openrouter_api_key: "rig-fake-key-never-valid"
 else
-  # The eval tier resolves `:capable` to a real model. It points at OpenAI
-  # rather than the Anthropic default in config/exs because that is the key
-  # this machine actually has — which is exactly the swap design §2.1 says an
-  # alias exists to make.
+  # The eval tier resolves `:capable` to a real model through OpenRouter, the
+  # same provider used in production. One provider key can now exercise the
+  # model rotations that this tier exists to make.
   #
   # gpt-5.6-luna is the model Dobby is being built against (Greg, 2026-08-14).
   # Note the dots: the dashed form resolves as an unverified model. Rotating
@@ -57,7 +57,7 @@ else
   # DOBBY_EVAL_MODEL is how a rotation is run deliberately, rather than a
   # second model being carried permanently.
   config :jido_ai, :model_aliases, %{
-    capable: System.get_env("DOBBY_EVAL_MODEL", "openai:gpt-5.6-luna")
+    capable: System.get_env("DOBBY_EVAL_MODEL", "openrouter:openai/gpt-5.6-luna")
   }
 end
 

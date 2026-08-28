@@ -253,11 +253,19 @@ defmodule Dobby.DobbyAgent do
   # `create_schedule` learns who asked without the model supplying it:
   # attribution stays a property of the request rather than something the model
   # could get wrong (§6.4).
+  #
+  # `:llm_opts` is what the house file says about how the model answers —
+  # `Dobby.HomeConfig.System.llm_opts/1`, put in the environment at boot and
+  # again by the writer — read here at the moment of use for the reason the
+  # alias is (§2.1): a household changes it with a file, never a release. A
+  # caller's own `:llm_opts` replaces it whole; the eval tier passes its own,
+  # because rotating these is part of what that tier tests.
   defp request_opts(%Utterance{} = utterance, opts) do
     Keyword.merge(
       [
         tools: Dobby.Home.tools(),
-        tool_context: %{speaker: utterance.speaker, via: :conversation}
+        tool_context: %{speaker: utterance.speaker, via: :conversation},
+        llm_opts: Application.get_env(:dobby, :llm_opts, [])
       ],
       opts
     )

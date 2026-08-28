@@ -111,6 +111,14 @@ defmodule Dobby.Eval.StreamingEvalTest do
     deltas = content_deltas(events)
     seqs = Enum.map(events, & &1.seq)
 
+    # Same wait as `Dobby.Eval.report/2`: the final llm telemetry lands after
+    # the request completes, and a token count read too early is a lie.
+    usage =
+      Dobby.RigCase.eventually(
+        fn -> with %{turns: turns} = usage when turns > 0 <- Dobby.Trace.usage(), do: usage end,
+        2_000
+      )
+
     # Arrival order is not emission order. A swap has been seen here, which is
     # why the thread keys deltas by `seq` rather than appending them.
     inversions =
@@ -124,7 +132,33 @@ defmodule Dobby.Eval.StreamingEvalTest do
       events   #{length(events)}   content deltas #{length(deltas)}
       kinds    #{inspect(events |> Enum.map(& &1.kind) |> Enum.frequencies())}
       arrival-order inversions   #{inversions}
+      first    #{first_delta_line(events)}
+      tokens   #{usage.input_tokens} in / #{usage.output_tokens} out over #{usage.turns} turns
       reply    #{Enum.map_join(deltas, & &1.data[:delta])}
     """)
+  end
+
+  # Time to first token, per turn: from the request starting, and from the
+  # model call that produced it. The household waits on the first number; the
+  # second is the one a provider's routing can change.
+  defp first_delta_line(events) do
+    started = Enum.find(events, &(&1.kind == :request_started))
+    completed = Enum.find(events, &(&1.kind == :request_completed))
+
+    turns =
+      events
+      |> Enum.filter(&(&1.kind == :llm_delta))
+      |> Enum.group_by(& &1.iteration)
+      |> Enum.sort()
+      |> Enum.map_join("   ", fn {iteration, deltas} ->
+        first = Enum.min_by(deltas, & &1.at_ms)
+        call = Enum.find(events, &(&1.kind == :llm_started and &1.iteration == iteration))
+
+        after_call = if call, do: " (#{first.at_ms - call.at_ms}ms after the call)", else: ""
+
+        "turn #{iteration} #{first.data[:chunk_type]} +#{first.at_ms - started.at_ms}ms#{after_call}"
+      end)
+
+    turns <> "   done +#{completed.at_ms - started.at_ms}ms"
   end
 end

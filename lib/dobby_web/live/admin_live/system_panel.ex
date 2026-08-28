@@ -3,9 +3,9 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   The box's own settings, on the page a maintainer opens (TK-018 layer C).
 
   Not the house — the house is what `/house` edits and what the cards are about.
-  This is the four things `config/runtime.exs` used to gate behind
-  `config_env() == :dev`: the model behind the `:capable` alias, the port, and
-  whether Dobby answers on the household network at all.
+  This is what `config/runtime.exs` used to gate behind `config_env() == :dev`
+  — the model behind the `:capable` alias, the port, and whether Dobby answers
+  on the household network at all — and, since TK-034, how that model answers.
 
   ## Drawn from the schema, never from a list written out here
 
@@ -83,11 +83,16 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
             and edit the file, and the key is how they find the line. --%>
       <form :if={@editable} id="system" class="fields" phx-change="system" phx-submit="save">
         <.field :for={field <- @fields} ask={field.ask} key={field.name}>
-          <%!-- Two words rather than a checkbox: a tick is an icon, and this
-                board says things in words. --%>
+          <%!-- Words rather than a checkbox or a free box: a tick is an icon,
+                and a setting with three allowed words offers the three. --%>
           <select :if={field.input == "select"} name={"system[#{field.name}]"}>
-            <option value="false" selected={field.value != "true"}>no</option>
-            <option value="true" selected={field.value == "true"}>yes</option>
+            <option
+              :for={{value, word} <- field.choices}
+              value={value}
+              selected={field.value == value}
+            >
+              {word}
+            </option>
           </select>
 
           <%!-- No `min` on the number, deliberately. The schema knows a port
@@ -272,6 +277,7 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
         type: spec[:type],
         ask: Fields.ask(spec[:doc]),
         input: Fields.input_type(spec[:type]),
+        choices: choices(spec[:type]),
         value: Map.get(form, name, ""),
         reading: reading(value),
         set?: value != nil,
@@ -279,6 +285,13 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
       }
     end)
   end
+
+  # A boolean is two words. A closed set of words offers each of them, and a
+  # blank first: the knob the file does not mention is a knob at Dobby's own
+  # default, and choosing the blank is how the file stops mentioning it.
+  defp choices(:boolean), do: [{"false", "no"}, {"true", "yes"}]
+  defp choices({:in, words}), do: [{"", "default"} | Enum.map(words, &{&1, &1})]
+  defp choices(_type), do: nil
 
   # -- rendering -------------------------------------------------------------
 

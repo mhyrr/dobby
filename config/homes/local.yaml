@@ -84,3 +84,10 @@ house:
       ha_integration: ping
       bindings:
         connectivity: binary_sensor.office_printer
+
+# The box: this instance answers with GLM 5.3 Flash (TK-034). Flash is only
+# fast with low reasoning and latency routing, so the three lines go together.
+system:
+  model: openrouter:z-ai/glm-5.3-flash
+  reasoning: low
+  routing: latency

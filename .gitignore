@@ -48,8 +48,8 @@ npm-debug.log
 # issued token. Nothing under it may ever be committed.
 /dev/home-assistant/config/
 
-# Local development environment — carries the HA token. .env.example is the
-# committed shape of it.
+# Local development environment — carries the HA token and model key.
+# .env.example is the committed shape of it.
 /.env
 
 # Agent worktrees. Ephemeral checkouts a subagent works in; git records them

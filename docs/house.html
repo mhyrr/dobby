@@ -149,9 +149,11 @@
     <p>A printer that drops off at three in the morning shows on its card and in the log. It does not post into the thread.</p>
 
     <h2 id="system">The system section</h2>
-    <p>All four settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
+    <p>All six settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
 <pre><code><span class="k">system:</span>
-  <span class="k">model:</span> openai:gpt-5.6-luna
+  <span class="k">model:</span> openrouter:openai/gpt-5.6-luna
+  <span class="k">reasoning:</span> low
+  <span class="k">routing:</span> latency
   <span class="k">port:</span> 4000
   <span class="k">lan:</span> true
   <span class="k">hostname:</span> dobby.local</code></pre>
@@ -159,14 +161,18 @@
     <div class="table-wrap">
     <table>
       <tr><th>Key</th><th>Override</th><th>Takes effect</th></tr>
-      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. Any <span class="arg">provider:model</span> ReqLLM speaks.</td></tr>
+      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. OpenRouter names use <span class="arg">openrouter:author/model</span>. Two have been walked: <span class="arg">openai/gpt-5.6-luna</span>, the default, and <span class="arg">z-ai/glm-5.3-flash</span>.</td></tr>
+      <tr><td><code>reasoning</code></td><td>—</td><td>At the next reply. How hard a reasoning model thinks before it answers: <span class="arg">low</span>, <span class="arg">medium</span> or <span class="arg">high</span>. Unset leaves the provider's default.</td></tr>
+      <tr><td><code>routing</code></td><td>—</td><td>At the next reply. What OpenRouter optimizes for when it picks the endpoint that serves the model: <span class="arg">latency</span>, <span class="arg">throughput</span> or <span class="arg">price</span>.</td></tr>
       <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
       <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
       <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>
     </table>
     </div>
 
-    <p>The same four settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
+    <p>GLM 5.3 Flash is the fast choice, and only with <code>reasoning: low</code> and <code>routing: latency</code>: on the day it was measured, its first word arrived in under a second where Luna took one to three, and a reply cost about the same on either. Luna stays the default because Dobby is built and tested against it first.</p>
+
+    <p>The same six settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
 
     <h2 id="written">Dobby writes this file too</h2>
     <p>The forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, a device Dobby proposes in the thread, and an agent over MCP all write to this file. One writer handles every change, so two saves at once queue instead of colliding. Two things to know before you edit by hand:</p>

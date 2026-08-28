@@ -146,12 +146,15 @@ defmodule DobbyWeb.Fields do
   The input a declared type wants.
 
   A boolean is two words in a select and never a tick: a tick is an icon, and
-  this board says things in words.
+  this board says things in words. A closed set of words is a select of those
+  words, so the board offers what the file would accept instead of refusing
+  what was typed.
   """
   @spec input_type(term()) :: String.t()
   def input_type(type) do
     cond do
       type == :boolean -> "select"
+      match?({:in, _words}, type) -> "select"
       numeric?(type) -> "number"
       true -> "text"
     end

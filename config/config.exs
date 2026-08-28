@@ -11,10 +11,10 @@ config :dobby,
   ecto_repos: [Dobby.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-# Model aliases (design §2.1). DobbyAgent names the alias, never the provider,
-# so pointing :capable at a local OpenAI-compatible server later is a
-# configuration change rather than a design change.
-config :jido_ai, :model_aliases, %{capable: "anthropic:claude-sonnet-4-5"}
+# Model aliases (design §2.1). DobbyAgent names the alias, never the provider.
+# OpenRouter is the one provider Dobby needs credentials for; the model after
+# it stays explicit, so a model rotation remains a configuration change.
+config :jido_ai, :model_aliases, %{capable: "openrouter:openai/gpt-5.6-luna"}
 
 # Configure the endpoint
 config :dobby, DobbyWeb.Endpoint,

@@ -274,6 +274,34 @@ defmodule Dobby.HomeConfig.WriterTest do
       assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "openai:gpt-5.6-luna"}
     end
 
+    test "how the model answers takes effect now, as one value for the model", %{
+      writer: writer
+    } do
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      config = current(writer)
+
+      assert {:ok, applied} =
+               Writer.save(writer, with_system(config, reasoning: "low", routing: "latency"))
+
+      assert applied.applied == [:reasoning, :routing]
+      assert applied.on_restart == []
+
+      assert Application.get_env(:dobby, :llm_opts) ==
+               [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
+
+      # Cleared, the file stops mentioning it and the model stops being told.
+      assert {:ok, applied} = Writer.save(writer, with_system(current(writer), routing: nil))
+      assert applied.applied == [:routing]
+      assert Application.get_env(:dobby, :llm_opts) == [reasoning_effort: :low]
+    end
+
     test "an exported model remains in effect when the file changes", %{writer: writer} do
       previous_aliases = Application.get_env(:jido_ai, :model_aliases)
       on_exit(fn -> Application.put_env(:jido_ai, :model_aliases, previous_aliases) end)

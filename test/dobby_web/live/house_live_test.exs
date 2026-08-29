@@ -331,6 +331,7 @@ defmodule DobbyWeb.HouseLiveTest do
       # from the card: a snapshot is what Home Assistant said, and what is
       # being edited is what this household wrote down.
       assert has_element?(view, "input[name='device[name]'][value='main thermostat']")
+      assert has_element?(view, "#device-hands-only[name='device[hands_only]']")
 
       # The entity field is the type's own binding key, and the settings are
       # its declared schema — including the sentence `config_schema/0` writes
@@ -349,6 +350,28 @@ defmodule DobbyWeb.HouseLiveTest do
 
       assert has_element?(view, "input[name='device[bindings][light]']")
       refute has_element?(view, "input[name='device[settings][min_temperature_f]']")
+    end
+
+    test "writes the hands-only choice into the shared device entry", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      view
+      |> form(".device-form",
+        device: %{
+          "name" => "main thermostat",
+          "aliases" => "",
+          "hands_only" => "true",
+          "bindings" => %{"climate" => @entity},
+          "settings" => %{"min_temperature_f" => "60", "max_temperature_f" => "76"}
+        }
+      )
+      |> render_submit()
+
+      assert {:ok, reread} = HomeConfig.load(path)
+      assert [thermostat, _light] = reread.house[:devices]
+      assert thermostat.hands_only
     end
 
     # The id is what a schedule stores and the type is where its actions come

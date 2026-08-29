@@ -106,6 +106,7 @@ defmodule Dobby.Home.Manifest do
          {:ok, agent_module} <- fetch_device_key(entry, :agent_module, id),
          {:ok, bindings} <- fetch_device_key(entry, :bindings, id),
          :ok <- validate_agent_module(agent_module, id),
+         :ok <- validate_hands_only(Map.get(entry, :hands_only, false), id),
          :ok <- validate_network(Map.get(entry, :network), networks, id) do
       device = %Device{
         id: id,
@@ -115,6 +116,7 @@ defmodule Dobby.Home.Manifest do
         network: Map.get(entry, :network),
         ha_integration: Map.get(entry, :ha_integration),
         aliases: Map.get(entry, :aliases, []),
+        hands_only: Map.get(entry, :hands_only, false),
         settings: Map.get(entry, :settings, %{})
       }
 
@@ -160,6 +162,12 @@ defmodule Dobby.Home.Manifest do
       {:error, "device #{inspect(id)}: unknown network #{inspect(network)}"}
     end
   end
+
+  defp validate_hands_only(value, _id) when is_boolean(value), do: :ok
+
+  defp validate_hands_only(value, id),
+    do:
+      {:error, "device #{inspect(id)}: hands_only must be true or false, got: #{inspect(value)}"}
 
   defp reject_duplicate_ids(devices) do
     case duplicates(Enum.map(devices, & &1.id)) do

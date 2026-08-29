@@ -73,6 +73,36 @@ defmodule Dobby.HomeConfigTest do
              }
     end
 
+    test "hands_only is a shared device choice and survives a YAML round trip" do
+      yaml =
+        String.replace(
+          @house,
+          "      settings:\n",
+          "      hands_only: true\n      settings:\n"
+        )
+
+      assert {:ok, config} = load(yaml)
+      assert [device] = config.house[:devices]
+      assert device.hands_only
+
+      assert {:ok, again} = load(HomeConfig.to_yaml(config))
+      assert [round_tripped] = again.house[:devices]
+      assert round_tripped.hands_only
+    end
+
+    test "hands_only takes a boolean rather than a persuasive word" do
+      yaml =
+        String.replace(
+          @house,
+          "      settings:\n",
+          "      hands_only: yes-please\n      settings:\n"
+        )
+
+      assert {:error, message} = load(yaml)
+      assert message =~ "hands_only"
+      assert message =~ "true or false"
+    end
+
     test "a house the file describes is a house Dobby.Home will accept" do
       variable = "DOBBY_PROBE_#{System.unique_integer([:positive])}"
       System.put_env(variable, "not-a-real-token")

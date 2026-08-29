@@ -273,6 +273,7 @@ defmodule Dobby.Home do
         id: device.id,
         name: device.name,
         aliases: device.aliases,
+        hands_only: device.hands_only,
         # Not shown to the model as such — it is what the renderer asks for the
         # device's schedulable actions, which is the one thing about a device
         # the model needs that the manifest does not state directly.

@@ -4,6 +4,7 @@ defmodule DobbyWeb.HouseLive.Editor do
 
   Nothing in here knows what a thermostat is. The scaffolding — id, type, name,
   aliases — is the shape `Dobby.HomeConfig` validates every entry against; the
+  shared `hands_only` choice says who may command it; the
   entity fields come from the type's `c:Dobby.DeviceAgent.subscribed_bindings/0`;
   the settings fields come from its `c:Dobby.DeviceAgent.config_schema/0`,
   including the `:doc` that callback says is written for whoever is editing the
@@ -38,10 +39,10 @@ defmodule DobbyWeb.HouseLive.Editor do
   @doc """
   One device, as fields.
   """
-  attr :form, :map, required: true, doc: "the string-keyed params being edited"
-  attr :module, :atom, required: true, doc: "the agent module the type resolves to"
-  attr :new, :boolean, default: false, doc: "whether this device does not exist yet"
-  attr :error, :string, default: nil, doc: "why the last save was refused"
+  attr(:form, :map, required: true, doc: "the string-keyed params being edited")
+  attr(:module, :atom, required: true, doc: "the agent module the type resolves to")
+  attr(:new, :boolean, default: false, doc: "whether this device does not exist yet")
+  attr(:error, :string, default: nil, doc: "why the last save was refused")
 
   def editor(assigns) do
     assigns = assign(assigns, :settings, settings(assigns.module))
@@ -72,6 +73,17 @@ defmodule DobbyWeb.HouseLive.Editor do
 
       <.field ask="Other names for the same thing, separated by commas" key="aliases">
         <input type="text" name="device[aliases]" value={@form["aliases"]} autocomplete="off" />
+      </.field>
+
+      <.field ask="Should only a person's hand command this device" key="hands_only">
+        <input type="hidden" name="device[hands_only]" value="false" />
+        <input
+          id="device-hands-only"
+          type="checkbox"
+          name="device[hands_only]"
+          value="true"
+          checked={@form["hands_only"] in [true, "true"]}
+        />
       </.field>
 
       <%!-- Three of the four types declare no settings at all, and a house
@@ -175,6 +187,7 @@ defmodule DobbyWeb.HouseLive.Editor do
       "type" => List.first(Types.names()),
       "name" => "",
       "aliases" => "",
+      "hands_only" => "false",
       "bindings" => %{},
       "settings" => %{}
     }
@@ -192,6 +205,7 @@ defmodule DobbyWeb.HouseLive.Editor do
       "type" => type,
       "name" => entry.name,
       "aliases" => Enum.join(Map.get(entry, :aliases) || [], ", "),
+      "hands_only" => to_string(Map.get(entry, :hands_only, false)),
       "bindings" => stringify(Map.get(entry, :bindings) || %{}),
       "settings" => stringify(Map.get(entry, :settings) || %{})
     }
@@ -225,6 +239,7 @@ defmodule DobbyWeb.HouseLive.Editor do
          id: id,
          name: name,
          aliases: aliases(form["aliases"]),
+         hands_only: hands_only?(form["hands_only"]),
          agent_module: module,
          bindings: bindings(module, form["bindings"] || %{}),
          settings: settings
@@ -265,6 +280,8 @@ defmodule DobbyWeb.HouseLive.Editor do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp hands_only?(value), do: value in [true, "true", "on", "1"]
 
   defp bindings(module, submitted) do
     for key <- module.subscribed_bindings(),

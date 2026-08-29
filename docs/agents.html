@@ -40,7 +40,7 @@
 
     <h2 id="boundary">One constrained household capability model</h2>
     <p>Dobby's own model and an outside agent over MCP use the same house-specific tool modules. A house with no vacuum exposes no vacuum tools. A lock exposes <span class="arg">secure</span> and never <span class="arg">unlock</span>. Every tool call reaches the same device validation and gets the same refusal.</p>
-    <p>Cards and schedules enter one layer lower. They bypass model tools and converge on the same device-agent command boundary. The caller changes. The managed devices, allowed actions, household limits, and Home Assistant boundary do not.</p>
+    <p>Cards and schedules enter one layer lower. They bypass model tools and converge on the same device-agent command boundary. That boundary still knows the caller. A device marked <code>hands_only: true</code> refuses Dobby's model, MCP, and schedules either language layer authored. A card or an admin-authored schedule remains a person's hand and still works.</p>
     <p>Dobby serves the outside door over MCP at <span class="arg">/mcp</span>. Claude Code is the concrete example below. Any client that speaks streamable HTTP can use it.</p>
 
     <h2 id="token">Mint a token</h2>

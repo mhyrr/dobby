@@ -58,6 +58,7 @@ config :dobby, Dobby.Home,
         device_id: "rig-front-door"
       },
       "lock.front_door" => %{state: "locked", attributes: %{}},
+      "lock.side_door" => %{state: "unlocked", attributes: %{}},
       "cover.garage_door" => %{state: "closed", attributes: %{current_position: 0}},
       "switch.coffee_station" => %{state: "off", attributes: %{}},
       "cover.dining_shade" => %{
@@ -165,6 +166,15 @@ config :dobby, Dobby.Home,
       aliases: [],
       agent_module: Dobby.DeviceAgents.Lock,
       bindings: %{lock: "lock.front_door"},
+      settings: %{}
+    },
+    %{
+      id: "lock:side",
+      name: "side door lock",
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.Lock,
+      bindings: %{lock: "lock.side_door"},
+      hands_only: true,
       settings: %{}
     },
     %{

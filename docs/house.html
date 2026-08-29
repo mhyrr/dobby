@@ -63,7 +63,7 @@
     <p><strong>Credentials are references.</strong> <code>token: env:DOBBY_HA_TOKEN</code> names an environment variable. Dobby reads it at boot. If the variable is missing, Dobby stops and names it instead of starting a house that cannot reach anything.</p>
 
     <h2 id="devices">A device entry</h2>
-    <p>Every device has the same six parts.</p>
+    <p>Every device has the same parts. Only <code>id</code>, <code>type</code>, <code>name</code>, and <code>bindings</code> are required.</p>
 
     <div class="table-wrap">
     <table>
@@ -73,11 +73,14 @@
       <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
       <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
       <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity IDs exactly.</td></tr>
+      <tr><td><code>hands_only</code></td><td>Optional. Set <code>true</code> when Dobby and agents over MCP may read the device but may not command it. Card controls and schedules made in <span class="arg">/admin</span> still work.</td></tr>
       <tr><td><code>settings</code></td><td>House rules. Optional. They can narrow what the hardware allows, never widen it.</td></tr>
     </table>
     </div>
 
     <p>Entity ids are in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. A device bound to a wrong id shows <span class="arg">NOT KNOWN</span> and stays that way. <a href="running.html#verify">Verify</a> names it.</p>
+
+    <p><code>hands_only</code> names the authority that remains. It does not mean the device is absent or globally read only. The language layer can still answer status questions. The command gate lives in the shared device protocol, so the same refusal applies to Dobby's model, MCP, and a delayed schedule they authored.</p>
 
     <h2 id="types">The device types</h2>
 

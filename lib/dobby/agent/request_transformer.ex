@@ -92,7 +92,8 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
 
     """
     #{@tag}
-    These are the only devices you can act on. Use the id when calling a tool.
+    These are the only devices in the house. Use the id when calling a tool.
+    A hands-only device may be read, but language callers may not command or schedule it.
 
     #{devices}
     </house>
@@ -100,12 +101,15 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   end
 
   defp describe(device, nil) do
-    "- #{device.id} — #{naming(device)}; state not yet known#{schedulable(device)}"
+    "- #{device.id} — #{naming(device)}; state not yet known#{access(device)}"
   end
 
   defp describe(device, snapshot) do
-    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{schedulable(device)}"
+    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{access(device)}"
   end
+
+  defp access(%{hands_only: true}), do: "; hands only"
+  defp access(device), do: schedulable(device)
 
   # What a schedule may aim at this device, straight from the device type's own
   # declaration (§4.2). Rendered here rather than baked into the

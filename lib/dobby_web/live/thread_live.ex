@@ -67,7 +67,7 @@ defmodule DobbyWeb.ThreadLive do
   def render(assigns) do
     ~H"""
     <header class="board">
-      <.plate speaker={@speaker} listening={@listening} return_to={~p"/"} />
+      <.plate speaker={@speaker} listening={@listening} here={:thread} return_to={~p"/"} />
       <.band snapshots={@snapshots} />
     </header>
 

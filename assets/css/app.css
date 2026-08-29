@@ -303,7 +303,12 @@ body {
    around this would be a second visual language arguing with the first. */
 .plate h1 a { color: inherit; text-decoration: none; }
 .plate h1 .sep { color: var(--brass-dim); letter-spacing: normal; }
-.plate h1 .section { color: var(--ink-quiet); }
+/* The nameplate is two words and one of them is the page you are on. Ink is
+   here, brass is there — so the brass word is always the one that goes
+   somewhere, whichever of the two it is. The heading is brass by default and
+   `here` is the exception, rather than the other way round, because the plate
+   is a brass part and the current page is the thing being marked on it. */
+.plate h1 .here { color: var(--ink-quiet); }
 .plate .who {
   display: flex;
   align-items: center;

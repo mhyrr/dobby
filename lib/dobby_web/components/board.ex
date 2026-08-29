@@ -22,9 +22,10 @@ defmodule DobbyWeb.Board do
   whose alternative costs six hundred input tokens and a second of waiting.
   Tapping it opens `/house`, where the same rows have controls on them.
 
-  There is no navigation bar. The plate is the way back and the band is the way
-  in, which is the whole of it: a shell of links around this would be a second
-  visual language arguing with the first.
+  There is no navigation bar. The plate carries the way between the two rooms
+  and the band is the wide, tappable way in to one of them, which is the whole
+  of it: a shell of links around this would be a second visual language arguing
+  with the first.
   """
 
   use DobbyWeb, :html
@@ -33,25 +34,42 @@ defmodule DobbyWeb.Board do
   import DobbyWeb.Mark
 
   @doc """
-  The board's nameplate.
+  The board's nameplate: two words, and one of them is where you are.
 
-  `section` says where you are and turns the name into the way back. On the
-  thread it is absent, because the thread is where the instrument answers and
-  you are already there.
+  `here` is the only thing a route passes, and the plate composes both words
+  from it. Three routes spelling their own strings is how `The House` came to
+  mean two different places at once, and a caller that cannot write the name
+  cannot write it wrong.
+
+  The reading is the same on every route: **the word in ink is the page you are
+  on, and the word in brass is a page you can go to.** That rule already ran
+  here — brass `Dobby` was the way back and the ink section was where you stood
+  — and the thread was the one route with nothing in the second slot, so the
+  only way in to the house was a band of rows with no name on it. Now the
+  thread says `Dobby · The House` too, with the roles swapped: you are with
+  Dobby, and the house is the other place.
+
+  Admin keeps its own word, because it is not the other half of this pair — it
+  is a third room, reached from the foot of `/house` (`DESIGN.md`, The No Nav
+  Rule).
   """
   attr :speaker, :map, default: nil
   attr :listening, :boolean, default: true
-  attr :section, :string, default: nil
+  attr :here, :atom, values: [:thread, :house, :admin], required: true
   attr :return_to, :string, default: "/"
 
   def plate(assigns) do
     ~H"""
     <div class="plate">
       <h1>
-        <span :if={!@section}>Dobby</span>
-        <.link :if={@section} navigate={~p"/"}>Dobby</.link>
-        <span :if={@section} class="sep" aria-hidden="true">·</span>
-        <span :if={@section} class="section">{@section}</span>
+        <span :if={@here == :thread} class="here">Dobby</span>
+        <.link :if={@here != :thread} navigate={~p"/"}>Dobby</.link>
+
+        <span class="sep" aria-hidden="true">·</span>
+
+        <.link :if={@here == :thread} navigate={~p"/house"} class="section">The House</.link>
+        <span :if={@here == :house} class="section here">The House</span>
+        <span :if={@here == :admin} class="section here">Admin</span>
       </h1>
 
       <div class="who">

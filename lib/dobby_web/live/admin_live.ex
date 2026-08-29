@@ -179,7 +179,7 @@ defmodule DobbyWeb.AdminLive do
   def render(assigns) do
     ~H"""
     <header class="board">
-      <.plate speaker={@speaker} listening={@listening} section="Admin" return_to={~p"/admin"} />
+      <.plate speaker={@speaker} listening={@listening} here={:admin} return_to={~p"/admin"} />
     </header>
 
     <%!-- The five panel headings this page already had, rotated from a column

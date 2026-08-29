@@ -233,24 +233,44 @@ defmodule DobbyWeb.HouseLiveTest do
       assert html =~ "say something" or html =~ "who&#39;s this?"
     end
 
-    # The nameplate names the instrument and the section names the room, and
-    # the two must stay different words. They were one — `The House` was the
-    # plate on every route *and* the name of `/house` — and the header lied in
-    # both directions: the thread announced "The House" over a band of rows
-    # that led somewhere else called the house, and `/house` offered "The
-    # House" as the way off it. Nothing in the markup stops that collapsing
-    # back, so this is what stops it.
-    test "the thread's nameplate does not claim to be the house", %{conn: conn} do
-      {:ok, thread, _html} = live(conn, "/")
+    test "the nameplate is also the way in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
 
-      assert has_element?(thread, ".plate h1", "Dobby")
-      refute has_element?(thread, ".plate .section")
+      assert {:ok, house, _html} =
+               view
+               |> element(".plate h1 a", "The House")
+               |> render_click()
+               |> follow_redirect(conn, "/house")
 
-      heading = thread |> element(".plate h1") |> render()
-      refute heading =~ "The House"
+      assert has_element?(house, ".plate .section.here", "The House")
+    end
 
-      # And the band is a link *to* the house rather than a claim to be it.
-      assert has_element?(thread, "a.rows[href='/house']")
+    # Ink is the page you are on and brass is a page you can go to, so exactly
+    # one of the nameplate's two words is a link on every route — and it is
+    # never the one you are standing on. The whole reason the plate says two
+    # words is that it said one, `The House`, for both the instrument and the
+    # room: the thread announced "The House" over a band of rows that led
+    # somewhere else called the house, and `/house` offered "The House" as the
+    # way off it. Nothing in the markup stops that collapsing back, so this is
+    # what stops it.
+    test "one word is where you are and the other is where you can go", %{conn: conn} do
+      for {path, here, there} <- [
+            {"/", "Dobby", "The House"},
+            {"/house", "The House", "Dobby"},
+            {"/admin", "Admin", "Dobby"}
+          ] do
+        {:ok, view, _html} = live(conn, path)
+
+        assert has_element?(view, ".plate h1 .here", here),
+               "#{path}: expected #{inspect(here)} to be marked as the current page"
+
+        assert has_element?(view, ".plate h1 a", there),
+               "#{path}: expected #{inspect(there)} to be the way out"
+
+        # And the page you are on is never a link to itself.
+        refute has_element?(view, ".plate h1 a", here),
+               "#{path}: #{inspect(here)} is the current page and links to itself"
+      end
     end
   end
 

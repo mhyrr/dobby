@@ -94,7 +94,7 @@ defmodule DobbyWeb.HouseLive do
       <.plate
         speaker={@speaker}
         listening={@listening}
-        section="The House"
+        here={:house}
         return_to={~p"/house"}
       />
     </header>

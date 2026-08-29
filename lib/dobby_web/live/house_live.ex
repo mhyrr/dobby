@@ -74,7 +74,7 @@ defmodule DobbyWeb.HouseLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "The house")
+     |> assign(:page_title, "The House")
      |> assign(:listening, listening?())
      |> assign(:undo, %{})
      |> assign(:held, %{})
@@ -94,7 +94,7 @@ defmodule DobbyWeb.HouseLive do
       <.plate
         speaker={@speaker}
         listening={@listening}
-        section="Devices"
+        section="The House"
         return_to={~p"/house"}
       />
     </header>

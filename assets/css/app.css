@@ -1211,13 +1211,15 @@ body {
      words still line up; the column they line up in is a phone's. */
   .row { grid-template-columns: 1fr auto 6rem; }
 
-  /* The nameplate keeps every letter it has and the plate wraps instead. At
-     360px "The House · Devices" and a name, a mark and a state word come to
-     350px of a 331px line, and the plate's own answer was to break "The House"
-     across two lines — a name is one thing and it is not read in halves. So
-     the name is unbreakable, and the who drops beneath it when there is no
-     room, still at the board's right-hand end because that is which end it is.
-     The switch, the mark and the word are all still there. */
+  /* The nameplate keeps every letter it has and the plate wraps instead. The
+     measurement that set this was "The House · Devices", which with a name, a
+     mark and a state word came to 350px of a 331px line at 360px, and the
+     plate's own answer was to break the heading across two lines — a name is
+     one thing and it is not read in halves. So the name is unbreakable, and
+     the who drops beneath it when there is no room, still at the board's
+     right-hand end because that is which end it is. The switch, the mark and
+     the word are all still there. The heading is "Dobby · The House" now and
+     is shorter, so it clears the same line with room to spare. */
   .plate { flex-wrap: wrap; row-gap: .35rem; }
   .plate h1 { white-space: nowrap; }
   .plate .who { margin-left: auto; }

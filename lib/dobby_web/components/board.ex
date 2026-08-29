@@ -2,10 +2,19 @@ defmodule DobbyWeb.Board do
   @moduledoc """
   The header band, in two pieces (design §10.1).
 
-  The **plate** is the board's nameplate — where it is, who is speaking, and
-  whether anything is listening. Every route wears it, which is why it lives
-  here rather than under `thread_live/`: `/house` and `/admin` are the same
-  instrument seen from a different side, not different applications.
+  The **plate** is the board's nameplate — whose instrument this is, where you
+  are in it, who is speaking, and whether anything is listening. Every route
+  wears it, which is why it lives here rather than under `thread_live/`:
+  `/house` and `/admin` are the same instrument seen from a different side, not
+  different applications.
+
+  **The name on the plate is `Dobby`, and it names the instrument.** It used to
+  be `The House`, and that one phrase was doing two jobs — the whole board on
+  every route, and the device page at `/house` — so the thread's header
+  announced "The House" above a band of rows that took you somewhere else
+  called the house, and `/house` offered "The House" as the way *off* the house.
+  Neither sentence was true. The instrument has a name and the room has a name,
+  and now they are different words.
 
   The **band** is the thread page's compact house — two or three flap rows, not
   the card set. It exists because "what's the thermostat at" should be answered
@@ -27,7 +36,8 @@ defmodule DobbyWeb.Board do
   The board's nameplate.
 
   `section` says where you are and turns the name into the way back. On the
-  thread it is absent, because you are already home.
+  thread it is absent, because the thread is where the instrument answers and
+  you are already there.
   """
   attr :speaker, :map, default: nil
   attr :listening, :boolean, default: true
@@ -38,8 +48,8 @@ defmodule DobbyWeb.Board do
     ~H"""
     <div class="plate">
       <h1>
-        <span :if={!@section}>The House</span>
-        <.link :if={@section} navigate={~p"/"}>The House</.link>
+        <span :if={!@section}>Dobby</span>
+        <.link :if={@section} navigate={~p"/"}>Dobby</.link>
         <span :if={@section} class="sep" aria-hidden="true">·</span>
         <span :if={@section} class="section">{@section}</span>
       </h1>
@@ -84,6 +94,9 @@ defmodule DobbyWeb.Board do
   twenty devices may want a better rule; this one is right for a house with
   four, and it is right for the case that matters — the thing that just
   changed is the thing somebody is watching.
+
+  Tapping it opens `/house`, whose plate reads `Dobby · The House` — so the
+  band is a few rows of a board the next page names.
   """
   attr :snapshots, :list, required: true, doc: "device snapshots, most recently changed first"
   attr :limit, :integer, default: 3
@@ -105,7 +118,7 @@ defmodule DobbyWeb.Board do
       :if={@rows != []}
       navigate={~p"/house"}
       class="rows"
-      aria-label="Every device in the house"
+      aria-label="The House — every device"
     >
       <div :for={row <- @rows} class="row">
         <span class="name">{row.name}</span>

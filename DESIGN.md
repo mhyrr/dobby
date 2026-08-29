@@ -480,11 +480,14 @@ a fixed 152px field is a share of it the row can no longer afford — 152 of a
 331px line, most of it empty, while the device name beside it was cut to `MAIN
 THERMOS…`. 6rem holds `NOT KNOWN`, the longest of the eight words, at 5.5rem.
 The words still line up; the column they line up in is a phone's. And the plate
-wraps rather than breaking its own name: at 360px `The House · Devices` plus a
-name, a mark and a state word come to 350px of a 331px line, and the plate's
-own answer had been to break `The House` across two lines. The name is
-unbreakable, the who drops beneath it and stays at the board's right-hand end,
-and a long speaker name truncates before anything else is allowed to leave.
+wraps rather than breaking its own name: at 360px the heading plus a name, a
+mark and a state word ran past the 331px line, and the plate's own answer had
+been to break the heading across two lines. The name is unbreakable, the who
+drops beneath it and stays at the board's right-hand end, and a long speaker
+name truncates before anything else is allowed to leave. The measurement that
+set this was `The House · Devices` at 350px; `Dobby · The House` is shorter and
+the rule holds with room to spare, which is the direction a rename is allowed
+to move a floor.
 
 The type is untouched, the vocabulary is untouched, and nothing vanishes. This
 is layout, and the Legibility Floor is not a thing to route around.
@@ -529,9 +532,20 @@ the maintainer's page. They share the plate, the flap, the row and the pitch,
 because they are the same board seen from a different side rather than three
 applications.
 
+The nameplate names the instrument and the section names the room: `Dobby`,
+then `Dobby · The House`, then `Dobby · Admin`. The instrument is the elf and
+the house is the page with the devices on it, and those have to be two
+different words. They were one — `The House` was both the nameplate on every
+route and the colloquial name of `/house` — and the collision made the header
+lie in both directions: the thread announced "The House" over a band of rows
+that led somewhere else called the house, and `/house` offered "The House" as
+the way *off* it. The plate is a nameplate riveted to an instrument, and this
+one is called Dobby.
+
 There is no navigation bar. The nameplate is the way back — on `/` it is plain
-lettering, because you are already home, and on the other two it becomes a link
-with a brass-dim `·` and the section name after it (`The House · Devices`). The
+lettering, because the thread is where the instrument answers and you are
+already there, and on the other two it becomes a link with a brass-dim `·` and
+the section name after it (`Dobby · The House`). The
 band of flap rows in the thread's header is the way in to `/house`, where the
 same rows have controls on them; it carries no underline and no hover lift,
 because a board that behaved like a hyperlink would stop reading as one. The

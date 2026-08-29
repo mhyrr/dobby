@@ -221,7 +221,7 @@ defmodule DobbyWeb.HouseLiveTest do
       assert {:ok, house, _html} =
                view |> element("a.rows") |> render_click() |> follow_redirect(conn, "/house")
 
-      assert has_element?(house, ".plate .section", "Devices")
+      assert has_element?(house, ".plate .section", "The House")
     end
 
     test "the nameplate is the way back", %{conn: conn} do
@@ -231,6 +231,26 @@ defmodule DobbyWeb.HouseLiveTest do
                view |> element(".plate h1 a") |> render_click() |> follow_redirect(conn, "/")
 
       assert html =~ "say something" or html =~ "who&#39;s this?"
+    end
+
+    # The nameplate names the instrument and the section names the room, and
+    # the two must stay different words. They were one — `The House` was the
+    # plate on every route *and* the name of `/house` — and the header lied in
+    # both directions: the thread announced "The House" over a band of rows
+    # that led somewhere else called the house, and `/house` offered "The
+    # House" as the way off it. Nothing in the markup stops that collapsing
+    # back, so this is what stops it.
+    test "the thread's nameplate does not claim to be the house", %{conn: conn} do
+      {:ok, thread, _html} = live(conn, "/")
+
+      assert has_element?(thread, ".plate h1", "Dobby")
+      refute has_element?(thread, ".plate .section")
+
+      heading = thread |> element(".plate h1") |> render()
+      refute heading =~ "The House"
+
+      # And the band is a link *to* the house rather than a claim to be it.
+      assert has_element?(thread, "a.rows[href='/house']")
     end
   end
 

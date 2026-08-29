@@ -73,6 +73,36 @@ defmodule Dobby.HomeConfigTest do
              }
     end
 
+    test "hands_only is a shared device choice and survives a YAML round trip" do
+      yaml =
+        String.replace(
+          @house,
+          "      settings:\n",
+          "      hands_only: true\n      settings:\n"
+        )
+
+      assert {:ok, config} = load(yaml)
+      assert [device] = config.house[:devices]
+      assert device.hands_only
+
+      assert {:ok, again} = load(HomeConfig.to_yaml(config))
+      assert [round_tripped] = again.house[:devices]
+      assert round_tripped.hands_only
+    end
+
+    test "hands_only takes a boolean rather than a persuasive word" do
+      yaml =
+        String.replace(
+          @house,
+          "      settings:\n",
+          "      hands_only: yes-please\n      settings:\n"
+        )
+
+      assert {:error, message} = load(yaml)
+      assert message =~ "hands_only"
+      assert message =~ "true or false"
+    end
+
     test "a house the file describes is a house Dobby.Home will accept" do
       variable = "DOBBY_PROBE_#{System.unique_integer([:positive])}"
       System.put_env(variable, "not-a-real-token")
@@ -422,6 +452,66 @@ defmodule Dobby.HomeConfigTest do
                reasoning: "high",
                routing: "price"
              }) == [reasoning_effort: :high, openrouter_provider: %{sort: "price"}]
+    end
+  end
+
+  # The failure this describes is the one that reached a kitchen: the house
+  # booted, looked healthy, and answered nothing, because `routing:` went to a
+  # model not reached through OpenRouter and ReqLLM rejected every request
+  # while building it. These pin the refusal that now happens at boot instead.
+  describe "settings the model in force cannot be sent" do
+    alias Dobby.HomeConfig.System, as: Section
+
+    @openrouter "openrouter:openai/gpt-5.6-luna"
+    @direct "openai:gpt-5.6-luna"
+
+    test "routing on a model not reached through OpenRouter is refused, in the file's words" do
+      section = %Section{routing: "latency"}
+
+      assert {:error, message} = Section.check_llm_opts(section, @direct)
+
+      # The word somebody wrote, not the option this module translated it into.
+      assert message =~ "routing: latency"
+      refute message =~ "openrouter_provider"
+      assert message =~ @direct
+    end
+
+    test "the same setting is fine on a model that is reached through OpenRouter" do
+      assert Section.check_llm_opts(%Section{routing: "latency"}, @openrouter) == :ok
+
+      assert Section.check_llm_opts(
+               %Section{reasoning: "low", routing: "latency"},
+               @openrouter
+             ) == :ok
+    end
+
+    test "reasoning travels to either, because every provider is asked to honour it" do
+      assert Section.check_llm_opts(%Section{reasoning: "low"}, @direct) == :ok
+      assert Section.check_llm_opts(%Section{reasoning: "low"}, @openrouter) == :ok
+    end
+
+    test "a section that sets nothing is sendable to anything" do
+      assert Section.check_llm_opts(%Section{}, @direct) == :ok
+      assert Section.check_llm_opts(%Section{}, nil) == :ok
+    end
+
+    test "an unresolvable model is not this check's to report" do
+      # The request says so in its own words a moment later. Two boot errors
+      # about one mistake, in two vocabularies, is worse than one.
+      assert Section.check_llm_opts(%Section{routing: "latency"}, "not-a-provider:nope") == :ok
+      assert Section.check_llm_opts(%Section{routing: "latency"}, nil) == :ok
+    end
+
+    test "the refusal says when an exported variable, not the file, chose the model" do
+      section = %Section{routing: "latency"}
+
+      assert {:error, exported} = Section.check_llm_opts(section, @direct, @direct)
+      assert exported =~ "exported as DOBBY_MODEL"
+
+      # The file's own model gets no such clause: somebody reading the house
+      # file will find the model it names, and be told where to look.
+      assert {:error, from_file} = Section.check_llm_opts(section, @direct, nil)
+      refute from_file =~ "DOBBY_MODEL"
     end
   end
 

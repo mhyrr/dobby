@@ -221,7 +221,7 @@ defmodule DobbyWeb.HouseLiveTest do
       assert {:ok, house, _html} =
                view |> element("a.rows") |> render_click() |> follow_redirect(conn, "/house")
 
-      assert has_element?(house, ".plate .section", "Devices")
+      assert has_element?(house, ".plate .section", "The House")
     end
 
     test "the nameplate is the way back", %{conn: conn} do
@@ -231,6 +231,46 @@ defmodule DobbyWeb.HouseLiveTest do
                view |> element(".plate h1 a") |> render_click() |> follow_redirect(conn, "/")
 
       assert html =~ "say something" or html =~ "who&#39;s this?"
+    end
+
+    test "the nameplate is also the way in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      assert {:ok, house, _html} =
+               view
+               |> element(".plate h1 a", "The House")
+               |> render_click()
+               |> follow_redirect(conn, "/house")
+
+      assert has_element?(house, ".plate .section.here", "The House")
+    end
+
+    # Ink is the page you are on and brass is a page you can go to, so exactly
+    # one of the nameplate's two words is a link on every route — and it is
+    # never the one you are standing on. The whole reason the plate says two
+    # words is that it said one, `The House`, for both the instrument and the
+    # room: the thread announced "The House" over a band of rows that led
+    # somewhere else called the house, and `/house` offered "The House" as the
+    # way off it. Nothing in the markup stops that collapsing back, so this is
+    # what stops it.
+    test "one word is where you are and the other is where you can go", %{conn: conn} do
+      for {path, here, there} <- [
+            {"/", "Dobby", "The House"},
+            {"/house", "The House", "Dobby"},
+            {"/admin", "Admin", "Dobby"}
+          ] do
+        {:ok, view, _html} = live(conn, path)
+
+        assert has_element?(view, ".plate h1 .here", here),
+               "#{path}: expected #{inspect(here)} to be marked as the current page"
+
+        assert has_element?(view, ".plate h1 a", there),
+               "#{path}: expected #{inspect(there)} to be the way out"
+
+        # And the page you are on is never a link to itself.
+        refute has_element?(view, ".plate h1 a", here),
+               "#{path}: #{inspect(here)} is the current page and links to itself"
+      end
     end
   end
 
@@ -331,6 +371,7 @@ defmodule DobbyWeb.HouseLiveTest do
       # from the card: a snapshot is what Home Assistant said, and what is
       # being edited is what this household wrote down.
       assert has_element?(view, "input[name='device[name]'][value='main thermostat']")
+      assert has_element?(view, "#device-hands-only[name='device[hands_only]']")
 
       # The entity field is the type's own binding key, and the settings are
       # its declared schema — including the sentence `config_schema/0` writes
@@ -349,6 +390,28 @@ defmodule DobbyWeb.HouseLiveTest do
 
       assert has_element?(view, "input[name='device[bindings][light]']")
       refute has_element?(view, "input[name='device[settings][min_temperature_f]']")
+    end
+
+    test "writes the hands-only choice into the shared device entry", %{conn: conn, path: path} do
+      {:ok, view, _html} = live(conn, "/house")
+
+      view |> element("#card-thermostat\\:main .acts button", "edit") |> render_click()
+
+      view
+      |> form(".device-form",
+        device: %{
+          "name" => "main thermostat",
+          "aliases" => "",
+          "hands_only" => "true",
+          "bindings" => %{"climate" => @entity},
+          "settings" => %{"min_temperature_f" => "60", "max_temperature_f" => "76"}
+        }
+      )
+      |> render_submit()
+
+      assert {:ok, reread} = HomeConfig.load(path)
+      assert [thermostat, _light] = reread.house[:devices]
+      assert thermostat.hands_only
     end
 
     # The id is what a schedule stores and the type is where its actions come

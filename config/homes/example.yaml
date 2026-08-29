@@ -41,6 +41,7 @@ house:
   #   name      what the household calls it, in the words they actually use.
   #   aliases   the other words they use for the same thing.
   #   bindings  which Home Assistant entity is which part of this device.
+  #   hands_only optional; true lets language read but not command this device.
   #   settings  household policy, narrowing what the device already allows.
   #
   # The entity ids below are made up. Yours are in Home Assistant under
@@ -98,12 +99,13 @@ house:
         camera: camera.front_door
         motion: binary_sensor.front_door_motion
 
-    # Secure-direction actions only. Dobby can lock and close. It never offers
-    # conversational unlock or open for access devices.
+    # Secure-direction actions only. This lock is also hands only: language can
+    # read it, while direct controls and admin schedules retain the secure action.
     - id: lock:front
       type: lock
       name: front door lock
       aliases: []
+      hands_only: true
       bindings:
         lock: lock.front_door
 

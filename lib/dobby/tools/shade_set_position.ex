@@ -22,6 +22,13 @@ defmodule Dobby.Tools.ShadeSetPosition do
     do: {:ok, Map.update(params, :position, nil, &Dobby.Tools.to_percent/1)}
 
   @impl true
-  def run(%{device: device_id, position: position}, _context),
-    do: Dobby.Tools.Device.command(device_id, Shade, "shade.set_position", %{position: position})
+  def run(%{device: device_id, position: position}, context),
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        Shade,
+        "shade.set_position",
+        %{position: position},
+        context
+      )
 end

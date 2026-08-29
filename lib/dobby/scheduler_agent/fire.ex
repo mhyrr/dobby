@@ -7,11 +7,10 @@ defmodule Dobby.SchedulerAgent.Fire do
   back. No inference, no model, no template — the decision was made when the
   schedule was authored, and this is the part that was written down.
 
-  The dispatch goes through `Dobby.Schedules.dispatch_signal/1`, which builds
-  the same signal the model's tool builds. That is what makes household policy
-  apply identically: an 85° schedule in a house capped at 76 is refused here
-  exactly as it would be refused if someone asked out loud, and the refusal is
-  announced rather than swallowed.
+  The dispatch goes through `Dobby.Schedules.dispatch_command/1`, which enters
+  the same caller-aware protocol as a tool or card. That makes household policy
+  apply identically and stops an old language-authored row from bypassing a
+  device that later became hands only.
 
   A schedule can be paused, deleted, or blocked between the tick being set and
   the tick arriving. All three are ordinary and none of them are errors.
@@ -22,7 +21,7 @@ defmodule Dobby.SchedulerAgent.Fire do
     description: "Dispatches one schedule's stored device action",
     schema: [schedule_id: [type: {:or, [:integer, :string]}, required: true]]
 
-  alias Dobby.{DeviceAgent, ScheduleEvents, Schedules}
+  alias Dobby.{ScheduleEvents, Schedules}
 
   require Logger
 
@@ -36,20 +35,7 @@ defmodule Dobby.SchedulerAgent.Fire do
   end
 
   defp dispatch(schedule) do
-    case Schedules.dispatch_signal(schedule) do
-      {:ok, pid, signal, ref} ->
-        record(schedule, outcome(pid, signal, ref))
-
-      {:error, reason} ->
-        record(schedule, {:error, reason})
-    end
-  end
-
-  defp outcome(pid, signal, ref) do
-    case Jido.AgentServer.call(pid, signal) do
-      {:ok, agent} -> DeviceAgent.command_outcome(agent.state, ref)
-      {:error, reason} -> {:error, inspect(reason)}
-    end
+    record(schedule, Schedules.dispatch_command(schedule))
   end
 
   # The row is gone — someone deleted the schedule between the timer being set

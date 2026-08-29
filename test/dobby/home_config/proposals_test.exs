@@ -72,6 +72,21 @@ defmodule Dobby.HomeConfig.ProposalsTest do
       assert Proposals.describe(proposal).entry == entry()
     end
 
+    test "the proposal tool carries hands_only through the MCP-shaped entry" do
+      assert {:ok, %{applied: false}} =
+               Jido.Exec.run(Dobby.Tools.ProposeDevice, %{
+                 id: "thermostat:dining_room",
+                 type: "thermostat",
+                 name: "dining room thermostat",
+                 bindings: %{"climate" => @candidate},
+                 aliases: ["the nest"],
+                 hands_only: true
+               })
+
+      assert [proposal] = Proposals.outstanding()
+      assert proposal.entry["hands_only"] == true
+    end
+
     test "an entry the file format would refuse comes back in the file format's words" do
       # Not a copy of the rule — `HomeConfig.add_device/2` is the same function a
       # loaded home file goes through, so the sentence names the field the way

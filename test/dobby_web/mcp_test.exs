@@ -239,6 +239,39 @@ defmodule DobbyWeb.MCPTest do
       assert schedule.created_by == "Ann's laptop"
       assert schedule.created_via == :mcp
     end
+
+    test "a hands-only device gives MCP the same refusal as conversation", ctx do
+      boot_house!([
+        %{
+          id: "lock:side",
+          name: "side door lock",
+          aliases: [],
+          agent_module: Dobby.DeviceAgents.Lock,
+          bindings: %{lock: "lock.side_door"},
+          hands_only: true,
+          settings: %{}
+        }
+      ])
+
+      seed_house(%{"lock.side_door" => %{state: "unlocked", attributes: %{}}})
+
+      token = mint!("Ann's laptop")
+      refused = call_tool(ctx.base, token, "lock_secure", %{"device" => "lock:side"})
+
+      refute refused["isError"]
+      assert %{"accepted" => false, "reason" => reason} = Jason.decode!(text(refused))
+      assert reason =~ "hands only"
+      assert reason =~ "language layer"
+      assert Fake.trace() == []
+
+      entry =
+        eventually(fn ->
+          Enum.find(Activity.recent(), &(&1.action == "lock_secure"))
+        end)
+
+      assert entry.actor == "Ann's laptop"
+      assert entry.result["state"] == "held"
+    end
   end
 
   describe "a house Dobby cannot write" do

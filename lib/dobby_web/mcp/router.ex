@@ -162,11 +162,7 @@ defmodule DobbyWeb.MCP.Router do
   # writes for the chat path — the actor is the token's label, which is the
   # reason labels exist.
   defp record(module, params, result, speaker, session, took) do
-    {state, value} =
-      case result do
-        {:ok, json} -> {:done, decoded(json)}
-        {:error, json} -> {:held, refusal(json)}
-      end
+    {state, value} = result_state(result)
 
     Activity.record(%{
       kind: "tool_call",
@@ -179,6 +175,19 @@ defmodule DobbyWeb.MCP.Router do
       request_id: "mcp:" <> session.id
     })
   end
+
+  # A device refusal is a successful tool execution with `accepted: false`.
+  # MCP keeps that domain result intact for the foreign agent, while the
+  # activity feed calls it HELD for the same reason the conversation step does:
+  # the tool ran, but the device did not accept the command.
+  defp result_state({:ok, json}) do
+    case decoded(json) do
+      %{"accepted" => false} = value -> {:held, value}
+      value -> {:done, value}
+    end
+  end
+
+  defp result_state({:error, json}), do: {:held, refusal(json)}
 
   # `execute_action/3` wraps a refusal as `{"error": reason}` JSON for the
   # model's eyes; the MCP client is owed the reason itself — the tool's own

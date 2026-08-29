@@ -58,5 +58,14 @@ defmodule Dobby.DeviceAgents.Lock do
   def intervention?(attribute), do: attribute == :lock_state
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :secure}, snapshot),
+    do: snapshot.lock_state in [:locking, :locked]
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
+  def confirmation_timeout, do: 1_000
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :lock)
 end

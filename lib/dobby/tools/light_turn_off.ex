@@ -29,33 +29,9 @@ defmodule Dobby.Tools.LightTurnOff do
   def label(arguments), do: "turning off the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context), do: set_power(device_id, false)
+  def run(%{device: device_id}, context), do: set_power(device_id, false, context)
 
   @doc false
-  def set_power(device_id, on) do
-    with {:ok, device, pid} <- Dobby.Home.resolve(device_id, Light),
-         ref = Jido.Util.generate_id(),
-         signal = Jido.Signal.new!("light.set_power", %{on: on, ref: ref}),
-         {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
-      agent.state
-      |> Dobby.DeviceAgent.command_outcome(ref)
-      |> interpret(device, on)
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp interpret(outcome, device, on) do
-    case outcome do
-      :accepted ->
-        {:ok, %{device: device.id, name: device.name, accepted: true, on: on}}
-
-      {:rejected, reason} ->
-        {:ok, %{device: device.id, name: device.name, accepted: false, reason: reason}}
-
-      :unknown ->
-        {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
-    end
-  end
+  def set_power(device_id, on, context),
+    do: Dobby.Tools.Device.command(device_id, Light, "light.set_power", %{on: on}, context)
 end

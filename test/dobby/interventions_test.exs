@@ -18,8 +18,10 @@ defmodule Dobby.InterventionsTest do
   alias Dobby.Controls
   alias Dobby.Conversation
   alias Dobby.Conversation.Message
+  alias Dobby.Home
   alias Dobby.Schedules
   alias Dobby.ThreadEvents
+  alias DobbyWeb.Flap
 
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
@@ -267,6 +269,83 @@ defmodule Dobby.InterventionsTest do
     end
   end
 
+  describe "Home Assistant answering a command" do
+    test "a refusal writes HELD with the reason" do
+      seed_unlocked_lock!()
+      Fake.fail_next("lock.front_door", :unavailable)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:system_line, %Message{text: "front door lock", meta: meta}}, 2_000
+      assert meta["word"] == "Held"
+      assert meta["state"] == "refused"
+      assert meta["reason"] =~ "unavailable"
+      assert meta["via"] == "Home Assistant"
+
+      entry =
+        eventually(fn ->
+          settle!()
+          Enum.find(Activity.recent(), &(&1.kind == "command_refused"))
+        end)
+
+      assert entry.device == "lock:front"
+      assert entry.action == "lock.secure"
+    end
+
+    test "a missing echo writes NOT KNOWN once and puts it on the board" do
+      seed_unlocked_lock!()
+      Fake.silence_next("lock.front_door")
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:system_line, %Message{text: "front door lock", meta: meta}}, 2_000
+      assert meta["word"] == "Not known"
+      assert meta["state"] == "silent"
+      assert meta["reason"] =~ "no answer since"
+
+      assert_receive %Jido.Signal{
+                       type: "dobby.device.command_status_changed",
+                       data: %{device: "lock:front", status: :not_known}
+                     },
+                     2_000
+
+      settle!()
+      snapshot = Home.snapshots()["lock:front"]
+      assert snapshot.command_status == :not_known
+      assert Flap.read(snapshot).word == "Not known"
+
+      assert Enum.count(system_lines(), &(&1.meta["word"] == "Not known")) == 1
+    end
+
+    test "a late echo clears NOT KNOWN without another thread line" do
+      seed_unlocked_lock!()
+      Fake.silence_next("lock.front_door")
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive %Jido.Signal{
+                       type: "dobby.device.command_status_changed",
+                       data: %{device: "lock:front", status: :not_known}
+                     },
+                     2_000
+
+      Fake.inject_state_changed("lock.front_door", %{state: "locked", attributes: %{}})
+
+      assert_receive %Jido.Signal{
+                       type: "dobby.device.command_status_changed",
+                       data: %{device: "lock:front", status: :clear}
+                     },
+                     2_000
+
+      settle!()
+      refute Map.has_key?(Home.snapshots()["lock:front"], :command_status)
+      assert Enum.count(system_lines(), &(&1.meta["word"] == "Not known")) == 1
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   defp system_lines do
@@ -276,6 +355,11 @@ defmodule Dobby.InterventionsTest do
   # The watcher is a process, so "has it finished" is a question with an answer
   # rather than a sleep: a synchronous call queues behind its whole mailbox.
   defp settle!, do: settle_watcher!()
+
+  defp seed_unlocked_lock! do
+    seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+    settle!()
+  end
 
   defp create!(overrides) do
     attrs =

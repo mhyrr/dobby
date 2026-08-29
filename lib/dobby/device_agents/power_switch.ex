@@ -65,5 +65,11 @@ defmodule Dobby.DeviceAgents.PowerSwitch do
   def intervention?(attribute), do: attribute == :power
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, power: expected}, snapshot),
+    do: snapshot.power == expected
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :switch)
 end

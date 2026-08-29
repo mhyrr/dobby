@@ -480,11 +480,14 @@ a fixed 152px field is a share of it the row can no longer afford — 152 of a
 331px line, most of it empty, while the device name beside it was cut to `MAIN
 THERMOS…`. 6rem holds `NOT KNOWN`, the longest of the eight words, at 5.5rem.
 The words still line up; the column they line up in is a phone's. And the plate
-wraps rather than breaking its own name: at 360px `The House · Devices` plus a
-name, a mark and a state word come to 350px of a 331px line, and the plate's
-own answer had been to break `The House` across two lines. The name is
-unbreakable, the who drops beneath it and stays at the board's right-hand end,
-and a long speaker name truncates before anything else is allowed to leave.
+wraps rather than breaking its own name: at 360px the heading plus a name, a
+mark and a state word ran past the 331px line, and the plate's own answer had
+been to break the heading across two lines. The name is unbreakable, the who
+drops beneath it and stays at the board's right-hand end, and a long speaker
+name truncates before anything else is allowed to leave. The measurement that
+set this was `The House · Devices` at 350px; `Dobby · The House` is shorter and
+the rule holds with room to spare, which is the direction a rename is allowed
+to move a floor.
 
 The type is untouched, the vocabulary is untouched, and nothing vanishes. This
 is layout, and the Legibility Floor is not a thing to route around.
@@ -529,15 +532,43 @@ the maintainer's page. They share the plate, the flap, the row and the pitch,
 because they are the same board seen from a different side rather than three
 applications.
 
-There is no navigation bar. The nameplate is the way back — on `/` it is plain
-lettering, because you are already home, and on the other two it becomes a link
-with a brass-dim `·` and the section name after it (`The House · Devices`). The
-band of flap rows in the thread's header is the way in to `/house`, where the
-same rows have controls on them; it carries no underline and no hover lift,
-because a board that behaved like a hyperlink would stop reading as one. The
-only way in to `/admin` is a small brass-dim link at the foot of `/house` — it
-is laptop-shaped and rarely visited, so it does not earn permanent header space
-on the surface a phone opens first.
+The nameplate names the instrument and the section names the room, and they
+have to be two different words. They were one — `The House` was both the
+nameplate on every route and the colloquial name of `/house` — and the
+collision made the header lie in both directions: the thread announced "The
+House" over a band of rows that led somewhere else called the house, and
+`/house` offered "The House" as the way *off* it. The instrument is the elf,
+the house is the page with the devices on it, and the plate is a nameplate
+riveted to an instrument. This one is called Dobby.
+
+**Ink is here and brass is there.** The plate carries two words separated by a
+brass-dim `·`, and the one in `ink-quiet` is the page you are on while the one
+in brass goes somewhere — so exactly one of them is a link, and it is never the
+one you are standing on:
+
+| Route | Nameplate | The link |
+|---|---|---|
+| `/` | `Dobby · The House` | The House → `/house` |
+| `/house` | `Dobby · The House` | Dobby → `/` |
+| `/admin` | `Dobby · Admin` | Dobby → `/` |
+
+The heading is brass and `here` is the exception, rather than the other way
+round, because the plate is a brass part and the current page is the thing
+being marked on it. This is what brass already did in the plate — it was the
+way back while the section stood in ink for where you were — named, and
+extended to `/`, which used to have nothing in the second slot at all. That
+left the band of rows as the only way in to the house, and a way in with no
+name on it is a way in you have to already know about. The route a component
+draws is now its single input, so no page can spell the other page's name
+differently from the page itself.
+
+There is no navigation bar. The band of flap rows in the thread's header is
+still the wide, tappable way in to `/house`, where the same rows have controls
+on them; it carries no underline and no hover lift, because a board that
+behaved like a hyperlink would stop reading as one. Admin is not the other half
+of the pair but a third room: the only way in to `/admin` is a small brass-dim
+link at the foot of `/house` — it is laptop-shaped and rarely visited, so it
+does not earn permanent header space on the surface a phone opens first.
 
 `/house` and `/admin` scroll the same way the thread does: the page itself never
 scrolls, and the main region is the only scrolling thing on it.

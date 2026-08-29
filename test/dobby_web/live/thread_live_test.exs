@@ -308,6 +308,15 @@ defmodule DobbyWeb.ThreadLiveTest do
       assert has_element?(view, "details.collapsed summary", "1 step")
     end
 
+    test "accepts the internal turn-finished ordering barrier", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      ThreadEvents.turn_finished("req-finished")
+      _ = :sys.get_state(view.pid)
+
+      assert has_element?(view, ".plate")
+    end
+
     test "strips the markdown a model emits despite being asked not to", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 

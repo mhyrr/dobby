@@ -74,7 +74,7 @@ defmodule DobbyWeb.HouseLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "The house")
+     |> assign(:page_title, "The House")
      |> assign(:listening, listening?())
      |> assign(:undo, %{})
      |> assign(:held, %{})
@@ -94,7 +94,7 @@ defmodule DobbyWeb.HouseLive do
       <.plate
         speaker={@speaker}
         listening={@listening}
-        section="Devices"
+        here={:house}
         return_to={~p"/house"}
       />
     </header>
@@ -391,6 +391,7 @@ defmodule DobbyWeb.HouseLive do
       "type" => type,
       "name" => params["name"] || "",
       "aliases" => params["aliases"] || "",
+      "hands_only" => params["hands_only"] || previous["hands_only"] || "false",
       "bindings" => if(same_type?, do: params["bindings"] || %{}, else: %{}),
       "settings" => if(same_type?, do: params["settings"] || %{}, else: %{})
     }
@@ -405,6 +406,10 @@ defmodule DobbyWeb.HouseLive do
   @impl true
   def handle_info(%Jido.Signal{type: "dobby.device.state_changed"}, socket) do
     {:noreply, socket |> assign(:snapshots, snapshots()) |> assign(:listening, listening?())}
+  end
+
+  def handle_info(%Jido.Signal{type: "dobby.device.command_status_changed"}, socket) do
+    {:noreply, assign(socket, :snapshots, snapshots())}
   end
 
   def handle_info(%Jido.Signal{}, socket), do: {:noreply, socket}

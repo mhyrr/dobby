@@ -2,7 +2,7 @@ defmodule Dobby.Tools.VacuumStart do
   @moduledoc """
   Tool: start a vacuum cleaning.
 
-  Transport only, and also home of the shared `command/3` carrier both
+  Transport only, and also home of the shared `command/4` carrier both
   vacuum command tools ride: start and dock are one decision shape in the
   agent, so they are one code path here.
   """
@@ -29,34 +29,16 @@ defmodule Dobby.Tools.VacuumStart do
   def label(arguments), do: "starting the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
-    do: command(device_id, "vacuum.start_cleaning", :start_cleaning)
+  def run(%{device: device_id}, context),
+    do: command(device_id, "vacuum.start_cleaning", :start_cleaning, context)
 
   @doc false
-  def command(device_id, signal_type, action) do
-    with {:ok, device, pid} <- Dobby.Home.resolve(device_id, Vacuum),
-         ref = Jido.Util.generate_id(),
-         signal = Jido.Signal.new!(signal_type, %{ref: ref}),
-         {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
-      agent.state
-      |> Dobby.DeviceAgent.command_outcome(ref)
-      |> interpret(device, action)
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp interpret(outcome, device, action) do
-    case outcome do
-      :accepted ->
-        {:ok, %{device: device.id, name: device.name, accepted: true, action: action}}
-
-      {:rejected, reason} ->
-        {:ok, %{device: device.id, name: device.name, accepted: false, reason: reason}}
-
-      :unknown ->
-        {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
+  def command(device_id, signal_type, action, context) do
+    case Dobby.Tools.Device.command(device_id, Vacuum, signal_type, %{}, context, %{
+           action: action
+         }) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
     end
   end
 end

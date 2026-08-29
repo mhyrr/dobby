@@ -27,7 +27,8 @@ defmodule Dobby.Eval do
 
   import ExUnit.Assertions
 
-  alias Dobby.{DobbyAgent, Utterance}
+  alias Dobby.{Conversation, DobbyAgent, Utterance}
+  alias Dobby.Conversation.{Message, Turn}
 
   @doc """
   Says something to Dobby with a real model behind him, and returns the reply.
@@ -59,6 +60,40 @@ defmodule Dobby.Eval do
       {:error, reason} ->
         flunk("model request failed: #{inspect(reason)}")
     end
+  end
+
+  @doc """
+  Runs one paid request through the persisted household thread.
+
+  Most evals need only the model reply and use `say!/2`. Confirmation outcomes
+  need the document order as well: a refusal must be below Dobby's own intent
+  line. This helper spends the same one request, then returns every row for its
+  request id after the watcher has crossed its ordering barrier.
+  """
+  @spec turn!(String.t(), String.t()) :: %{reply: String.t(), messages: [Message.t()]}
+  def turn!(speaker_name, text) do
+    {:ok, speaker} = Conversation.name_speaker(speaker_name)
+    utterance = Utterance.new(speaker_name, text)
+
+    started = System.monotonic_time(:millisecond)
+    :ok = Turn.run(utterance, speaker, llm_opts: llm_opts())
+    Process.put(:eval_elapsed_ms, System.monotonic_time(:millisecond) - started)
+    Dobby.RigCase.settle_watcher!()
+
+    request =
+      Conversation.list_messages()
+      |> Enum.reverse()
+      |> Enum.find(&(&1.role == :user and &1.text == text))
+
+    messages = Enum.filter(Conversation.list_messages(), &(&1.request_id == request.request_id))
+    reply = Enum.find(messages, &(&1.role == :assistant))
+
+    assert reply, "the paid turn stored no assistant reply"
+
+    refute reply.text =~ ~r/^\s*\[[^\]]+\]/,
+           "reply echoed the speaker prefix back: #{inspect(reply.text)}"
+
+    %{reply: reply.text, messages: messages}
   end
 
   @doc """

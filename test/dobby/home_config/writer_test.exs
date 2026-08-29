@@ -215,6 +215,7 @@ defmodule Dobby.HomeConfig.WriterTest do
                "camera:back_yard",
                "doorbell:front",
                "lock:front",
+               "lock:side",
                "cover:garage",
                "switch:coffee",
                "shade:dining",

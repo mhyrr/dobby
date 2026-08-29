@@ -14,6 +14,13 @@ defmodule Dobby.Tools.SpeakerPlay do
   def label(arguments), do: "starting the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
-    do: Dobby.Tools.Device.command(device_id, Speaker, "speaker.set_playback", %{playback: :play})
+  def run(%{device: device_id}, context),
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        Speaker,
+        "speaker.set_playback",
+        %{playback: :play},
+        context
+      )
 end

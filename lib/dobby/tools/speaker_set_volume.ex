@@ -21,9 +21,15 @@ defmodule Dobby.Tools.SpeakerSetVolume do
     do: {:ok, Map.update(params, :volume_percent, nil, &Dobby.Tools.to_percent/1)}
 
   @impl true
-  def run(%{device: device_id, volume_percent: percent}, _context) do
-    Dobby.Tools.Device.command(device_id, Speaker, "speaker.set_volume", %{
-      volume_percent: percent
-    })
+  def run(%{device: device_id, volume_percent: percent}, context) do
+    Dobby.Tools.Device.command(
+      device_id,
+      Speaker,
+      "speaker.set_volume",
+      %{
+        volume_percent: percent
+      },
+      context
+    )
   end
 end

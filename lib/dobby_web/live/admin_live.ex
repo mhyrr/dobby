@@ -179,7 +179,7 @@ defmodule DobbyWeb.AdminLive do
   def render(assigns) do
     ~H"""
     <header class="board">
-      <.plate speaker={@speaker} listening={@listening} section="Admin" return_to={~p"/admin"} />
+      <.plate speaker={@speaker} listening={@listening} here={:admin} return_to={~p"/admin"} />
     </header>
 
     <%!-- The five panel headings this page already had, rotated from a column
@@ -349,10 +349,10 @@ defmodule DobbyWeb.AdminLive do
   # from the target action's own schema, so the form can only offer what the
   # row will accept — and a new device type brings its own fields rather than
   # needing a form written for it.
-  attr :form, :map, required: true
-  attr :devices, :list, required: true
-  attr :arguments, :list, required: true
-  attr :error, :string, default: nil
+  attr(:form, :map, required: true)
+  attr(:devices, :list, required: true)
+  attr(:arguments, :list, required: true)
+  attr(:error, :string, default: nil)
 
   defp schedule_form(assigns) do
     assigns = assign(assigns, :registers, Fields.registers(assigns.arguments))
@@ -429,8 +429,8 @@ defmodule DobbyWeb.AdminLive do
   # One argument's control, typed by the schema that declared it. A boolean is
   # two words in a select and never a tick — the same call the system panel
   # makes, which is now the same code.
-  attr :argument, :map, required: true
-  attr :value, :any, default: nil
+  attr(:argument, :map, required: true)
+  attr(:value, :any, default: nil)
 
   defp argument(assigns) do
     assigns = assign(assigns, :input, Fields.input_type(assigns.argument.type))
@@ -668,11 +668,21 @@ defmodule DobbyWeb.AdminLive do
   # what "device changed" means in the feed underneath it, and a device
   # reporting for the first time does not read as one that just moved.
   def handle_info(%Jido.Signal{type: "dobby.device.state_changed", data: data}, socket) do
+    snapshot = Dobby.Interventions.Watcher.decorate(data[:snapshot])
+
     {:noreply,
      socket
-     |> put_snapshot(data[:device], data[:snapshot])
+     |> put_snapshot(data[:device], snapshot)
      |> stamp(data)
      |> assign(:listening, listening?())}
+  end
+
+  def handle_info(
+        %Jido.Signal{type: "dobby.device.command_status_changed", data: %{device: device}},
+        socket
+      ) do
+    snapshot = Dobby.Home.snapshots()[device]
+    {:noreply, put_snapshot(socket, device, snapshot)}
   end
 
   def handle_info(%Jido.Signal{}, socket), do: {:noreply, socket}

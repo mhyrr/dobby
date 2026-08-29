@@ -13,13 +13,14 @@ defmodule Dobby.Tools.ShadeOpen do
   def label(arguments), do: "opening the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
+  def run(%{device: device_id}, context),
     do:
       Dobby.Tools.Device.command(
         device_id,
         Shade,
         "shade.move",
         %{movement: :open},
+        context,
         %{shade_state: :open}
       )
 end

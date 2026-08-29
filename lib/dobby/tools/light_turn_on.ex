@@ -27,6 +27,6 @@ defmodule Dobby.Tools.LightTurnOn do
   def label(arguments), do: "turning on the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
-    do: Dobby.Tools.LightTurnOff.set_power(device_id, true)
+  def run(%{device: device_id}, context),
+    do: Dobby.Tools.LightTurnOff.set_power(device_id, true, context)
 end

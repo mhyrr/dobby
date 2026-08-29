@@ -13,13 +13,14 @@ defmodule Dobby.Tools.ShadeClose do
   def label(arguments), do: "closing the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
+  def run(%{device: device_id}, context),
     do:
       Dobby.Tools.Device.command(
         device_id,
         Shade,
         "shade.move",
         %{movement: :close},
+        context,
         %{shade_state: :closed}
       )
 end

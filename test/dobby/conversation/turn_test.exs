@@ -132,6 +132,36 @@ defmodule Dobby.Conversation.TurnTest do
     assert meta["value"] == "Locked"
   end
 
+  test "a fast HA refusal is stored beneath the model's intent", %{speaker: speaker} do
+    seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+    Fake.fail_next("lock.front_door", :unavailable)
+
+    utterance = Utterance.new("greg", "Dobby, lock the front door")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("lock_secure", %{"device" => "lock:front"})
+        answer("Locking the front door")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+    settle_watcher!()
+
+    request_id =
+      Conversation.list_messages()
+      |> Enum.find(&(&1.role == :user and &1.text == "Dobby, lock the front door"))
+      |> Map.fetch!(:request_id)
+
+    messages = Enum.filter(Conversation.list_messages(), &(&1.request_id == request_id))
+    reply_index = Enum.find_index(messages, &(&1.role == :assistant))
+    held_index = Enum.find_index(messages, &(&1.role == :system and &1.meta["word"] == "Held"))
+
+    assert Enum.at(messages, reply_index).text == "Locking the front door"
+    assert is_integer(held_index)
+    assert held_index > reply_index
+  end
+
   # `Turn.run/3` everywhere else in this file skips the queue deliberately, so
   # that a test can assert against a finished turn. This one goes through the
   # front door — `say/3` casts to `Turn.Queue`, which records the utterance and

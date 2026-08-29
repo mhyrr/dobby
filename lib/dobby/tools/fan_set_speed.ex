@@ -22,6 +22,13 @@ defmodule Dobby.Tools.FanSetSpeed do
     do: {:ok, Map.update(params, :speed_percent, nil, &Dobby.Tools.to_percent/1)}
 
   @impl true
-  def run(%{device: device_id, speed_percent: percent}, _context),
-    do: Dobby.Tools.Device.command(device_id, Fan, "fan.set_speed", %{speed_percent: percent})
+  def run(%{device: device_id, speed_percent: percent}, context),
+    do:
+      Dobby.Tools.Device.command(
+        device_id,
+        Fan,
+        "fan.set_speed",
+        %{speed_percent: percent},
+        context
+      )
 end

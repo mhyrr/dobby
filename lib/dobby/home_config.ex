@@ -58,7 +58,7 @@ defmodule Dobby.HomeConfig do
 
   @sections ~w(house system)
   @house_keys ~w(id name timezone home_assistant networks devices)
-  @device_keys ~w(id type name aliases network ha_integration bindings settings)
+  @device_keys ~w(id type name aliases network ha_integration bindings hands_only settings)
   @home_assistant_keys ~w(url token)
   @network_keys ~w(id name ssid)
 
@@ -340,6 +340,7 @@ defmodule Dobby.HomeConfig do
          {:ok, aliases} <- string_list(Map.get(raw, "aliases") || [], where, "aliases"),
          {:ok, bindings} <- yaml_bindings(module, Map.get(raw, "bindings") || %{}, where),
          {:ok, settings} <- yaml_settings(module, Map.get(raw, "settings") || %{}, where),
+         {:ok, hands_only} <- optional_boolean(raw, "hands_only", where, false),
          {:ok, network} <- optional_string(raw, "network", where),
          {:ok, integration} <- optional_string(raw, "ha_integration", where) do
       %{
@@ -350,6 +351,7 @@ defmodule Dobby.HomeConfig do
         bindings: bindings,
         settings: settings
       }
+      |> put_present(:hands_only, if(hands_only, do: true))
       |> put_present(:network, network)
       |> put_present(:ha_integration, integration)
       |> validated(module, where)
@@ -503,13 +505,22 @@ defmodule Dobby.HomeConfig do
       network: Map.get(entry, :network),
       ha_integration: Map.get(entry, :ha_integration),
       aliases: Map.get(entry, :aliases) || [],
+      hands_only: Map.get(entry, :hands_only, false),
       settings: Map.get(entry, :settings) || %{}
     }
 
     cond do
-      not is_binary(device.id) -> {:error, "#{where} is missing required field :id"}
-      not is_binary(device.name) -> {:error, "#{where} is missing required field :name"}
-      true -> per_type(device, module, entry, where)
+      not is_binary(device.id) ->
+        {:error, "#{where} is missing required field :id"}
+
+      not is_binary(device.name) ->
+        {:error, "#{where} is missing required field :name"}
+
+      not is_boolean(device.hands_only) ->
+        {:error, "#{where}: hands_only must be true or false, got: #{inspect(device.hands_only)}"}
+
+      true ->
+        per_type(device, module, entry, where)
     end
   end
 
@@ -573,6 +584,7 @@ defmodule Dobby.HomeConfig do
     |> put_present("aliases", presence(Map.get(entry, :aliases, [])))
     |> put_present("network", scalar(Map.get(entry, :network)))
     |> put_present("ha_integration", scalar(Map.get(entry, :ha_integration)))
+    |> put_present("hands_only", if(Map.get(entry, :hands_only, false), do: true))
     |> put_present("settings", settings_yaml(Map.get(entry, :settings, %{})))
   end
 
@@ -621,6 +633,19 @@ defmodule Dobby.HomeConfig do
       {:ok, nil} -> {:ok, nil}
       {:ok, other} -> {:error, "#{where}: #{inspect(key)} must be text, got: #{inspect(other)}"}
       :error -> {:ok, nil}
+    end
+  end
+
+  defp optional_boolean(raw, key, where, default) do
+    case Map.fetch(raw, key) do
+      {:ok, value} when is_boolean(value) ->
+        {:ok, value}
+
+      {:ok, other} ->
+        {:error, "#{where}: #{inspect(key)} must be true or false, got: #{inspect(other)}"}
+
+      :error ->
+        {:ok, default}
     end
   end
 

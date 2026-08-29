@@ -63,7 +63,7 @@
     <p><strong>Credentials are references.</strong> <code>token: env:DOBBY_HA_TOKEN</code> names an environment variable. Dobby reads it at boot. If the variable is missing, Dobby stops and names it instead of starting a house that cannot reach anything.</p>
 
     <h2 id="devices">A device entry</h2>
-    <p>Every device has the same six parts.</p>
+    <p>Every device has the same parts. Only <code>id</code>, <code>type</code>, <code>name</code>, and <code>bindings</code> are required.</p>
 
     <div class="table-wrap">
     <table>
@@ -73,11 +73,14 @@
       <tr><td><code>name</code></td><td>What the household calls it.</td></tr>
       <tr><td><code>aliases</code></td><td>Other names people use for it: "the thermostat", "downstairs".</td></tr>
       <tr><td><code>bindings</code></td><td>Which Home Assistant entity is which part of the device. Copy entity IDs exactly.</td></tr>
+      <tr><td><code>hands_only</code></td><td>Optional. Set <code>true</code> when Dobby and agents over MCP may read the device but may not command it. Card controls and schedules made in <span class="arg">/admin</span> still work.</td></tr>
       <tr><td><code>settings</code></td><td>House rules. Optional. They can narrow what the hardware allows, never widen it.</td></tr>
     </table>
     </div>
 
     <p>Entity ids are in Home Assistant under <span class="arg">Settings → Devices &amp; services → Entities</span>. A device bound to a wrong id shows <span class="arg">NOT KNOWN</span> and stays that way. <a href="running.html#verify">Verify</a> names it.</p>
+
+    <p><code>hands_only</code> names the authority that remains. It does not mean the device is absent or globally read only. The language layer can still answer status questions. The command gate lives in the shared device protocol, so the same refusal applies to Dobby's model, MCP, and a delayed schedule they authored.</p>
 
     <h2 id="types">The device types</h2>
 
@@ -163,7 +166,7 @@
       <tr><th>Key</th><th>Override</th><th>Takes effect</th></tr>
       <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. OpenRouter names use <span class="arg">openrouter:author/model</span>. Two have been walked: <span class="arg">openai/gpt-5.6-luna</span>, the default, and <span class="arg">z-ai/glm-5.3-flash</span>.</td></tr>
       <tr><td><code>reasoning</code></td><td>—</td><td>At the next reply. How hard a reasoning model thinks before it answers: <span class="arg">low</span>, <span class="arg">medium</span> or <span class="arg">high</span>. Unset leaves the provider's default.</td></tr>
-      <tr><td><code>routing</code></td><td>—</td><td>At the next reply. What OpenRouter optimizes for when it picks the endpoint that serves the model: <span class="arg">latency</span>, <span class="arg">throughput</span> or <span class="arg">price</span>.</td></tr>
+      <tr><td><code>routing</code></td><td>—</td><td>At the next reply. What OpenRouter optimizes for when it picks the endpoint that serves the model: <span class="arg">latency</span>, <span class="arg">throughput</span> or <span class="arg">price</span>. It is an OpenRouter setting, so it needs a model reached through OpenRouter: set it beside a <code>model</code> that is not an <span class="arg">openrouter:</span> name and the house refuses to start, saying so. That is deliberate — the alternative is a house that starts and then cannot answer anything.</td></tr>
       <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
       <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
       <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>

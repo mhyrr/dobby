@@ -68,6 +68,11 @@ defmodule Dobby.Tools.ProposeDevice do
         type: {:list, :string},
         doc: "Other words the household uses for the same thing."
       ],
+      hands_only: [
+        type: :boolean,
+        doc:
+          "True when language callers may read this device but only a person's hand may command it."
+      ],
       settings: [
         type: :map,
         doc:
@@ -128,6 +133,7 @@ defmodule Dobby.Tools.ProposeDevice do
       "bindings" => params.bindings
     }
     |> put_present("aliases", Map.get(params, :aliases))
+    |> put_present("hands_only", Map.get(params, :hands_only))
     |> put_present("settings", stringify(Map.get(params, :settings) || %{}))
   end
 

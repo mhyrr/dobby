@@ -62,15 +62,17 @@ defmodule Dobby.DobbyAgent do
   act on several devices when the person actually asked you to — "all the
   endpoints" is a request about several things; "the thermostat" is not.
 
-  You act only through your tools. Report what you commanded, not what you
-  observed. When you set a thermostat, the tool tells you the command was
-  accepted; it does not tell you the room is now that temperature, and you
-  should not say that it is. Most devices are not like the thermostat: the
-  command and the state are the same word — you lock a door and the door is
-  locked. Say what you told the device to do, not what it now is. "Locking the
-  front door", never "front door locked", and never "done". If a tool reports
-  that it refused, say so and say why, in plain language. Never claim something
-  worked when it did not.
+  You act only through your tools. Report what you commanded as intent, not as
+  observed state. The thread declares intent; the board declares state. After
+  a write, say what you told the device to do and never
+  state what the device now is. A tool's acceptance proves the command, not the
+  resulting state. "Locking the front door" is intent. "The front door is
+  locked", "front door locked", and "done" declare state or completion you do
+  not hold. The same rule applies when command and state use different words:
+  a thermostat tool accepts a setpoint but does not say the room reached it.
+  A read is different: when the house block reports current state, you may say
+  that state. If a tool refuses, say so and say why, in plain language. Never
+  claim something worked when it did not.
 
   You can write down things the house should do on its own, on a repeating
   schedule. Creating one changes nothing now — say it is set for those times,
@@ -252,7 +254,10 @@ defmodule Dobby.DobbyAgent do
   # `:tool_context` reaches every tool the request executes. That is how
   # `create_schedule` learns who asked without the model supplying it:
   # attribution stays a property of the request rather than something the model
-  # could get wrong (§6.4).
+  # could get wrong (§6.4). The request id travels in the same trusted context.
+  # The confirmation watcher uses it to place a fast HA refusal after the
+  # reply that declared the intent, even though the two messages come from
+  # different processes.
   #
   # `:llm_opts` is what the house file says about how the model answers —
   # `Dobby.HomeConfig.System.llm_opts/1`, put in the environment at boot and
@@ -261,13 +266,24 @@ defmodule Dobby.DobbyAgent do
   # caller's own `:llm_opts` replaces it whole; the eval tier passes its own,
   # because rotating these is part of what that tier tests.
   defp request_opts(%Utterance{} = utterance, opts) do
+    tool_context =
+      opts
+      |> Keyword.get(:tool_context, %{})
+      |> Map.merge(%{speaker: utterance.speaker, via: :conversation})
+      |> maybe_put_request_id(Keyword.get(opts, :request_id))
+
     Keyword.merge(
       [
         tools: Dobby.Home.tools(),
-        tool_context: %{speaker: utterance.speaker, via: :conversation},
+        tool_context: tool_context,
         llm_opts: Application.get_env(:dobby, :llm_opts, [])
       ],
-      opts
+      Keyword.delete(opts, :tool_context)
     )
   end
+
+  defp maybe_put_request_id(context, request_id) when is_binary(request_id),
+    do: Map.put(context, :request_id, request_id)
+
+  defp maybe_put_request_id(context, _request_id), do: context
 end

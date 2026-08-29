@@ -83,12 +83,12 @@
     <p>What somebody asked Dobby to do: “Set downstairs to 72.” The thread records the request.</p>
 
     <h3>Accepted by Dobby</h3>
-    <p>The device agent validated the request and emitted the Home Assistant call. The tool can now say “downstairs thermostat set to 72.” Home Assistant may not have heard the call yet.</p>
+    <p>The device agent validated the request and emitted the Home Assistant call. The thread can now say “Setting downstairs to 72.” That is intent. Home Assistant may not have heard the call yet.</p>
 
     <h3>Observed</h3>
     <p>Home Assistant later reports a new setpoint, current temperature, or operating mode. That state lands on the board and in the activity record.</p>
 
-    <p><strong>Accepted is not observed.</strong> Dobby never collapses the three into one fluent sentence. A refusal follows the same path in reverse: the device agent's reason reaches the model unchanged.</p>
+    <p><strong>Accepted is not observed.</strong> Dobby never collapses the three into one fluent sentence. After a write, the thread declares intent and never state. The board declares state from Home Assistant. If Home Assistant refuses the call, a <span class="arg">HELD</span> system line follows Dobby's reply. If no matching state ever arrives, <span class="arg">NOT KNOWN</span> follows once and stays on the board until a late echo clears it.</p>
 
     <div class="proof">
       <p class="label">One setpoint, three records</p>

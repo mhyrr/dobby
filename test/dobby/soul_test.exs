@@ -41,6 +41,12 @@ defmodule Dobby.SoulTest do
       refute DobbyAgent.doctrine() =~ "capable person who lives here"
       assert DobbyAgent.doctrine() =~ "Report what you commanded"
     end
+
+    test "write shape belongs to doctrine and not the editable voice" do
+      refute Soul.read!() =~ "I set the main thermostat"
+      assert DobbyAgent.doctrine() =~ "The thread declares intent; the board"
+      assert DobbyAgent.doctrine() =~ "Locking the front door"
+    end
   end
 
   test "the running agent actually has the soul, not just the doctrine floor" do

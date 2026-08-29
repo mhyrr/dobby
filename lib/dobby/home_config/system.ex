@@ -108,6 +108,85 @@ defmodule Dobby.HomeConfig.System do
   end
 
   @doc """
+  Refuses a house whose settings the model in force cannot be sent.
+
+  `routing` is an OpenRouter word, and nothing upstream checks that the model
+  answering is actually reached through OpenRouter. When it is not, the option
+  is not merely ignored — ReqLLM rejects the whole request while building it,
+  so the house boots, looks healthy, and then fails *every* turn with a line
+  that tells the household nothing. That is how this shipped: a stale
+  `DOBBY_MODEL` in a developer's `.env` outranked the file's own
+  `openrouter:` model, the file's `routing: latency` went to OpenAI, and three
+  people typing into the kitchen got "Dobby couldn't answer that".
+
+  So the check is the same posture the manifest takes about a device typo:
+  fail at boot, naming the word somebody wrote. It runs the options through
+  ReqLLM's own pipeline rather than a hand-written "is this OpenRouter?" test,
+  which costs no network and catches the next mismatched option as well as
+  this one.
+
+  A model this machine cannot resolve is deliberately *not* this function's
+  business. The request will say so in its own words, and saying it twice in
+  two voices helps nobody.
+  """
+  @spec check_llm_opts(t(), String.t() | nil, String.t() | nil) :: :ok | {:error, String.t()}
+  def check_llm_opts(%__MODULE__{} = system, model, exported \\ nil) do
+    opts = llm_opts(system)
+
+    with false <- opts == [],
+         {:ok, resolved} <- resolve_model(model),
+         {:ok, provider} <- ReqLLM.Providers.get(resolved.provider) do
+      validate_llm_opts(opts, provider, resolved, model, exported)
+    else
+      _unresolved -> :ok
+    end
+  end
+
+  defp resolve_model(model) when is_binary(model) do
+    {:ok, ReqLLM.model!(model)}
+  rescue
+    _error -> :error
+  end
+
+  defp resolve_model(_model), do: :error
+
+  defp validate_llm_opts(opts, provider, resolved, model, exported) do
+    ReqLLM.Provider.Options.process!(provider, :chat, resolved, opts)
+    :ok
+  rescue
+    error in NimbleOptions.ValidationError ->
+      {:error, refusal(List.wrap(error.key), opts, model, exported)}
+  end
+
+  # The file's words, not ReqLLM's. Somebody wrote `routing: latency`; being
+  # told that `:openrouter_provider` is unknown asks them to work backwards
+  # through a translation this module performed.
+  defp refusal(keys, opts, model, exported) do
+    said =
+      keys
+      |> Enum.filter(&Keyword.has_key?(opts, &1))
+      |> Enum.map_join(", ", &said(&1, Keyword.fetch!(opts, &1)))
+
+    "system: #{said} is a setting #{model} does not take, and #{model} is " <>
+      "the model in force#{source(model, exported)}. Either drop it, or name " <>
+      "a model that takes it."
+  end
+
+  # Which of the two places the model came from, because the fix is in a
+  # different file depending on the answer, and an exported variable is
+  # invisible to somebody reading the house file and finding it already
+  # correct. Boot hands this in rather than the section reading it: what the
+  # file says is this module's business, and what outranks the file is not.
+  defp source(model, model) when is_binary(model), do: " (exported as DOBBY_MODEL)"
+  defp source(_model, _exported), do: ""
+
+  # The inverse of the two lines in `llm_opts/1`, and it stays beside them for
+  # that reason: a word added there needs its clause here or a refusal names
+  # the option instead of the setting.
+  defp said(:reasoning_effort, effort), do: "reasoning: #{effort}"
+  defp said(:openrouter_provider, %{sort: sort}), do: "routing: #{sort}"
+
+  @doc """
   Builds the section from the file's raw `system:` map.
 
   Errors name the field, matching the posture `Dobby.Home.Manifest` takes about

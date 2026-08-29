@@ -7,6 +7,8 @@ defmodule Dobby.Application do
 
   @impl true
   def start(_type, _args) do
+    :ok = refuse_unsendable_settings()
+
     children =
       [
         DobbyWeb.Telemetry,
@@ -46,6 +48,38 @@ defmodule Dobby.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Dobby.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Before any child, because the failure this catches is a house that starts
+  # perfectly and then cannot answer a single turn. `system: routing: latency`
+  # with a model not reached through OpenRouter is rejected by ReqLLM while it
+  # builds each request, so the only symptom is "Dobby couldn't answer that",
+  # once per person who tries. Boot is where that gets a sentence naming the
+  # setting; see `Dobby.HomeConfig.System.check_llm_opts/2`.
+  #
+  # The file is read a second time here rather than carried from
+  # `config/runtime.exs`, which has it in hand: ReqLLM resolves models out of a
+  # catalog its own application owns, and runtime configuration is evaluated
+  # before any application starts. A check that quietly cannot run is worse
+  # than no check.
+  defp refuse_unsendable_settings do
+    path = Application.get_env(:dobby, :home_config_path)
+    model = :jido_ai |> Application.get_env(:model_aliases, %{}) |> Map.get(:capable)
+
+    with true <- is_binary(path),
+         {:ok, config} <- Dobby.HomeConfig.load(path) do
+      exported = System.get_env("DOBBY_MODEL")
+
+      case Dobby.HomeConfig.System.check_llm_opts(config.system, model, exported) do
+        :ok -> :ok
+        {:error, reason} -> raise ArgumentError, reason
+      end
+    else
+      # No file named, or one that will not parse. Neither is this check's to
+      # report: `Dobby.Home` raises on the second a moment from now, in its own
+      # words, and two boot errors about one file help nobody.
+      _unavailable -> :ok
+    end
   end
 
   # After the endpoint, on purpose: a name should not exist before the thing

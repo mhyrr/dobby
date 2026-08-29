@@ -2,10 +2,10 @@ defmodule Dobby.Interventions.Watcher do
   @moduledoc """
   The house's witness (design §10.3).
 
-  Two things happen in this house with nobody standing in front of them: a
-  schedule going off at eight o'clock, and somebody turning the dial in the
-  hallway. Both are interventions and both belong in the thread, and neither
-  has a surface to write from — so one process subscribes and writes them down.
+  Three things happen in this house with nobody standing in front of them: a
+  schedule goes off, somebody turns a dial, or Home Assistant declines or
+  never echoes an accepted command. All three need one writer outside any
+  browser, so this process subscribes and writes them down.
 
   ## Why a process and not a LiveView
 
@@ -28,6 +28,12 @@ defmodule Dobby.Interventions.Watcher do
   the moment it acted. Saying it a second time when Home Assistant echoes it
   back would read as though somebody had gone and turned the dial.
 
+  A command outcome is different from a state report. A refusal becomes
+  `HELD`, while a missing echo becomes `NOT KNOWN`. A late matching echo clears
+  `NOT KNOWN` on the board without adding another line. The language model is
+  deliberately absent from this loop: it declared the intent already, and the
+  deterministic layer owns what Home Assistant said next.
+
   ## What is deliberately not said
 
   A schedule that could not be dispatched at all — a device that left the
@@ -43,20 +49,64 @@ defmodule Dobby.Interventions.Watcher do
   require Logger
 
   alias Dobby.Activity
+  alias Dobby.CommandEvents
+  alias Dobby.DeviceAgent
   alias Dobby.DeviceEvents
   alias Dobby.Home
   alias Dobby.Interventions
   alias Dobby.ScheduleEvents
+  alias Dobby.ThreadEvents
+
+  @finished_ttl 120_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @doc """
+  Adds any standing command uncertainty to a public device snapshot.
+
+  The observed values remain the device agent's. This adds only the fact that
+  an accepted command has not echoed, which is why a late matching state change
+  can clear the word without rewriting what Home Assistant reported.
+  """
+  @spec decorate(map()) :: map()
+  def decorate(%{id: device} = snapshot) do
+    GenServer.call(__MODULE__, {:decorate, device, snapshot})
+  catch
+    :exit, _watcher_not_running -> snapshot
+  end
+
   @impl GenServer
   def init(_opts) do
+    CommandEvents.subscribe()
     DeviceEvents.subscribe()
     ScheduleEvents.subscribe()
-    {:ok, %{}}
+    ThreadEvents.subscribe()
+
+    {:ok,
+     %{expectations: %{}, unknown: %{}, pending_outcomes: %{}, finished_requests: MapSet.new()}}
+  end
+
+  @impl GenServer
+  def handle_info(%Jido.Signal{type: "dobby.command.expected", data: data}, state) do
+    {:noreply, safely(state, fn -> expect(state, data) end)}
+  end
+
+  def handle_info(%Jido.Signal{type: "dobby.ha.call_failed", data: data}, state) do
+    {:noreply, safely(state, fn -> refuse(state, data) end)}
+  end
+
+  def handle_info({:expectation_expired, ref}, state) do
+    {:noreply, safely(state, fn -> expire(state, ref) end)}
+  end
+
+  def handle_info({:turn_finished, request_id}, state) do
+    {:noreply, safely(state, fn -> finish_request(state, request_id) end)}
+  end
+
+  def handle_info({:forget_finished_request, request_id}, state) do
+    {:noreply, %{state | finished_requests: MapSet.delete(state.finished_requests, request_id)}}
   end
 
   # Nothing moved, so nothing happened: this is a device reporting for the
@@ -64,8 +114,11 @@ defmodule Dobby.Interventions.Watcher do
   # every restart announced the boot sequence to the kitchen and filled the log
   # with rows saying the thermostat exists.
   @impl GenServer
-  def handle_info(%Jido.Signal{type: "dobby.device.state_changed", data: %{moved: []}}, state) do
-    {:noreply, state}
+  def handle_info(
+        %Jido.Signal{type: "dobby.device.state_changed", data: %{moved: []} = data},
+        state
+      ) do
+    {:noreply, safely(state, fn -> resolve(state, data) end)}
   end
 
   def handle_info(%Jido.Signal{type: "dobby.device.state_changed", data: data}, state) do
@@ -74,7 +127,7 @@ defmodule Dobby.Interventions.Watcher do
       maybe_intervention(data)
     end)
 
-    {:noreply, state}
+    {:noreply, safely(state, fn -> resolve(state, data) end)}
   end
 
   def handle_info(%Jido.Signal{type: "dobby.schedule.fired", data: data}, state) do
@@ -95,6 +148,15 @@ defmodule Dobby.Interventions.Watcher do
   @impl GenServer
   def handle_call(:settle, _from, state), do: {:reply, :ok, state}
 
+  def handle_call({:decorate, device, snapshot}, _from, state) do
+    decorated =
+      if unknown_for?(state, device),
+        do: Map.put(snapshot, :command_status, :not_known),
+        else: snapshot
+
+    {:reply, decorated, state}
+  end
+
   # This process describes things that have already happened. A write that
   # fails must never take down the witness, because the next thing it would
   # miss is the one somebody asks about.
@@ -107,6 +169,200 @@ defmodule Dobby.Interventions.Watcher do
       )
 
       :ok
+  end
+
+  defp safely(state, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.error(
+        "the watcher could not track a command: #{Exception.format(:error, error, __STACKTRACE__)}"
+      )
+
+      state
+  end
+
+  # -- command confirmation -------------------------------------------------
+
+  defp expect(state, %{ref: ref} = data) when is_binary(ref) do
+    if arrived?(data, current_snapshot(data.device)) do
+      state
+    else
+      timer = Process.send_after(self(), {:expectation_expired, ref}, data.timeout_ms)
+      expectation = Map.put(data, :timer, timer)
+      put_in(state, [:expectations, ref], expectation)
+    end
+  end
+
+  defp expect(state, _uncorrelated), do: state
+
+  defp refuse(state, %{ref: ref} = data) do
+    {state, removed_unknown?} = forget(state, ref)
+
+    Activity.record(%{
+      kind: "command_refused",
+      device: data.device,
+      action: data.action,
+      args: data.call,
+      result: %{"reason" => Activity.jsonable(data.reason)},
+      request_id: data.request_id
+    })
+
+    state = outcome(state, :held, data)
+
+    maybe_clear_status(state, data.device, removed_unknown?)
+  end
+
+  defp expire(state, ref) do
+    case Map.pop(state.expectations, ref) do
+      {nil, _expectations} ->
+        state
+
+      {expectation, expectations} ->
+        state = %{
+          state
+          | expectations: expectations,
+            unknown: Map.put(state.unknown, ref, Map.delete(expectation, :timer))
+        }
+
+        Activity.record(%{
+          kind: "command_never_arrived",
+          device: expectation.device,
+          action: expectation.action,
+          args: expectation.call,
+          result: %{"timeout_ms" => expectation.timeout_ms},
+          request_id: expectation.request_id
+        })
+
+        state = outcome(state, :not_known, expectation)
+        DeviceEvents.command_status(expectation.device, :not_known)
+        state
+    end
+  end
+
+  defp resolve(state, %{device: device, snapshot: snapshot}) do
+    matching =
+      state.expectations
+      |> Map.merge(state.unknown)
+      |> Enum.filter(fn {_ref, expectation} ->
+        expectation.device == device and arrived?(expectation, snapshot)
+      end)
+      |> Enum.map(&elem(&1, 0))
+
+    {state, cleared_unknown?} =
+      Enum.reduce(matching, {state, false}, fn ref, {state, cleared?} ->
+        {next, removed_unknown?} = forget(state, ref)
+        {next, cleared? or removed_unknown?}
+      end)
+
+    maybe_clear_status(state, device, cleared_unknown?)
+  end
+
+  defp resolve(state, _event), do: state
+
+  defp forget(state, ref) do
+    {expectation, expectations} = Map.pop(state.expectations, ref)
+    {_unknown, unknown} = Map.pop(state.unknown, ref)
+
+    if expectation, do: Process.cancel_timer(expectation.timer)
+
+    {%{state | expectations: expectations, unknown: unknown}, Map.has_key?(state.unknown, ref)}
+  end
+
+  defp maybe_clear_status(state, device, true) do
+    unless unknown_for?(state, device), do: DeviceEvents.command_status(device, :clear)
+    state
+  end
+
+  defp maybe_clear_status(state, _device, false), do: state
+
+  defp unknown_for?(state, device),
+    do: Enum.any?(state.unknown, fn {_ref, expectation} -> expectation.device == device end)
+
+  defp arrived?(expectation, snapshot) when is_map(snapshot) do
+    case Home.fetch_device(expectation.device) do
+      {:ok, %{agent_module: module}} ->
+        DeviceAgent.command_arrived?(module, expectation.command, snapshot)
+
+      :error ->
+        false
+    end
+  end
+
+  defp arrived?(_expectation, _snapshot), do: false
+
+  defp current_snapshot(device) do
+    with {:ok, %{agent_module: module}} <- Home.fetch_device(device),
+         pid when is_pid(pid) <- Dobby.Jido.whereis(device),
+         {:ok, server_state} <- Jido.AgentServer.state(pid) do
+      module.snapshot(server_state.agent.state)
+    else
+      _not_running -> nil
+    end
+  end
+
+  defp never_arrived_reason(expectation) do
+    action = expectation.call["service"] || expectation.action
+    local = expectation.asked_at |> Home.local() |> Calendar.strftime("%I:%M %p")
+    "asked to #{String.replace(action, "_", " ")} at #{String.downcase(local)}, no answer since"
+  end
+
+  defp describe(reason) when is_binary(reason), do: reason
+  defp describe(reason), do: inspect(reason)
+
+  # A device directive and a conversation reply run in different processes.
+  # Their PubSub messages therefore have no useful ordering guarantee. Hold a
+  # correlated outcome until the turn says its own last line is stored; direct
+  # controls and schedules have no such line and announce immediately.
+  defp outcome(state, kind, %{request_id: request_id} = data) when is_binary(request_id) do
+    if MapSet.member?(state.finished_requests, request_id) do
+      announce_outcome(kind, data)
+      state
+    else
+      pending =
+        Map.update(state.pending_outcomes, request_id, [{kind, data}], &(&1 ++ [{kind, data}]))
+
+      %{state | pending_outcomes: pending}
+    end
+  end
+
+  defp outcome(state, kind, data) do
+    announce_outcome(kind, data)
+    state
+  end
+
+  defp finish_request(state, request_id) do
+    {pending, pending_outcomes} = Map.pop(state.pending_outcomes, request_id, [])
+    Enum.each(pending, fn {kind, data} -> announce_outcome(kind, data) end)
+    Process.send_after(self(), {:forget_finished_request, request_id}, @finished_ttl)
+
+    %{
+      state
+      | pending_outcomes: pending_outcomes,
+        finished_requests: MapSet.put(state.finished_requests, request_id)
+    }
+  end
+
+  defp announce_outcome(:held, data) do
+    Interventions.held(%{
+      device: data.device,
+      name: data.name,
+      action: data.action,
+      reason: "Home Assistant: #{describe(data.reason)}",
+      via: "Home Assistant",
+      request_id: data.request_id
+    })
+  end
+
+  defp announce_outcome(:not_known, data) do
+    Interventions.not_known(%{
+      device: data.device,
+      name: data.name,
+      action: data.action,
+      reason: never_arrived_reason(data),
+      via: "Home Assistant",
+      request_id: data.request_id
+    })
   end
 
   # -- devices ---------------------------------------------------------------

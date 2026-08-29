@@ -210,7 +210,10 @@ defmodule Dobby.Home do
     case Dobby.Jido.whereis(device.id) do
       pid when is_pid(pid) ->
         {:ok, server_state} = Jido.AgentServer.state(pid)
-        module.snapshot(server_state.agent.state)
+
+        server_state.agent.state
+        |> module.snapshot()
+        |> Dobby.Interventions.Watcher.decorate()
 
       nil ->
         # Through `new/1` rather than `initial_state/1` directly, so the schema
@@ -219,6 +222,7 @@ defmodule Dobby.Home do
         # than say "nothing known yet".
         module.new(id: device.id, state: module.initial_state(device)).state
         |> module.snapshot()
+        |> Dobby.Interventions.Watcher.decorate()
     end
   end
 

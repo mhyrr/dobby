@@ -28,6 +28,7 @@ defmodule Dobby.Controls do
 
   alias Dobby.Activity
   alias Dobby.DeviceAgent
+  alias Dobby.DeviceAgents.Lock
   alias Dobby.DeviceAgents.Thermostat
   alias Dobby.Home
   alias Dobby.Interventions
@@ -48,11 +49,105 @@ defmodule Dobby.Controls do
 
     with {:ok, device, pid} <- Home.resolve(device_id, Thermostat) do
       pid
-      |> DeviceAgent.command("thermostat.set_temperature", %{temperature_f: temperature_f / 1})
+      |> DeviceAgent.command(
+        "thermostat.set_temperature",
+        %{temperature_f: temperature_f / 1},
+        %{via: :card}
+      )
       |> interpret(device, temperature_f, via)
     else
       {:error, reason} -> fail(device_id, temperature_f, via, reason)
     end
+  end
+
+  @doc """
+  Secures a lock from the direct control path.
+
+  This is the card-side proof of `hands_only`: the same lock that refuses a
+  language caller accepts this caller because a person's hand remains in
+  charge. Unlock stays absent from every surface.
+  """
+  @spec secure_lock(String.t(), keyword()) :: result()
+  def secure_lock(device_id, opts \\ []) when is_binary(device_id) do
+    via = Keyword.get(opts, :via, "card")
+
+    with {:ok, device, pid} <- Home.resolve(device_id, Lock) do
+      pid
+      |> DeviceAgent.command("lock.secure", %{}, %{via: :card})
+      |> interpret_lock(device, via)
+    else
+      {:error, reason} ->
+        Activity.record(%{
+          kind: "control",
+          actor: via,
+          device: device_id,
+          action: "secure",
+          args: %{},
+          result: %{"state" => "error", "reason" => describe(reason)}
+        })
+
+        {:error, describe(reason)}
+    end
+  end
+
+  defp interpret_lock(:accepted, device, via) do
+    Activity.record(%{
+      kind: "control",
+      actor: via,
+      device: device.id,
+      action: "secure",
+      args: %{},
+      result: %{"state" => "accepted"}
+    })
+
+    Interventions.record(%{
+      device: device.id,
+      name: device.name,
+      value: "Locked",
+      action: "secure",
+      via: via
+    })
+
+    {:ok, %{device: device.id, name: device.name, lock_state: :locked}}
+  end
+
+  defp interpret_lock({:rejected, reason}, device, via) do
+    Activity.record(%{
+      kind: "control",
+      actor: via,
+      device: device.id,
+      action: "secure",
+      args: %{},
+      result: %{"state" => "held", "reason" => reason}
+    })
+
+    {:held, reason}
+  end
+
+  defp interpret_lock(:unknown, device, via) do
+    Activity.record(%{
+      kind: "control",
+      actor: via,
+      device: device.id,
+      action: "secure",
+      args: %{},
+      result: %{"state" => "unknown"}
+    })
+
+    {:error, "could not confirm the command to #{device.name}"}
+  end
+
+  defp interpret_lock({:error, reason}, device, via) do
+    Activity.record(%{
+      kind: "control",
+      actor: via,
+      device: device.id,
+      action: "secure",
+      args: %{},
+      result: %{"state" => "error", "reason" => describe(reason)}
+    })
+
+    {:error, describe(reason)}
   end
 
   defp interpret(:accepted, device, temperature_f, via) do

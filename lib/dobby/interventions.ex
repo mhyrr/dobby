@@ -10,12 +10,13 @@ defmodule Dobby.Interventions do
       · MAIN THERMOSTAT   SET 70°   — schedule "weeknight heat"
       · MAIN THERMOSTAT   SET 68°   — changed at the thermostat
 
-  Four callers, and that is the point of the module existing. `Dobby.Controls`
+  Three callers, and that is the point of the module existing. `Dobby.Controls`
   writes one when a card is tapped, `Dobby.Conversation.Turn` when a tool call
-  is accepted, and `Dobby.Interventions.Watcher` for the two nobody is standing
-  in front of — a schedule at eight o'clock, and a hand on the dial in the
-  hallway. A card tap that left no line would make the thread lie by omission:
-  somebody scrolls back, sees 70°, and finds no reason for it.
+  is accepted, and `Dobby.Interventions.Watcher` for everything that has no
+  surface standing in front of it: a schedule, a hand on a device, and the
+  outcome of an accepted HA call. A card tap that left no line would make the
+  thread lie by omission: somebody scrolls back, sees 70°, and finds no reason
+  for it.
 
   ## The word is always SET
 
@@ -87,6 +88,19 @@ defmodule Dobby.Interventions do
   @spec held(map()) :: {:ok, Message.t()} | :error
   def held(attrs) do
     record(Map.merge(attrs, %{word: "Held", state: :refused, value: nil}))
+  end
+
+  @doc """
+  Writes that an accepted command never echoed.
+
+  `NOT KNOWN` is exact here: Dobby has an observed state from before the
+  command, but nobody has told it whether the command arrived. `HELD` would
+  claim a refusal, while `QUIET` would claim the device stopped answering in
+  general. Neither is what happened.
+  """
+  @spec not_known(map()) :: {:ok, Message.t()} | :error
+  def not_known(attrs) do
+    record(Map.merge(attrs, %{word: "Not known", state: :silent, value: nil}))
   end
 
   @doc """

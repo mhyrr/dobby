@@ -95,6 +95,18 @@ defmodule Dobby.DeviceAgents.Light do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :set_power, on: on}, snapshot),
+    do: snapshot.power == if(on, do: :on, else: :off)
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_brightness, brightness_percent: expected},
+        snapshot
+      ),
+      do: snapshot.power == :on and snapshot.brightness_percent == expected
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :light)
 

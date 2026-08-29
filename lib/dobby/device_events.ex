@@ -23,6 +23,24 @@ defmodule Dobby.DeviceEvents do
   def subscribe, do: Phoenix.PubSub.subscribe(Dobby.PubSub, @topic)
 
   @doc """
+  Announces a standing command-confirmation status to every board.
+
+  This shares the device topic because it changes how the same snapshot must
+  read. It is not a synthetic Home Assistant state change: the observed values
+  stay untouched, and consumers re-read them from `Dobby.Home.snapshots/0`.
+  """
+  @spec command_status(String.t(), :not_known | :clear) :: :ok | {:error, term()}
+  def command_status(device, status) do
+    signal =
+      Jido.Signal.new!("dobby.device.command_status_changed", %{
+        device: device,
+        status: status
+      })
+
+    Phoenix.PubSub.broadcast(Dobby.PubSub, @topic, signal)
+  end
+
+  @doc """
   The dispatch config device agents attach to their emitted signal.
 
   One event stream, two consumers (design §7): the Phoenix thread and cards

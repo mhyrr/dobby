@@ -89,6 +89,18 @@ defmodule Dobby.DeviceAgents.Vacuum do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :start_cleaning}, snapshot),
+    do: snapshot.activity == :cleaning
+
+  def command_arrived?(%{result: :accepted, action: :dock}, snapshot),
+    do: snapshot.activity in [:returning, :docked]
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
+  def confirmation_timeout, do: 20_000
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :vacuum)
 

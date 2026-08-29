@@ -63,5 +63,11 @@ defmodule Dobby.DeviceAgents.AccessCover do
   def intervention?(attribute), do: attribute in [:cover_state, :position]
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :close}, snapshot),
+    do: snapshot.cover_state in [:closing, :closed]
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :cover)
 end

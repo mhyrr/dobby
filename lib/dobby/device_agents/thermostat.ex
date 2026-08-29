@@ -99,6 +99,15 @@ defmodule Dobby.DeviceAgents.Thermostat do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(
+        %{result: :accepted, temperature_f: expected},
+        %{target_temperature_f: reported}
+      ),
+      do: expected == reported
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :climate)
 

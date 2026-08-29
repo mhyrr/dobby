@@ -83,5 +83,17 @@ defmodule Dobby.DeviceAgents.Fan do
   def intervention?(attribute), do: attribute in [:power, :speed_percent]
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :set_power, power: expected}, snapshot),
+    do: snapshot.power == expected
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_speed, speed_percent: expected},
+        snapshot
+      ),
+      do: snapshot.speed_percent == expected
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :fan)
 end

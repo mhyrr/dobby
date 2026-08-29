@@ -66,10 +66,14 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
   defp to_temperature(value), do: value
 
   @impl true
-  def run(%{device: device_id, temperature_f: temperature}, _context) do
+  def run(%{device: device_id, temperature_f: temperature}, context) do
     with {:ok, device, pid} <- Dobby.Home.resolve(device_id, Thermostat) do
       pid
-      |> Dobby.DeviceAgent.command("thermostat.set_temperature", %{temperature_f: temperature})
+      |> Dobby.DeviceAgent.command(
+        "thermostat.set_temperature",
+        %{temperature_f: temperature},
+        Dobby.Tools.Device.caller(context)
+      )
       |> interpret(device, temperature)
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
@@ -77,7 +81,7 @@ defmodule Dobby.Tools.ThermostatSetTemperature do
     end
   end
 
-  # `DeviceAgent.command/3` is the shared write protocol — a schedule firing and
+  # `DeviceAgent.command/4` is the shared write protocol — a schedule firing and
   # a card someone tapped reach the thermostat the same way and read the answer
   # the same way, so "the thermostat refused" means one thing whoever asked.
   # This function is only the translation of that outcome into something a

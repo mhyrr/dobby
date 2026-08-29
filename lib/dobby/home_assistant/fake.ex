@@ -32,7 +32,12 @@ defmodule Dobby.HomeAssistant.Fake do
 
   @type entity :: %{state: String.t() | nil, attributes: map()}
 
-  defstruct routing: %{}, entities: %{}, trace: [], subscribers: [], failures: %{}
+  defstruct routing: %{},
+            entities: %{},
+            trace: [],
+            subscribers: [],
+            failures: %{},
+            silences: MapSet.new()
 
   # -- client ----------------------------------------------------------------
 
@@ -79,6 +84,16 @@ defmodule Dobby.HomeAssistant.Fake do
   @spec fail_next(String.t(), term()) :: :ok
   def fail_next(entity_id, reason \\ :unavailable),
     do: GenServer.call(__MODULE__, {:fail_next, entity_id, reason})
+
+  @doc """
+  Makes the next service call return acceptance without publishing an echo.
+
+  This is a device that heard Home Assistant's service call but never answered
+  with state. It is distinct from `fail_next/2`: the executor gets `:ok`, so
+  only the confirmation deadline can reveal the silence.
+  """
+  @spec silence_next(String.t()) :: :ok
+  def silence_next(entity_id), do: GenServer.call(__MODULE__, {:silence_next, entity_id})
 
   @doc """
   Every `HACall` executed so far, in order.
@@ -141,7 +156,11 @@ defmodule Dobby.HomeAssistant.Fake do
 
     case Map.pop(state.failures, call.entity_id) do
       {nil, _failures} ->
-        {:reply, :ok, confirm(state, call)}
+        if MapSet.member?(state.silences, call.entity_id) do
+          {:reply, :ok, %{state | silences: MapSet.delete(state.silences, call.entity_id)}}
+        else
+          {:reply, :ok, confirm(state, call)}
+        end
 
       {reason, failures} ->
         {:reply, {:error, reason}, %{state | failures: failures}}
@@ -160,6 +179,10 @@ defmodule Dobby.HomeAssistant.Fake do
 
   def handle_call({:fail_next, entity_id, reason}, _from, state) do
     {:reply, :ok, put_in(state.failures[entity_id], reason)}
+  end
+
+  def handle_call({:silence_next, entity_id}, _from, state) do
+    {:reply, :ok, %{state | silences: MapSet.put(state.silences, entity_id)}}
   end
 
   def handle_call({:subscribe, pid}, _from, state) do
@@ -197,7 +220,8 @@ defmodule Dobby.HomeAssistant.Fake do
     # leave the next one starting from it.
     connected()
 
-    {:reply, :ok, %{state | trace: [], entities: %{}, failures: %{}, subscribers: []}}
+    {:reply, :ok,
+     %{state | trace: [], entities: %{}, failures: %{}, silences: MapSet.new(), subscribers: []}}
   end
 
   defp connected, do: Connection.publish(__MODULE__, :connected)

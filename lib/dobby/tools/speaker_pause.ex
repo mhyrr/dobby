@@ -14,7 +14,13 @@ defmodule Dobby.Tools.SpeakerPause do
   def label(arguments), do: "pausing the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
-  def run(%{device: device_id}, _context),
+  def run(%{device: device_id}, context),
     do:
-      Dobby.Tools.Device.command(device_id, Speaker, "speaker.set_playback", %{playback: :pause})
+      Dobby.Tools.Device.command(
+        device_id,
+        Speaker,
+        "speaker.set_playback",
+        %{playback: :pause},
+        context
+      )
 end

@@ -17,6 +17,7 @@ defmodule Dobby.ThreadEvents do
       {:step, request_id, step}           a named step, in device language
       {:delta, request_id, seq, text}     reply text, as it arrives
       {:replied, %Message{}}              the reply landed; the pending row closes
+      {:turn_finished, request_id}        reply or failure is now stored
       {:system_line, %Message{}}          the house changed, by any path
 
   A step is `%{id: String.t(), label: String.t(), state: :running | :done |
@@ -79,6 +80,16 @@ defmodule Dobby.ThreadEvents do
   """
   @spec replied(Message.t()) :: :ok
   def replied(%Message{} = message), do: broadcast({:replied, message})
+
+  @doc """
+  Announces that a turn's own final line is stored.
+
+  Command outcomes use this as an ordering barrier. A fast HA refusal can beat
+  the model reply through a different process, but the resulting `HELD` line
+  must still be inserted beneath that reply.
+  """
+  @spec turn_finished(String.t()) :: :ok
+  def turn_finished(request_id), do: broadcast({:turn_finished, request_id})
 
   @doc """
   Announces a change to the house, whatever caused it.

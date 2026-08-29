@@ -30,6 +30,12 @@ defmodule Dobby.Schedules do
   yet. The consequence is honest and worth stating plainly — a schedule can be
   accepted now and refused at eight o'clock, and the refusal is recorded rather
   than swallowed.
+
+  Caller authority is the exception that is known at authoring time. A
+  language-authored schedule aimed at a hands-only device is refused before a
+  row exists, and the stored caller is checked again when an older row fires.
+  Relying only on the authoring form was rejected because rows outlive the
+  house file and can predate the setting.
   """
 
   import Ecto.Query
@@ -50,7 +56,7 @@ defmodule Dobby.Schedules do
   """
   @spec list_schedules() :: [Schedule.t()]
   def list_schedules do
-    Repo.all(from s in Schedule, order_by: [asc: s.id])
+    Repo.all(from(s in Schedule, order_by: [asc: s.id]))
   end
 
   @doc """
@@ -58,7 +64,7 @@ defmodule Dobby.Schedules do
   """
   @spec enabled() :: [Schedule.t()]
   def enabled do
-    Repo.all(from s in Schedule, where: s.enabled == true, order_by: [asc: s.id])
+    Repo.all(from(s in Schedule, where: s.enabled == true, order_by: [asc: s.id]))
   end
 
   @doc """
@@ -238,15 +244,22 @@ defmodule Dobby.Schedules do
     target = Ecto.Changeset.get_field(changeset, :target)
     action = Ecto.Changeset.get_field(changeset, :action)
     args = Ecto.Changeset.get_field(changeset, :args) || %{}
+    via = Ecto.Changeset.get_field(changeset, :created_via)
 
     case resolve_action(target, action) do
-      {:ok, _device, {_signal_type, module}} ->
-        case coerce_args(module, args) do
-          {:ok, typed} ->
-            Ecto.Changeset.put_change(changeset, :args, stringify(typed))
+      {:ok, device, {_signal_type, module}} ->
+        case Dobby.DeviceAgent.authorize_command(device, via) do
+          :ok ->
+            case coerce_args(module, args) do
+              {:ok, typed} ->
+                Ecto.Changeset.put_change(changeset, :args, stringify(typed))
 
-          {:error, reason} ->
-            Ecto.Changeset.add_error(changeset, :args, reason)
+              {:error, reason} ->
+                Ecto.Changeset.add_error(changeset, :args, reason)
+            end
+
+          {:rejected, reason} ->
+            Ecto.Changeset.add_error(changeset, :target, reason)
         end
 
       {:error, reason} ->
@@ -480,9 +493,9 @@ defmodule Dobby.Schedules do
   @doc """
   Every device in this house that has something schedulable, with its actions.
 
-  What the admin's two selects are built from. A read-only device is left out
-  rather than offered and then refused — the refusal at authoring time exists
-  for a model that cannot see the roster, not for a form that can.
+  What the admin's two selects are built from. A type with no write action is
+  left out. A hands-only device stays in: this is the admin surface, and an
+  admin-authored schedule is one of the hands the setting preserves.
   """
   @spec schedulable_devices() :: [%{id: String.t(), name: String.t(), actions: [String.t()]}]
   def schedulable_devices do
@@ -512,21 +525,20 @@ defmodule Dobby.Schedules do
   end
 
   @doc """
-  The device signal a firing dispatches.
+  Dispatches the device command stored in a schedule.
 
-  The same signal type, the same arguments, and the same correlation ref the
-  model's tool builds (§6.2) — a schedule reaches a thermostat by the path a
-  person does, so household policy and availability apply identically.
+  The row's `created_via` is the caller. An admin schedule is a hand; a
+  conversation or MCP schedule is language, including an old row that predates
+  `hands_only`. The authoring check gives immediate feedback and this shared
+  protocol check prevents a delayed bypass.
   """
-  @spec dispatch_signal(Schedule.t()) ::
-          {:ok, pid(), Jido.Signal.t(), String.t()} | {:error, String.t()}
-  def dispatch_signal(%Schedule{} = schedule) do
+  @spec dispatch_command(Schedule.t()) :: Dobby.DeviceAgent.outcome() | {:error, String.t()}
+  def dispatch_command(%Schedule{} = schedule) do
     with {:ok, device, {signal_type, _module}} <-
            resolve_action(schedule.target, schedule.action),
          {:ok, args} <- typed_args(schedule),
          {:ok, _device, pid} <- Dobby.Home.resolve(device.id, device.agent_module) do
-      ref = Jido.Util.generate_id()
-      {:ok, pid, Jido.Signal.new!(signal_type, Map.put(args, :ref, ref)), ref}
+      Dobby.DeviceAgent.command(pid, signal_type, args, %{via: schedule.created_via})
     end
   end
 

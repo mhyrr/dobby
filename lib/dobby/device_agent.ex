@@ -6,6 +6,11 @@ defmodule Dobby.DeviceAgent do
   `Thermostat`, `WifiEndpoint`. The *instance* half is a `Dobby.Home.Device`
   entry in the manifest. Adding a new kind of device to Dobby means writing
   one of these plus its actions; no central switch statement changes.
+
+  The shared command protocol also carries the trusted caller. That is where
+  `hands_only` binds language without binding cards. A prompt rule or a check
+  copied into every tool was rejected because MCP and delayed schedules would
+  acquire separate policy paths, and one forgotten path would become a bypass.
   """
 
   alias Dobby.Home.Device
@@ -64,8 +69,6 @@ defmodule Dobby.DeviceAgent do
               anchor :: Dobby.HomeAssistant.Entity.t(),
               related :: [Dobby.HomeAssistant.Entity.t()]
             ) :: {:ok, %{atom() => String.t()}} | :ignore
-
-  @optional_callbacks discovery_bindings: 2
 
   @doc """
   Validates the manifest entry for one instance of this device type.
@@ -150,6 +153,33 @@ defmodule Dobby.DeviceAgent do
   @callback intervention?(attribute :: atom()) :: boolean()
 
   @doc """
+  Whether a public snapshot is the echo of one accepted command.
+
+  Home Assistant does not attach Dobby's correlation reference when it reports
+  state. The device type therefore owns the match: a lock accepts `:locking`
+  or `:locked`, a thermostat compares the reported setpoint, and a vacuum
+  accepts `:returning` as the first answer to a dock command. Keeping that
+  knowledge here avoids a central table that would have to learn every device
+  type's state vocabulary.
+
+  Read-only device types can omit this callback. Their answer is always false.
+  """
+  @callback command_arrived?(command :: map(), snapshot :: map()) :: boolean()
+
+  @doc """
+  How long this device type may take to echo an accepted command.
+
+  A timeout is type knowledge, not a house-file preference: a lock and a shade
+  have different physical response times in every house. Types can override
+  the generous default when their Home Assistant contract is tighter.
+  """
+  @callback confirmation_timeout() :: pos_integer()
+
+  @optional_callbacks discovery_bindings: 2, command_arrived?: 2, confirmation_timeout: 0
+
+  @default_confirmation_timeout 30_000
+
+  @doc """
   Resolves a type's discovery bindings, including the single-entity default.
 
   The default is intentionally unavailable to a multi-binding type. Such a
@@ -167,6 +197,47 @@ defmodule Dobby.DeviceAgent do
         [binding] -> {:ok, %{binding => anchor.entity_id}}
         _several -> :ignore
       end
+    end
+  end
+
+  @doc """
+  Asks the device type whether a snapshot answers an accepted command.
+
+  The false default is for sensor-only types. A write-capable type implements
+  the callback beside the state vocabulary it is comparing.
+  """
+  @spec command_arrived?(module(), map(), map()) :: boolean()
+  def command_arrived?(module, command, snapshot) do
+    if function_exported?(module, :command_arrived?, 2),
+      do: module.command_arrived?(command, snapshot),
+      else: false
+  end
+
+  @doc "Returns the type's confirmation deadline in milliseconds."
+  @spec confirmation_timeout(module()) :: pos_integer()
+  def confirmation_timeout(module) do
+    if function_exported?(module, :confirmation_timeout, 0),
+      do: module.confirmation_timeout(),
+      else: @default_confirmation_timeout
+  end
+
+  @doc """
+  Checks whether one trusted caller may command a device.
+
+  Schedule authoring asks this before it writes a delayed command. The write
+  protocol asks it again at fire time. Keeping both answers here prevents the
+  stored path and the immediate path from acquiring different meanings for
+  `hands_only`.
+  """
+  @spec authorize_command(Device.t(), channel()) :: :ok | {:rejected, String.t()}
+  def authorize_command(%Device{}, via) when via in [:card, :admin], do: :ok
+
+  def authorize_command(%Device{} = device, via) when via in [:conversation, :mcp] do
+    if Map.get(device, :hands_only, false) do
+      {:rejected,
+       "#{device.name} is hands only; the language layer may read it but may not command it"}
+    else
+      :ok
     end
   end
 
@@ -235,6 +306,14 @@ defmodule Dobby.DeviceAgent do
   @typedoc "What a device agent decided about a command it was sent."
   @type outcome :: :accepted | {:rejected, String.t()} | :unknown
 
+  @typedoc "The trusted surface that originated a device command."
+  @type channel :: :conversation | :mcp | :card | :admin
+
+  @type caller :: %{
+          required(:via) => channel(),
+          optional(:request_id) => String.t()
+        }
+
   @doc """
   Reads the outcome of a command out of a device agent's state.
 
@@ -262,23 +341,55 @@ defmodule Dobby.DeviceAgent do
   Sends a command to a device agent and reads back what it decided.
 
   The other half of the write protocol `command_outcome/2` documents, and the
-  reason it is a function rather than three copies: the model's tool, a card
-  someone tapped, and a schedule at eight o'clock all reach a device this way,
-  and "the thermostat refused" has to mean the same thing whichever asked.
+  reason it is a function rather than three copies: the model's tool, MCP, a
+  card, and a schedule all reach a device this way. The caller is trusted
+  request framing, never a model argument. That lets `hands_only` bind the
+  language layer here without weakening the direct path or relying on a
+  prompt or on each tool remembering the rule.
 
   The `ref` is minted here because it is a property of the call and not of the
   caller — nobody should be able to read back a decision that belongs to
   somebody else's command.
   """
-  @spec command(pid(), String.t(), map()) :: outcome() | {:error, String.t()}
-  def command(pid, signal_type, args) when is_pid(pid) and is_binary(signal_type) do
-    ref = Jido.Util.generate_id()
-    signal = Jido.Signal.new!(signal_type, Map.put(args, :ref, ref))
-
-    case Jido.AgentServer.call(pid, signal) do
-      {:ok, agent} -> command_outcome(agent.state, ref)
+  @spec command(pid(), String.t(), map(), caller()) :: outcome() | {:error, String.t()}
+  def command(pid, signal_type, args, %{via: via} = caller)
+      when is_pid(pid) and is_binary(signal_type) and is_map(args) do
+    with {:ok, server_state} <- Jido.AgentServer.state(pid),
+         :ok <- authorize(server_state.agent.state, via),
+         ref = Jido.Util.generate_id(),
+         signal = command_signal(signal_type, args, ref, caller),
+         {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
+      command_outcome(agent.state, ref)
+    else
+      {:rejected, _reason} = refusal -> refusal
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}
     end
+  end
+
+  def command(_pid, _signal_type, _args, caller),
+    do: {:error, "unknown command caller #{inspect(caller)}"}
+
+  defp authorize(%{dobby_id: id}, via)
+       when via in [:conversation, :mcp, :card, :admin] do
+    case Dobby.Home.fetch_device(id) do
+      {:ok, %Device{} = device} ->
+        authorize_command(device, via)
+
+      :error ->
+        {:error, "unknown device #{inspect(id)}"}
+    end
+  end
+
+  defp authorize(_agent_state, via), do: {:error, "unknown command caller #{inspect(via)}"}
+
+  defp command_signal(signal_type, args, ref, caller) do
+    extensions =
+      caller
+      |> Map.take([:via, :request_id])
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    Jido.Signal.new!(signal_type, Map.put(args, :ref, ref), %{extensions: extensions})
   end
 end

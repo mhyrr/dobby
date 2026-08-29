@@ -45,12 +45,13 @@ defmodule DobbyWeb.Flap do
   over the glyphs reads as a strikethrough, and a struck word means cancelled,
   which would be a lie about every state on this board.
   """
-  attr :state, :atom,
+  attr(:state, :atom,
     required: true,
     values: [:set, :acting, :refused, :silent, :expected]
+  )
 
-  attr :class, :string, default: nil
-  slot :inner_block, required: true
+  attr(:class, :string, default: nil)
+  slot(:inner_block, required: true)
 
   def flap(assigns) do
     ~H"""
@@ -61,7 +62,7 @@ defmodule DobbyWeb.Flap do
   @doc """
   A rule in brass, the board's only divider.
   """
-  attr :class, :string, default: nil
+  attr(:class, :string, default: nil)
 
   def rule(assigns) do
     ~H"""
@@ -83,6 +84,11 @@ defmodule DobbyWeb.Flap do
   board must not say it on his behalf.
   """
   @spec read(map()) :: %{word: String.t(), state: atom(), value: String.t() | nil}
+  def read(%{command_status: :not_known} = snapshot) do
+    current = snapshot |> Map.delete(:command_status) |> read()
+    %{current | word: "Not known", state: :silent}
+  end
+
   def read(%{type: :thermostat} = snapshot) do
     cond do
       # `nil` before `false`, and they are different rows on purpose: a device

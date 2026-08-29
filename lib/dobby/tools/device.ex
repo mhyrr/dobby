@@ -34,11 +34,11 @@ defmodule Dobby.Tools.Device do
   no value — securing a lock, closing a cover — states the commanded state
   explicitly.
   """
-  @spec command(String.t(), module(), String.t(), map(), map() | nil) ::
+  @spec command(String.t(), module(), String.t(), map(), map(), map() | nil) ::
           {:ok, map()} | {:error, String.t()}
-  def command(device_id, module, signal_type, args \\ %{}, report \\ nil) do
+  def command(device_id, module, signal_type, args, context, report \\ nil) do
     with {:ok, device, pid} <- Dobby.Home.resolve(device_id, module) do
-      case Dobby.DeviceAgent.command(pid, signal_type, args) do
+      case Dobby.DeviceAgent.command(pid, signal_type, args, caller(context)) do
         :accepted ->
           {:ok,
            Map.merge(report || args, %{device: device.id, name: device.name, accepted: true})}
@@ -55,6 +55,17 @@ defmodule Dobby.Tools.Device do
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}
+    end
+  end
+
+  @doc false
+  @spec caller(map() | nil) :: Dobby.DeviceAgent.caller()
+  def caller(%{via: :mcp}), do: %{via: :mcp}
+
+  def caller(context) do
+    case Map.get(context || %{}, :request_id) do
+      request_id when is_binary(request_id) -> %{via: :conversation, request_id: request_id}
+      _missing -> %{via: :conversation}
     end
   end
 end

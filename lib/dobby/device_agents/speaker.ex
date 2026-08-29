@@ -80,6 +80,21 @@ defmodule Dobby.DeviceAgents.Speaker do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :play}, snapshot),
+    do: snapshot.playback == :playing
+
+  def command_arrived?(%{result: :accepted, action: :pause}, snapshot),
+    do: snapshot.playback == :paused
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_volume, volume_percent: expected},
+        snapshot
+      ),
+      do: snapshot.volume_percent == expected
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :media_player)
 end

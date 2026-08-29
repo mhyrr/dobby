@@ -324,6 +324,7 @@ defmodule Dobby.Conversation.Turn do
     record_tool_calls(turn)
     record_request(turn, %{ok: false, error: detail})
     fail(turn.request_id, sentence(error), detail)
+    ThreadEvents.turn_finished(turn.request_id)
     catch_up()
   end
 
@@ -340,6 +341,7 @@ defmodule Dobby.Conversation.Turn do
         reply(turn, text)
     end
 
+    ThreadEvents.turn_finished(turn.request_id)
     catch_up()
   end
 

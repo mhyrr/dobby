@@ -75,5 +75,23 @@ defmodule Dobby.DeviceAgents.Shade do
   def intervention?(attribute), do: attribute in [:shade_state, :position]
 
   @impl Dobby.DeviceAgent
+  def command_arrived?(%{result: :accepted, action: :open}, snapshot),
+    do: snapshot.shade_state in [:opening, :open]
+
+  def command_arrived?(%{result: :accepted, action: :close}, snapshot),
+    do: snapshot.shade_state in [:closing, :closed]
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_position, position: expected},
+        snapshot
+      ),
+      do: snapshot.position == expected
+
+  def command_arrived?(_command, _snapshot), do: false
+
+  @impl Dobby.DeviceAgent
+  def confirmation_timeout, do: 60_000
+
+  @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :cover)
 end

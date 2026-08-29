@@ -241,7 +241,12 @@ defmodule DobbyWeb.ThreadLive do
   end
 
   def handle_info(%Jido.Signal{type: "dobby.device.state_changed", data: data}, socket) do
-    {:noreply, assign(socket, :snapshots, promote(socket.assigns.snapshots, data.snapshot))}
+    snapshot = Dobby.Interventions.Watcher.decorate(data.snapshot)
+    {:noreply, assign(socket, :snapshots, promote(socket.assigns.snapshots, snapshot))}
+  end
+
+  def handle_info(%Jido.Signal{type: "dobby.device.command_status_changed"}, socket) do
+    {:noreply, assign(socket, :snapshots, snapshots())}
   end
 
   def handle_info(%Jido.Signal{}, socket), do: {:noreply, socket}

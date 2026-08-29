@@ -2,7 +2,7 @@ defmodule Dobby.Tools.VacuumDock do
   @moduledoc """
   Tool: send a vacuum home to its dock.
 
-  Transport only; the carrier lives in `Dobby.Tools.VacuumStart.command/3`.
+  Transport only; the carrier lives in `Dobby.Tools.VacuumStart.command/4`.
   """
 
   use Jido.Action,
@@ -25,6 +25,6 @@ defmodule Dobby.Tools.VacuumDock do
   def label(arguments), do: "sending the #{Dobby.Tools.device_name(arguments)} home"
 
   @impl true
-  def run(%{device: device_id}, _context),
-    do: Dobby.Tools.VacuumStart.command(device_id, "vacuum.dock", :dock)
+  def run(%{device: device_id}, context),
+    do: Dobby.Tools.VacuumStart.command(device_id, "vacuum.dock", :dock, context)
 end

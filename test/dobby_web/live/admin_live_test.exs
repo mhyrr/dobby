@@ -25,6 +25,7 @@ defmodule DobbyWeb.AdminLiveTest do
 
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
+  @lock "lock:front"
 
   setup do
     seed_house(%{@entity => thermostat_entity(current: 66, target: 70)})
@@ -276,6 +277,22 @@ defmodule DobbyWeb.AdminLiveTest do
 
       command_wire = ".wire[data-from='dobby'][data-to='#{@thermostat}']"
       assert eventually(fn -> has_element?(view, "#{command_wire}.pulse") end)
+
+      # A command Home Assistant never answered is still an answer about that
+      # wire, so it lights the same device-to-house line an accepted call
+      # went out on.
+      lock_wire = ".wire[data-from='#{@lock}'][data-to='home_assistant']"
+      refute has_element?(view, "#{lock_wire}.pulse")
+
+      {:ok, _entry} =
+        Activity.record(%{
+          kind: "command_never_arrived",
+          device: @lock,
+          action: "lock.secure",
+          result: %{"timeout_ms" => 1_000}
+        })
+
+      assert eventually(fn -> has_element?(view, "#{lock_wire}.pulse") end)
     end
 
     # People are deliberately not on this drawing, so what a person said

@@ -162,6 +162,22 @@ defmodule Dobby.Conversation.TurnTest do
     assert held_index > reply_index
   end
 
+  # A turn that dies is still a turn that ended. The witness holds a HELD or a
+  # NOT KNOWN correlated to a request until that request says its last line is
+  # stored (`Dobby.Interventions.Watcher`), so an exit that fails the turn
+  # without releasing the barrier leaves the outcome waiting on a turn that
+  # already gave up — and the household never hears what the house did.
+  test "a turn that crashes still releases the outcome barrier", %{speaker: speaker} do
+    utterance = Utterance.new("greg", "Dobby, turn the thermostat to 70")
+
+    # Options that are not options: this is the rescue's own case, which is
+    # every crash below it rather than any one of them.
+    Turn.answer(utterance, speaker, "request-that-crashed", :not_options)
+
+    assert_receive {:system_line, %Message{meta: %{"kind" => "request_failed"}}}, 2_000
+    assert_receive {:turn_finished, "request-that-crashed"}, 2_000
+  end
+
   # `Turn.run/3` everywhere else in this file skips the queue deliberately, so
   # that a test can assert against a finished turn. This one goes through the
   # front door — `say/3` casts to `Turn.Queue`, which records the utterance and

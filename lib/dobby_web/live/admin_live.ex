@@ -852,11 +852,17 @@ defmodule DobbyWeb.AdminLive do
   #
   # A `request` pulses nothing: it is a person speaking to Dobby, and people
   # are deliberately not on this drawing.
+  #
+  # A refusal and a command that never echoed are both answers — or the absence
+  # of one — from Home Assistant, so they travel the same device-to-house wire
+  # an accepted call went out on.
   @pulse_for %{
     "tool_call" => :command,
     "schedule_fired" => :command,
     "control" => :house,
-    "device_changed" => :house
+    "device_changed" => :house,
+    "command_refused" => :house,
+    "command_never_arrived" => :house
   }
 
   defp record(%{assigns: %{section: :activity}} = socket, entry) do

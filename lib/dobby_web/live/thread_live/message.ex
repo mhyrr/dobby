@@ -63,9 +63,28 @@ defmodule DobbyWeb.ThreadLive.Message do
       </div>
       <p class="said">{Markdown.strip(@message.text)}</p>
       <.done_steps :if={@steps != []} steps={@steps} duration={@duration} />
+      <p :if={@message.role == :assistant and @steps == []} class="note">
+        asked nothing of the house<span :if={@duration}> · {@duration}</span>
+      </p>
     </div>
     """
   end
+
+  # The line under a reply that called no tool. It is the record speaking in
+  # the slot the steps would have taken, and it is there because of the one
+  # sentence the architecture cannot otherwise stop: a model writing "Done —
+  # set to 68" having asked nothing of anyone (TK-038). Every guard in the
+  # house sits on the path from a tool to Home Assistant; none sits on the
+  # reply, and a model that declines to call a tool walks past all of them.
+  # The deterministic layer does hold the exact fact — `turn.order` was empty,
+  # persisted here as `steps: []` — and until now nothing read it against the
+  # prose. With the line, "Done" over "asked nothing of the house" contradicts
+  # itself in plain sight, which is the strongest thing the surface can say
+  # without reading the prose. Reading it — deciding whether a sentence claims
+  # completion — is a judgment, and judgments are the model's, not code's
+  # (CLAUDE.md); forcing a tool call on every turn is the same judgment about
+  # what the utterance was, wearing a different hat. A read answered from what
+  # the house already told Dobby earns the same line, and it is just as true.
 
   @doc """
   A reply being composed, with its steps as they happen.

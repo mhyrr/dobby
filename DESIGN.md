@@ -938,6 +938,14 @@ device language ("setting the main thermostat"), never in Dobby's voice.
   sentence case and declined rust — a sentence set beside a label in board
   type squeezes both
 - **After the reply:** collapses to one disclosure row (`2 steps · 3.8 s`)
+- **After a reply with no steps,** the same slot carries a note instead:
+  `ASKED NOTHING OF THE HOUSE · 1.2 s`. The record voice, because it is the
+  record speaking, and it is the only defence the surface has against a model
+  that narrates a command it never sent: "Done" over that line contradicts
+  itself where anyone can see it. Reading the prose to decide whether it
+  claimed completion is a judgment, and judgments are not the code's to make;
+  a read answered from what the house already said earns the same line, and
+  the line is just as true of it
 - **Before the first step,** the board says so itself — see The Note. Against
   FakeHA a tool call resolves inside a frame, so the pulsing outlined tick is
   real code that will not be seen until there is real hardware behind it

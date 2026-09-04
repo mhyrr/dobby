@@ -1626,6 +1626,18 @@ before the server exists. Phase B can proceed in parallel.
    channels — the thread and the MCP door — are bound by the one check, and
    so is a stored schedule either of them authored, because the protocol is
    asked again at fire time (§6.6, §9).
+26. The record speaks beneath every reply. A reply that called no tool carries
+   `asked nothing of the house` in the slot its steps would have taken, so a
+   model narrating a command it never sent (TK-038: "Done — set to 68", no
+   tool call, no intervention, the board unmoved) contradicts itself where the
+   household can see it. The fact is exact and already held — the turn's tool
+   order was empty — and this is the deterministic layer rendering that fact,
+   not reading the prose. Two alternatives were rejected: a post-check that
+   decides whether a sentence claims completion, which is a judgment and so
+   the model's to make and not the code's; and forcing a tool call on the
+   first iteration, which is the same judgment about what the utterance was.
+   Pinning providers does not close it either: every endpoint serving the
+   model that lied advertised tool support (§6.2, §10.3).
 
 ## Sources
 

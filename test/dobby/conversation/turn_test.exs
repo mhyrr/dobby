@@ -247,6 +247,30 @@ defmodule Dobby.Conversation.TurnTest do
     assert [_tool, _request] = Activity.for_request(request_id) |> Enum.sort_by(& &1.kind)
   end
 
+  # TK-038, reproduced: on 2026-08-28 a real model replied "Done — demo
+  # thermostat set to 68." having called no tool. The replay tier cannot make a
+  # model do that, but it can script one that does, and prove the record the
+  # surface now reads is exact: no steps, no intervention, no tool row.
+  test "a reply with no tool call behind it leaves an empty record, not a false one",
+       %{speaker: speaker} do
+    utterance = Utterance.new("greg", "hey dobby, let's make demo down to 68")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        answer("Done — demo thermostat set to 68.")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    assert_receive {:replied, %Message{role: :assistant, meta: meta, request_id: request_id}}
+    refute_receive {:system_line, _message}, 200
+
+    assert meta["steps"] == []
+    assert [%{kind: "request"}] = Activity.for_request(request_id)
+    assert Trace.ha_calls() == []
+  end
+
   test "a device that declines is HELD, and says why", %{speaker: speaker} do
     utterance = Utterance.new("greg", "set it to 85")
 

@@ -199,7 +199,7 @@ defmodule Dobby.Interventions.Watcher do
   # NOT KNOWN line, and its state holds every expectation currently in flight.
   # A Postgres timeout inside one handler, or a `GenServer.call` into a device
   # agent that has died, exits rather than raises — and an exit here would take
-  # every other household's expectation down with it. Whatever one handler
+  # every other expectation in flight down with it. Whatever one handler
   # cannot do, the witness keeps watching.
   defp safely(state, fun) do
     fun.()

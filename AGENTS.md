@@ -52,14 +52,17 @@ lib/dobby/
   device_agents/         Light, Thermostat, Vacuum, WifiEndpoint + their actions
   home.ex, home/         Bootstrap: validate the manifest, start the agents
   home_config.ex         home.yaml in both directions — read, validate, write
+  home_config/system.ex  The system section, and the setting it refuses to boot on
   home_assistant.ex      The boundary. `impl/0` picks Fake or the real client
   home_assistant/        The real Mint.WebSocket client, and the Fake
   directives/ha_call.ex  A service call described but not performed
   agent.ex, agent/       DobbyAgent: the ReAct agent, prompt, request transformer
   tools/                 The model's closed tool set, one Jido.Action each
+  controls.ex            The direct control path: a card tap, no model involved
   conversation.ex        The thread, its window, and rehydration at boot
   schedules.ex           Dobby-owned Postgres rows, fired with no model call
   interventions.ex       System lines: what somebody did, however they did it
+  command_events.ex      The confirmation seam: expectations, and refusals
   activity.ex            The full log, which records everything
   topology.ex, health.ex The admin's picture of the running house
   mcp.ex, mcp/           The door for someone else's agent, same closed tools

@@ -11,7 +11,9 @@ defmodule Dobby.HandsOnlyTest do
   use Dobby.RigCase, async: false
 
   alias Dobby.Controls
+  alias Dobby.Conversation.Message
   alias Dobby.Schedules
+  alias Dobby.ThreadEvents
 
   @front "lock:front"
   @side "lock:side"
@@ -66,6 +68,43 @@ defmodule Dobby.HandsOnlyTest do
 
     assert_receive {:ha_call, %HACall{entity_id: @side_entity}}, 2_000
     assert eventually(fn -> agent_state(@side).lock_state == :locked end)
+  end
+
+  # Belt and braces. Authoring is where a person finds out, but a row that
+  # never went through authoring — written before `hands_only` existed, or by
+  # a hand on the database — still fires, and the shared write protocol is
+  # what has to refuse it. The thread hears the refusal the same way it hears
+  # a thermostat's.
+  test "a planted conversation schedule is refused at fire time and said out loud" do
+    ThreadEvents.subscribe()
+
+    schedule =
+      Dobby.Repo.insert!(%Dobby.Schedules.Schedule{
+        label: "planted lock",
+        cron: "0 23 * * *",
+        timezone: Dobby.Home.manifest().timezone,
+        target: @side,
+        action: "secure",
+        args: %{},
+        enabled: true,
+        created_by: "greg",
+        created_via: :conversation
+      })
+
+    assert {:rejected, reason} = Schedules.dispatch_command(schedule)
+    assert reason =~ "hands only"
+
+    Dobby.SchedulerAgent.id()
+    |> Dobby.Jido.whereis()
+    |> Jido.AgentServer.cast(Schedules.fire_signal(schedule))
+
+    assert_receive {:system_line, %Message{text: "side door lock", meta: meta}}, 2_000
+    assert meta["word"] == "Held"
+    assert meta["state"] == "refused"
+    assert meta["reason"] =~ "hands only"
+    assert meta["via"] == ~s(schedule "planted lock")
+
+    assert Fake.trace() == []
   end
 
   test "the roster says hands only without changing the board snapshot" do

@@ -14,7 +14,11 @@ defmodule Dobby.DeviceAgents.ThermostatTest do
   device_agent_contract(Dobby.DeviceAgents.Thermostat,
     bindings: %{climate: "climate.contract"},
     settings: %{min_temperature_f: 60, max_temperature_f: 76},
-    entity: [entity_id: "climate.contract"]
+    entity: [entity_id: "climate.contract"],
+    arrivals: [
+      {%{result: :accepted, action: :set_temperature, temperature_f: 70.0},
+       %{target_temperature_f: 70.0}, %{target_temperature_f: 68.0}}
+    ]
   )
 
   alias Dobby.Tools.{ThermostatGetStatus, ThermostatSetTemperature}

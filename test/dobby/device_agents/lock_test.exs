@@ -17,7 +17,12 @@ defmodule Dobby.DeviceAgents.LockTest do
 
   device_agent_contract(Dobby.DeviceAgents.Lock,
     bindings: %{lock: "lock.contract"},
-    entity: [entity_id: "lock.contract"]
+    entity: [entity_id: "lock.contract"],
+    # Locking hardware reports :locking before :locked, so the echo has to
+    # accept the one on the way as well as the one that landed.
+    arrivals: [
+      {%{result: :accepted, action: :secure}, %{lock_state: :locking}, %{lock_state: :unlocked}}
+    ]
   )
 
   # `available` is nil between agent start and the first sync — a command in

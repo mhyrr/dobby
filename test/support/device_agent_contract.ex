@@ -11,6 +11,19 @@ defmodule Dobby.DeviceAgentContract do
   This is deliberately test support, not a production DSL. The production
   extension point remains `Dobby.DeviceAgent`; this module proves an
   implementation honors it.
+
+  ## `arrivals:`
+
+  A writable type must also prove its echo matcher. `command_arrived?/2` is
+  what turns an inbound state change into "the command got there", so a wrong
+  one is not a cosmetic bug: it produces a NOT KNOWN line for a command that
+  arrived, every time, and no other test notices. Each writable type therefore
+  supplies at least one `{command, satisfying_snapshot, unsatisfying_snapshot}`
+  and the contract asserts both answers — a matcher that says yes to
+  everything is as wrong as one that says no to everything.
+
+  "Writable" is not a judgment call: it is a signal route whose action takes a
+  `:ref`, which is the write protocol's own marker (`Dobby.DeviceAgent.command/3`).
   """
 
   import ExUnit.Assertions
@@ -99,6 +112,8 @@ defmodule Dobby.DeviceAgentContract do
       assert function_exported?(tool, :run, 2)
     end
 
+    assert_arrivals(module, Keyword.get(opts, :arrivals, []))
+
     scheduled_actions = module.scheduled_actions()
     assert is_map(scheduled_actions)
 
@@ -111,5 +126,34 @@ defmodule Dobby.DeviceAgentContract do
     end
 
     :ok
+  end
+
+  # The type's own vocabulary, in both directions. `command_arrived?/2` is
+  # asked through `Dobby.DeviceAgent` rather than directly, because the
+  # read-only default lives there and a type that quietly stopped exporting
+  # the callback would otherwise look like a type that answers false.
+  defp assert_arrivals(module, arrivals) do
+    if writable?(module) do
+      assert arrivals != [],
+             "#{inspect(module)} has a write route and must supply :arrivals — " <>
+               "an echo matcher nothing exercises is a permanent false NOT KNOWN"
+    end
+
+    for {command, satisfying, unsatisfying} <- arrivals do
+      assert Dobby.DeviceAgent.command_arrived?(module, command, satisfying),
+             "#{inspect(module)} did not recognize its own echo of #{inspect(command)}"
+
+      refute Dobby.DeviceAgent.command_arrived?(module, command, unsatisfying),
+             "#{inspect(module)} read #{inspect(unsatisfying)} as the echo of #{inspect(command)}"
+    end
+
+    :ok
+  end
+
+  defp writable?(module) do
+    Enum.any?(module.signal_routes(), fn {_type, action} ->
+      Code.ensure_loaded?(action) and function_exported?(action, :schema, 0) and
+        Keyword.has_key?(action.schema(), :ref)
+    end)
   end
 end

@@ -14,7 +14,14 @@ defmodule Dobby.DeviceAgents.LightTest do
 
   device_agent_contract(Dobby.DeviceAgents.Light,
     bindings: %{light: "light.contract"},
-    entity: [entity_id: "light.contract"]
+    entity: [entity_id: "light.contract"],
+    # A brightness echo has to carry the bulb being on with it: an off light
+    # reports no brightness at all, so a percent alone is not the answer.
+    arrivals: [
+      {%{result: :accepted, action: :set_power, on: true}, %{power: :on}, %{power: :off}},
+      {%{result: :accepted, action: :set_brightness, brightness_percent: 40},
+       %{power: :on, brightness_percent: 40}, %{power: :off, brightness_percent: 40}}
+    ]
   )
 
   alias Dobby.Tools.{LightGetStatus, LightSetBrightness, LightTurnOff, LightTurnOn}
@@ -142,6 +149,15 @@ defmodule Dobby.DeviceAgents.LightTest do
       refute result.accepted
       assert result.reason =~ "turn it off"
       assert Fake.trace() == []
+    end
+  end
+
+  # Nothing a light reports is evidence of a hand. Until the commanded-echo
+  # bookkeeping the thermostat has lands here, a line about a switch somebody
+  # flipped would be a line about Dobby's own command coming back.
+  test "nothing a light reports is somebody's hand on it" do
+    for attribute <- [:power, :brightness_percent, :available] do
+      refute Dobby.DeviceAgents.Light.intervention?(attribute)
     end
   end
 

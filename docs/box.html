@@ -101,7 +101,8 @@
 sudo -u postgres psql -c "CREATE ROLE dobby LOGIN PASSWORD 'choose-one';"
 sudo -u postgres psql -c "CREATE DATABASE dobby OWNER dobby;"
 sudo useradd --system --home-dir /opt/dobby --shell /usr/sbin/nologin dobby
-sudo mkdir -p /opt/dobby/releases /opt/dobby/config /opt/dobby/data/backups /opt/dobby/data/tmp
+sudo mkdir -p /opt/dobby/releases /opt/dobby/config
+sudo mkdir -p /opt/dobby/data/backups /opt/dobby/data/tmp
 sudo chown -R dobby:dobby /opt/dobby/config /opt/dobby/data</code></pre>
     <p>The release directories stay root's. The service cannot rewrite its own code; it writes only under <span class="arg">data</span>.</p>
 

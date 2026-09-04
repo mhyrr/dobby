@@ -1,0 +1,41 @@
+# Dobby as the box's service. Installed once, by hand:
+#
+#     sudo cp /opt/dobby/current/box/dobby.service /etc/systemd/system/
+#     sudo systemctl enable --now dobby
+#
+# Migrate, then start: bin/migrate runs before every start, so an upgrade is
+# untar, repoint current, restart — and a migration that cannot run keeps the
+# house down with the reason in `journalctl -u dobby` rather than booting a
+# house that is about to miss a table (Dobby.Release).
+
+[Unit]
+Description=Dobby, the household agent
+Documentation=https://mhyrr.github.io/dobby/box.html
+After=network-online.target postgresql.service avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=dobby
+Group=dobby
+WorkingDirectory=/opt/dobby/current
+# Every credential the house has, readable by the service user only (TK-048).
+EnvironmentFile=/opt/dobby/config/dobby.env
+# The release writes its boot files under RELEASE_TMP. The release itself is
+# root's, so the service cannot rewrite its own code.
+Environment=RELEASE_TMP=/opt/dobby/data/tmp
+ExecStartPre=/opt/dobby/current/bin/migrate
+ExecStart=/opt/dobby/current/bin/server
+# SIGTERM is a clean stop for the BEAM; no ExecStop is needed.
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+# So `system.port: 80` in the house file works, and the address needs no
+# port number.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -133,9 +133,13 @@ defmodule Dobby.LanBeacon do
 
   # The browser uses the documented explicit port, so Linux needs the address
   # record. `-f` waits for avahi-daemon across a daemon restart instead of
-  # making this GenServer churn every five seconds.
+  # making this GenServer churn every five seconds. `-R` publishes no reverse
+  # record: the daemon already owns the one for this machine's own address,
+  # and without it every Debian box collided with itself — "Local name
+  # collision", once per boot, and no dobby.local (found on the release walk,
+  # 2026-09-04; the Linux path had never run on a real host before it).
   defp publish_command(%{publisher: {:avahi, executable}} = state, _http_port) do
-    [executable, "-a", "-f", state.hostname, state.ip]
+    [executable, "-a", "-f", "-R", state.hostname, state.ip]
   end
 
   defp http_port do

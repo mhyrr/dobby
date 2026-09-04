@@ -11,7 +11,8 @@ defmodule Dobby.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: releases()
     ]
   end
 
@@ -28,6 +29,21 @@ defmodule Dobby.MixProject do
   def cli do
     [
       preferred_envs: [precommit: :test]
+    ]
+  end
+
+  # One release, for the box: a tarball a person copies (design §2.4). It is
+  # assembled by rel/Dockerfile on Debian 12, whichever machine asks — the
+  # bundled ERTS is linked against the glibc it was built on, and Debian 12 is
+  # the oldest host the tarball is meant to run on. Two files ride along under
+  # rel/overlays: the systemd unit and the shape of the service environment.
+  defp releases do
+    [
+      dobby: [
+        include_executables_for: [:unix],
+        applications: [runtime_tools: :permanent],
+        steps: [:assemble, :tar]
+      ]
     ]
   end
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A place for Dobby to live · Dobby</title>
-<meta name="description" content="The not-yet-walked hardware proposal for running Dobby and Home Assistant on permanent household machines.">
+<meta name="description" content="The always-on box: the hardware, still a proposal, and the installed service, walked on a stand-in on 2026-09-04.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="dobby.css">
 </head>
@@ -38,16 +38,16 @@
     <h1>A place for Dobby to live</h1>
     <p class="lede">You can meet Dobby on a laptop. A house elf needs somewhere permanent to live.</p>
 
-    <p>A household service needs a machine that stays on. It can share one physical box with Home Assistant while each system keeps its own operating environment. This page describes the hardware we propose.</p>
+    <p>A household service needs a machine that stays on. This page is in two halves. The first half is the hardware, which is still a proposal. The second half is the installed service, which was walked on 2026-09-04 on a stand-in for the box: a Debian 12 virtual machine, installed from the tarball, rebooted, and upgraded.</p>
 
     <div class="note unwalked">
-      <span class="label">A proposal, not a walk</span>
-      Nobody has bought this box, installed both halves, and written down what happened. The parts and prices are from August 2026. When the walk is taken, this page and <a href="running.html#service">the installed-service section</a> will be rewritten from it.
+      <span class="label">The hardware is a proposal, not a walk</span>
+      Nobody has bought this box and installed both halves. The parts and prices below are from research done in September 2026. The service half of this page is walked; the hardware half will be rewritten when the box exists.
     </div>
 
     <h2 id="needs">What each half needs</h2>
     <p><strong>Home Assistant</strong> wants a machine of its own. Home Assistant OS manages its own updates, add-ons, and backups, and you cannot install other software into it. Give it a small box or a virtual machine.</p>
-    <p><strong>Dobby</strong> is an ordinary Linux service: Erlang and Elixir, PostgreSQL, Avahi for the <span class="arg">dobby.local</span> name, and an outbound connection to a model provider. It needs a few hundred megabytes of memory and no GPU. The model is a call over HTTPS.</p>
+    <p><strong>Dobby</strong> is an ordinary Linux service. The box needs PostgreSQL, Avahi for the <span class="arg">dobby.local</span> name, and the release tarball, which carries its own Erlang. No Elixir, no git, no build tools. It needs about 300 MB of memory when running, no GPU, and an outbound HTTPS connection to the model provider.</p>
 
     <h2 id="one-box">One box: a mini PC running Proxmox</h2>
     <p>This is the layout Dobby was designed for. A small x86 mini PC runs Proxmox VE, a free hypervisor. Each half gets a virtual machine.</p>
@@ -55,35 +55,172 @@
     <div class="table-wrap">
     <table>
       <tr><th>Part</th><th>Proposed</th><th>Why</th></tr>
-      <tr><td>Box</td><td>Intel N100 or N150 mini PC, 16–32 GB RAM, 500 GB–1 TB NVMe. About $200–250.</td><td>Near-silent, 6–10 W idle, a well-worn Proxmox host. 16 GB is enough; 32 GB is comfortable.</td></tr>
-      <tr><td>VM 1: Home Assistant</td><td>HAOS from the official VM image. 2 vCPU, 4 GB.</td><td>HAOS in its own VM, so add-ons and updates work as designed.</td></tr>
-      <tr><td>VM 2: Dobby</td><td>Debian. 2 vCPU, 4 GB. Dobby under <span class="arg">/opt/dobby</span>, PostgreSQL, Avahi.</td><td>A plain Linux host you can ssh into. Everything the household changes is two files under <span class="arg">/opt/dobby/config</span>.</td></tr>
-      <tr><td>Radios</td><td>A Zigbee or Z-Wave USB stick, passed through to the HA VM. Only if you have those devices.</td><td>Home Assistant owns the radios. Dobby never talks to one.</td></tr>
-      <tr><td>Power</td><td>A small UPS.</td><td>The house's brain should survive a blip. HA can watch the UPS over NUT.</td></tr>
+      <tr><td>Box</td><td>Intel N150 mini PC with 16 GB and a 500 GB NVMe: a Beelink EQ14 or a GMKtec NucBox G3 Plus, about $190 in September 2026. The N100 is the same chip in practice; buy whichever is cheaper.</td><td>About 6 W idle, near silent, a well-worn Proxmox host. 16 GB is enough; 32 GB is comfortable, and a single 32 GB SODIMM works on most of these boards.</td></tr>
+      <tr><td>Hypervisor</td><td>Proxmox VE 9.2.</td><td>Backups of both machines are one scheduled <span class="arg">vzdump</span>.</td></tr>
+      <tr><td>VM 1: Home Assistant</td><td>HAOS 18 from the official image, by the community-scripts helper or by importing the qcow2 by hand. 2 vCPU, 4 GB.</td><td>HAOS in its own VM, so add-ons and updates work as designed.</td></tr>
+      <tr><td>VM 2: Dobby</td><td>Debian 13. 2 vCPU, 4 GB. Dobby under <span class="arg">/opt/dobby</span>, PostgreSQL, Avahi.</td><td>A plain Linux host you can ssh into. A virtual machine and not a container, because the name needs multicast and containers on the Proxmox bridge fight for it.</td></tr>
+      <tr><td>Radios</td><td>A Zigbee, Thread, or Z-Wave USB stick, passed through to the HA VM by USB vendor and device id, never by port.</td><td>Home Assistant owns the radios. Dobby never talks to one. A stick passed through by port disappears when the host enumerates it differently.</td></tr>
+      <tr><td>Power</td><td>A small UPS on the Proxmox host, watched by NUT in netserver mode. An APC BE600M1 is about $84 and runs this load for more than an hour.</td><td>The host has to shut both machines down cleanly. Pass the UPS into the HA VM and the host never learns the power failed.</td></tr>
     </table>
     </div>
 
     <p>Both VMs sit on the home LAN. Nothing is forwarded in from the internet. The only traffic that leaves is Dobby's call to the model provider. To reach the box from away, use a mesh VPN on the Dobby VM, not a port forward.</p>
+    <p>All in, about $275 and 10 to 15 W at the wall. This is the recommendation. The reasons are the isolation, one backup for both machines, and the price: the memory shortage of 2026 doubled the cost of every small ARM board and appliance, and a mini PC on commodity DDR4 did not move.</p>
 
     <h2 id="two-boxes">Two boxes: an appliance and a helper</h2>
-    <p>If Home Assistant already runs on its own hardware (a Green, a Yellow, a Raspberry Pi), keep it. Dobby needs one more small machine on the same network.</p>
+    <p>If Home Assistant already runs on its own hardware, keep it. Dobby needs one more small machine on the same network.</p>
     <ul>
-      <li><strong>Home Assistant Green</strong> is the appliance Home Assistant's own company sells: silent, about 1.7 W idle, 4 GB RAM, 32 GB storage, $199 as of January 2026. It runs HAOS and nothing else.</li>
-      <li><strong>For Dobby</strong>, the same mini PC running Debian directly, or a Raspberry Pi 5 with 8 GB. Either runs Erlang well.</li>
+      <li><strong>Home Assistant Green</strong> is the appliance Home Assistant's own company sells: silent, about 1.7 W idle, 4 GB RAM, 32 GB storage, $199 in September 2026 after two price rises. It runs HAOS and nothing else. Home Assistant Yellow was discontinued in October 2025.</li>
+      <li><strong>For Dobby</strong>, a used ThinkCentre M720q or similar office mini PC running Debian 13, $90 to $160. Not a Raspberry Pi 5: an 8 GB Pi 5 is $175 in 2026, Debian stable does not support the Pi 5 at all, and Raspberry Pi OS boots a 16 KB page kernel by default that breaks some software. The arm64 tarball runs on a Pi, and the guide will say so once one has been walked.</li>
     </ul>
-    <p>Two boxes cost a little more. In exchange, Home Assistant stays an appliance you never log into, and you can break Dobby's machine without touching the house's automations.</p>
+    <p>Two boxes cost about $360. In exchange, Home Assistant stays an appliance you never log into, and you can break Dobby's machine without touching the house's automations.</p>
+
+    <h2 id="not-add-on">Not a Home Assistant add-on</h2>
+    <p>Dobby could be packaged as a Home Assistant add-on, one container beside the others, folded into Home Assistant's own backups. It was considered and rejected. An add-on cannot publish <span class="arg">dobby.local</span>: the HAOS host already runs an mDNS responder and a second one collides with it. The host is Buildroot, with no apt and no systemd unit of your own, and a shell into the host takes a USB stick and a debug port. Dobby's debugging surface is a live shell into the running node, and an add-on has no clean way to offer one.</p>
+    <p>Home Assistant Supervised, Home Assistant's own Supervisor on a Debian host, ended support at Home Assistant 2025.12 and is not a foundation for a box meant to run for a year.</p>
 
     <h2 id="not-needed">What you do not need</h2>
     <ul>
       <li><strong>A GPU.</strong> Inference is a network call.</li>
       <li><strong>A public address or TLS.</strong> Dobby is LAN only.</li>
-      <li><strong>Much storage.</strong> Dobby's state is one Postgres database and two files. That is the whole backup.</li>
+      <li><strong>Much storage.</strong> Dobby's state is one Postgres database and two files. The release itself is 59 MB unpacked.</li>
+      <li><strong>Erlang on the box.</strong> The tarball carries its own runtime, built on Debian 12, so it runs on Debian 12 or newer and on Raspberry Pi OS from bookworm on.</li>
     </ul>
 
-    <h2 id="then">Then what</h2>
-    <p>With the box up, <a href="house.html">write down the house</a>, <a href="running.html#verify">verify every device</a>, set <code>lan: true</code>, and open <span class="arg">dobby.local</span> from the kitchen. The release steps—building it, the systemd unit, upgrades, and restoring a backup—are still owed a walk.</p>
+    <h2 id="install">The installed service, walked</h2>
+    <p>This section is a record of 2026-09-04. The stand-in was a Debian 12.12 virtual machine on arm64, with Home Assistant reached through a tunnel to the laptop that runs the <a href="developing.html">development rig</a>. Everything below is what was typed and what came back. Where the box will differ, the text says so.</p>
 
-    <p class="colophon">Prices and parts: <a href="https://www.nabucasa.com/news/2026-01-08-green-pricing-change/">Nabu Casa on Green pricing</a> · <a href="https://www.xda-developers.com/i-used-an-intel-n100-mini-pc-as-a-proxmox-node/">an N100 as a Proxmox node</a>.</p>
+    <h3 id="tarball">The tarball</h3>
+    <p>Every tagged version publishes two tarballs on the <a href="https://github.com/mhyrr/dobby/releases">GitHub releases page</a>: <span class="arg">dobby-&lt;version&gt;-linux-amd64.tar.gz</span> for an Intel or AMD box and <span class="arg">dobby-&lt;version&gt;-linux-arm64.tar.gz</span> for a Pi or an ARM machine. Both are built on Debian 12 by <span class="arg">rel/Dockerfile</span>, on a runner of the matching architecture, so nothing is emulated. To build one yourself, on any machine with Docker:</p>
+<pre><code>docker build -f rel/Dockerfile --output dist .</code></pre>
+    <p>The walk used two builds of the same branch, numbered 0.1.0 and 0.1.1, because there was no second version yet. The first tagged release is v0.1.0.</p>
+
+    <h3 id="prepare">Prepare the box</h3>
+    <p>PostgreSQL, Avahi, a role and a database, a service user, and the directories. Once.</p>
+<pre><code>sudo apt install postgresql avahi-daemon avahi-utils
+sudo -u postgres psql -c "CREATE ROLE dobby LOGIN PASSWORD 'choose-one';"
+sudo -u postgres psql -c "CREATE DATABASE dobby OWNER dobby;"
+sudo useradd --system --home-dir /opt/dobby --shell /usr/sbin/nologin dobby
+sudo mkdir -p /opt/dobby/releases /opt/dobby/config
+sudo mkdir -p /opt/dobby/data/backups /opt/dobby/data/tmp
+sudo chown -R dobby:dobby /opt/dobby/config /opt/dobby/data</code></pre>
+    <p>The release directories stay root's. The service cannot rewrite its own code; it writes only under <span class="arg">data</span>.</p>
+
+    <h3 id="files">The two files, and the environment</h3>
+    <p>Put <a href="house.html">the house file</a> at <span class="arg">/opt/dobby/config/home.yaml</span> and the soul at <span class="arg">/opt/dobby/config/soul.md</span>. Set <code>lan: true</code> in the house file's <code>system</code> section, so the household can reach the box. Then the service environment, which is every credential the house has:</p>
+<pre><code>sudo cp /opt/dobby/current/box/dobby.env.example /opt/dobby/config/dobby.env   # after the first untar below
+sudo chown dobby:dobby /opt/dobby/config/dobby.env &amp;&amp; sudo chmod 600 /opt/dobby/config/dobby.env
+openssl rand -base64 48                                                      # the SECRET_KEY_BASE line</code></pre>
+    <p>Fill in <code>DATABASE_URL</code> with the password you chose, <code>SECRET_KEY_BASE</code> with the generated value, <code>DOBBY_HA_URL</code> and <code>DOBBY_HA_TOKEN</code> for Home Assistant, and <code>OPENROUTER_API_KEY</code>. The file is read by systemd: one <span class="arg">KEY=value</span> per line, no <code>export</code>. Keep the secret key base. Change it and every browser in the house is asked its name again.</p>
+
+    <h3 id="start">Install and start</h3>
+<pre><code>sudo mkdir -p /opt/dobby/releases/0.1.0
+sudo tar -xzf dobby-0.1.0-linux-arm64.tar.gz -C /opt/dobby/releases/0.1.0
+sudo ln -sfn /opt/dobby/releases/0.1.0 /opt/dobby/current
+sudo cp /opt/dobby/current/box/dobby.service /etc/systemd/system/
+sudo systemctl enable --now dobby</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">$ systemctl status dobby
+● dobby.service - Dobby, the household agent
+     Loaded: loaded (/etc/systemd/system/dobby.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-09-04 18:10:30 EDT; 2s ago
+    Process: 8930 ExecStartPre=/opt/dobby/current/bin/migrate (code=exited, status=0/SUCCESS)
+   Main PID: 8986 (beam.smp)
+
+$ journalctl -u dobby -o cat
+[info] == Running 20260814150950 Dobby.Repo.Migrations.CreateSchedules.change/0 forward
+  ...
+[info] == Migrated 20260821180000 in 0.0s
+Started dobby.service - Dobby, the household agent.
+[info] Running DobbyWeb.Endpoint with Bandit 1.12.4 at 0.0.0.0:4000 (http)
+[info] the house answers at http://dobby.local:4000/ (192.168.5.15)
+[info] connected to Home Assistant 2026.8.2 at http://127.0.0.1:8123</p>
+      <p class="said">The unit runs the migrations before every start, so the first start is also the first migration. Then the endpoint, the name, and Home Assistant. On the stand-in, Home Assistant was the laptop's, through a tunnel at 127.0.0.1; on the box it is the address in <code>DOBBY_HA_URL</code>. Open <span class="arg">http://dobby.local:4000/</span> from a phone. The three pages load and the thread connects.</p>
+    </div>
+
+    <p>The journal also carries a stack of warnings at every boot about the house's model not being in the catalog the model library ships with. They are noise, and they are a known open item.</p>
+
+    <h3 id="reboot">Reboot</h3>
+    <p>Pull the plug, or <code>sudo reboot</code>. The unit is enabled, so the service comes back with the box.</p>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">$ uptime -s
+2026-09-04 18:15:37
+$ systemctl show dobby -p ActiveEnterTimestamp
+ActiveEnterTimestamp=Fri 2026-09-04 18:15:43 EDT
+$ journalctl -b -u dobby -o cat
+[info] Migrations already up
+Started dobby.service - Dobby, the household agent.
+[warning] Home Assistant unreachable at http://127.0.0.1:8123 (%Mint.TransportError{reason: :econnrefused}); retrying in 1000ms
+[info] Running DobbyWeb.Endpoint with Bandit 1.12.4 at 0.0.0.0:4000 (http)
+[warning] Home Assistant unreachable at http://127.0.0.1:8123 (%Mint.TransportError{reason: :econnrefused}); retrying in 16000ms
+[info] connected to Home Assistant 2026.8.2 at http://127.0.0.1:8123</p>
+      <p class="said">Six seconds from kernel to house. The Home Assistant warnings are the stand-in's: the reboot killed the tunnel, and the client backed off from one second to sixteen until the tunnel came back, then reconnected on its own. On the box, Home Assistant is another machine that may also be booting, and the same backoff covers it.</p>
+    </div>
+
+    <h3 id="upgrade">Upgrade</h3>
+    <p>Untar the new version beside the old one, repoint <span class="arg">current</span>, restart. The restart migrates first.</p>
+<pre><code>sudo mkdir -p /opt/dobby/releases/0.1.1
+sudo tar -xzf dobby-0.1.1-linux-arm64.tar.gz -C /opt/dobby/releases/0.1.1
+sudo ln -sfn /opt/dobby/releases/0.1.1 /opt/dobby/current
+sudo systemctl restart dobby</code></pre>
+
+    <div class="proof">
+      <p class="label">What you should see</p>
+      <p class="line">Stopping dobby.service - Dobby, the household agent...
+Stopped dobby.service - Dobby, the household agent.
+[info] == Running 20260820120000 Dobby.Repo.Migrations.CreateDeviceProposals.change/0 forward
+[info] create table device_proposals
+[info] create index device_proposals_outstanding_index
+[info] create index device_proposals_status_index
+[info] == Migrated 20260820120000 in 0.0s
+[info] == Running 20260821180000 Dobby.Repo.Migrations.CreateMcpTokens.change/0 forward
+[info] create table mcp_tokens
+[info] == Migrated 20260821180000 in 0.0s
+Started dobby.service - Dobby, the household agent.
+[info] connected to Home Assistant 2026.8.2 at http://127.0.0.1:8123
+[info] Running DobbyWeb.Endpoint with Bandit 1.12.4 at 0.0.0.0:4000 (http)
+[info] the house answers at http://dobby.local:4000/ (192.168.5.15)</p>
+      <p class="said">Two seconds of stop, the pending migrations, then the house. The walk had rolled the last two migrations back by hand before this restart, so that the upgrade had migrations to run; a real upgrade with a new migration takes the same path. If a migration fails, the service does not start and <span class="arg">journalctl -u dobby</span> says why. The old release stays under <span class="arg">releases</span> until you remove it.</p>
+    </div>
+
+    <h3 id="rollback">Rolling a migration back</h3>
+    <p>By hand only, as the service user, with the service environment loaded. Nothing rolls back on its own.</p>
+<pre><code>sudo -u dobby bash -c 'set -a; . /opt/dobby/config/dobby.env; set +a;
+  RELEASE_TMP=/opt/dobby/data/tmp /opt/dobby/current/bin/dobby eval "Dobby.Release.rollback(Dobby.Repo, 20260820120000)"'</code></pre>
+    <p>The number is the migration to roll back to, inclusive; the walk's rollback to 20260820120000 undid that migration and the one after it. The same shape runs anything else in the release: <code>bin/dobby remote</code> opens a live shell into the running house.</p>
+
+    <h3 id="layout">Where things are</h3>
+<pre><code>/opt/dobby/
+├── releases/
+│   ├── 0.1.0/                  the untarred release, root's, carries its own Erlang
+│   └── 0.1.1/
+│       └── box/                dobby.service and dobby.env.example, inside every tarball
+├── current -> releases/0.1.1
+├── config/                     the household's, and all it ever edits
+│   ├── home.yaml
+│   ├── soul.md
+│   └── dobby.env               mode 600: the database, the secret, the two tokens
+└── data/
+    ├── tmp/                    the release's boot files
+    └── backups/                owed: see below</code></pre>
+    <p>Editing the house or the soul is <code>sudo systemctl restart dobby</code>. Nothing under <span class="arg">config</span> is inside a release, so an upgrade never touches it.</p>
+
+    <h3 id="port">Port 80</h3>
+    <p>The unit grants the service the capability to bind port 80, so <code>port: 80</code> in the house file's <code>system</code> section is enough for a bare <span class="arg">http://dobby.local/</span>. Not walked: the stand-in ran on 4000.</p>
+
+    <div class="note unwalked">
+      <span class="label">Not yet walked</span>
+      The name. The stand-in's network was the laptop's own, so no phone resolved <span class="arg">dobby.local</span> to it; the name was published and resolved on the box itself. The first boot on the stand-in also found the Linux name publisher had never run on a real Debian host and collided with the daemon's own address record. That is fixed in 0.1.0. Backup and restore are <a href="#then">owed</a>.
+    </div>
+
+    <h2 id="then">Then what</h2>
+    <p>With the box up, <a href="house.html">write down the house</a>, <a href="running.html#verify">verify every device</a> from the development checkout, and open <span class="arg">dobby.local</span> from the kitchen. Backup and restore, a <span class="arg">pg_dump</span> beside the two files on a schedule and a restore onto a fresh box, are the next walk and will land under <span class="arg">data/backups</span>.</p>
+
+    <p class="colophon">Prices and parts, September 2026: <a href="https://www.raspberrypi.com/news/more-memory-driven-price-rises/">Raspberry Pi on the memory-driven price rises</a> · <a href="https://www.nabucasa.com/news/2026-01-08-green-pricing-change/">Nabu Casa on Green pricing</a> · <a href="https://community-scripts.org/scripts/haos-vm">the HAOS VM helper for Proxmox</a> · <a href="https://forum.proxmox.com/threads/proxmox-and-ups-best-practice.123241/">a UPS on the Proxmox host</a> · <a href="https://community.home-assistant.io/t/implementing-mdns-into-custom-addon/277993">mDNS inside an add-on</a>.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
       <a class="prev" href="house.html"><small>Previous</small>The house, written down</a>

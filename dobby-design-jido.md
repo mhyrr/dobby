@@ -213,30 +213,42 @@ application — thread, cards, scheduler — against it with no VM present.
 
 ### 2.4 Deploying and running
 
-Dobby ships as an OTP release built on the Debian VM itself, which avoids the
-ERTS and glibc mismatches that come from building elsewhere. Code lives in git;
-state lives on the box:
+Dobby ships as an OTP release: a tarball a person copies to the box. It is
+built where the box is not — by `rel/Dockerfile` on Debian 12, on a GitHub
+Actions runner of the box's own architecture, one tag producing one tarball
+each for x86_64 and arm64 — so the box needs no Erlang, no Elixir and no git,
+only Postgres, Avahi and the tarball. The first draft of this section built on
+the Debian VM itself to avoid ERTS and glibc mismatches; pinning the build to
+the oldest Debian the tarball is meant to run on avoids them the same way, and
+makes a second architecture (a Pi) a download rather than a second toolchain
+(decision 28, walked 2026-09-04 on a Debian 12 VM). Code lives in git; state
+lives on the box:
 
 ```text
 /opt/dobby/
-├── src/                        git clone — built from, never run
 ├── releases/
-│   └── 2026-09-14-3f1e0cd/     self-contained, includes ERTS
-├── current -> releases/2026-09-14-3f1e0cd
-├── config/
-│   ├── home.exs                the deployed manifest (§4)
+│   └── 0.1.0/                  the untarred release, root's, includes ERTS
+│       └── box/                dobby.service and dobby.env.example ride inside
+├── current -> releases/0.1.0
+├── config/                     the household's, and all it ever edits
+│   ├── home.yaml               the deployed manifest (§4)
 │   ├── soul.md                 who Dobby is (§6.6)
 │   └── dobby.env               chmod 600: DATABASE_URL, SECRET_KEY_BASE,
 │                               HA token, model API key
-└── data/backups/               pg_dump output
+└── data/
+    ├── tmp/                    RELEASE_TMP, the release's boot files
+    └── backups/                pg_dump output (TK-040)
 ```
 
-Deploy is: pull; `MIX_ENV=prod mix do deps.get, compile, assets.deploy, release
---path releases/$STAMP`; copy the manifest and the soul into
-`/opt/dobby/config/`; repoint `current`; `bin/dobby eval
-"Dobby.Release.migrate()"`; `systemctl restart dobby`. Postgres is an ordinary
-package install on the same VM, and `dobby.env` is the systemd unit's
-`EnvironmentFile`.
+Install is: untar into `releases/<version>`, repoint `current`, `systemctl
+restart dobby`. The unit runs `bin/migrate` before every start
+(`ExecStartPre`), so an upgrade is those three steps, and a migration that
+cannot run keeps the house down with the reason in `journalctl -u dobby`
+rather than booting a house that is about to miss a table. Migrating from
+`Dobby.Application.start/2` was rejected for that reason and because the rig
+and the suite would have to opt out of it (`Dobby.Release`). Rollback is by
+hand only. Postgres is an ordinary package install on the same host, and
+`dobby.env` is the unit's `EnvironmentFile`.
 
 **Changing the house does not require a release.** All three files under
 `/opt/dobby/config/` are read at boot by `runtime.exs` (§4, §6.6), so
@@ -244,10 +256,11 @@ correcting an entity ID, adding an endpoint, rotating a token, or rewriting
 how Dobby talks is edit-and-restart. Only changes to code or to compile-time
 configuration need a rebuild.
 
-Containers were considered and set aside. `/opt/dobby/current/bin/dobby remote`
+Containers were considered as the runtime and set aside. `/opt/dobby/current/bin/dobby remote`
 — a live IEx shell into the running node, for inspecting device-agent state or
 replaying a signal against the real house — is the primary debugging surface
 for this system, and a container layer buys nothing on a single-tenant box.
+The one container in the repository is the build box, and nothing runs in it.
 
 ## 3. Network and ingress
 
@@ -1653,6 +1666,21 @@ before the server exists. Phase B can proceed in parallel.
    that count is not rare the rule comes back. The eval rubrics that
    refuted state after a write were removed with this decision; the ones on
    observation, refusal and direction stand (§6.2, §7).
+28. The release is built where the box is not, 2026-09-04. One tag, two
+   tarballs — x86_64 and arm64 — assembled by `rel/Dockerfile` on Debian 12
+   on GitHub Actions runners of each architecture, so nothing is emulated and
+   the box needs no toolchain. Greg: more than one target is likely (a Pi
+   beside a mini PC), so the pipeline lives with the code rather than on a
+   box. The first draft of §2.4 built on the box itself to keep ERTS and
+   glibc matched; pinning the build to the oldest Debian the tarball runs on
+   keeps them matched the same way. The unit migrates before every start
+   (`ExecStartPre`) rather than the application migrating itself, so a
+   migration that cannot run is a service that did not start, with the reason
+   in the journal. Nothing rolls back on its own. The LiveView socket accepts
+   the Origin the page itself was served from (`check_origin: :conn`), because
+   the household types dobby.local, the LAN IP, or whatever a router named
+   the box, and a page that renders once and never connects is a broken house
+   (§2.4, §3).
 
 ## Sources
 

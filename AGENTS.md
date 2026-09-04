@@ -35,7 +35,10 @@ What follows from that is not negotiable:
   returns acceptance — the device agent validated the command and emitted it.
   Physical confirmation arrives later, asynchronously, as a state change. "The
   living room is warm now" is exactly the sentence this architecture exists to
-  make impossible.
+  make impossible. The reply may phrase the commanded value as done ("Coffee
+  station's on, Greg") because the house checks every accepted command and
+  writes HELD or NOT KNOWN beneath the reply if it did not arrive (design
+  decisions 24 and 27); a reading the model never took stays impossible.
 - **Ambiguity is a refusal to act, and not a licence to act broadly.** "The
   thermostat" in a house with two is a question, not permission to set both.
 - **The direct control path is first-class, not a fallback.** A card somebody

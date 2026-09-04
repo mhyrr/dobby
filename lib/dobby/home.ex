@@ -119,6 +119,13 @@ defmodule Dobby.Home do
     :ok = Supervisor.terminate_child(Dobby.Supervisor, __MODULE__)
     Enum.each(refs, &await_down/1)
 
+    # Every device agent that accepted a command is now gone, so every
+    # expectation still in flight is about a command no process is left to
+    # answer. Carrying them across would expire against a device that no
+    # longer exists and hang NOT KNOWN on a board belonging to a house that
+    # was just rebuilt.
+    Dobby.Interventions.Watcher.forget_commands()
+
     :ok
   end
 

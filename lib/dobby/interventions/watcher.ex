@@ -77,6 +77,21 @@ defmodule Dobby.Interventions.Watcher do
     :exit, _watcher_not_running -> snapshot
   end
 
+  @doc """
+  Drops every expectation and every standing NOT KNOWN.
+
+  Called by `Dobby.Home.stop/0`, which is the one moment the question these
+  answer stops having a subject: the device agents that accepted the commands
+  are gone. Silent by design — a house that is being rebuilt has nothing to
+  tell the thread about what the old one was still waiting for.
+  """
+  @spec forget_commands() :: :ok
+  def forget_commands do
+    GenServer.call(__MODULE__, :forget_commands)
+  catch
+    :exit, _watcher_not_running -> :ok
+  end
+
   @impl GenServer
   def init(_opts) do
     CommandEvents.subscribe()
@@ -148,6 +163,14 @@ defmodule Dobby.Interventions.Watcher do
   @impl GenServer
   def handle_call(:settle, _from, state), do: {:reply, :ok, state}
 
+  def handle_call(:forget_commands, _from, state) do
+    Enum.each(state.expectations, fn {_ref, expectation} ->
+      Process.cancel_timer(expectation.timer)
+    end)
+
+    {:reply, :ok, %{state | expectations: %{}, unknown: %{}}}
+  end
+
   def handle_call({:decorate, device, snapshot}, _from, state) do
     decorated =
       if unknown_for?(state, device),
@@ -171,6 +194,13 @@ defmodule Dobby.Interventions.Watcher do
       :ok
   end
 
+  # Broad on purpose, and the exit clause matters as much as the rescue. This
+  # is the only thing in the house that turns an unanswered command into a
+  # NOT KNOWN line, and its state holds every expectation currently in flight.
+  # A Postgres timeout inside one handler, or a `GenServer.call` into a device
+  # agent that has died, exits rather than raises — and an exit here would take
+  # every other household's expectation down with it. Whatever one handler
+  # cannot do, the witness keeps watching.
   defp safely(state, fun) do
     fun.()
   rescue
@@ -180,12 +210,17 @@ defmodule Dobby.Interventions.Watcher do
       )
 
       state
+  catch
+    :exit, reason ->
+      Logger.error("the watcher could not track a command: exited with #{inspect(reason)}")
+
+      state
   end
 
   # -- command confirmation -------------------------------------------------
 
   defp expect(state, %{ref: ref} = data) when is_binary(ref) do
-    if arrived?(data, current_snapshot(data.device)) do
+    if arrived?(data, data[:snapshot]) do
       state
     else
       timer = Process.send_after(self(), {:expectation_expired, ref}, data.timeout_ms)
@@ -219,6 +254,15 @@ defmodule Dobby.Interventions.Watcher do
         state
 
       {expectation, expectations} ->
+        # Asked before the ref joins `unknown`, so it answers "was this device
+        # already NOT KNOWN". Say it once: three silent commands to one device
+        # are one fact about that device, and three identical lines under each
+        # other read as three separate failures. The ref still becomes unknown
+        # and the log still takes its own row, because "how often does the
+        # garage not answer" is a question about every command, not about the
+        # first one that went quiet.
+        already_unknown? = unknown_for?(state, expectation.device)
+
         state = %{
           state
           | expectations: expectations,
@@ -234,9 +278,13 @@ defmodule Dobby.Interventions.Watcher do
           request_id: expectation.request_id
         })
 
-        state = outcome(state, :not_known, expectation)
-        DeviceEvents.command_status(expectation.device, :not_known)
-        state
+        if already_unknown? do
+          state
+        else
+          state = outcome(state, :not_known, expectation)
+          DeviceEvents.command_status(expectation.device, :not_known)
+          state
+        end
     end
   end
 
@@ -290,16 +338,6 @@ defmodule Dobby.Interventions.Watcher do
   end
 
   defp arrived?(_expectation, _snapshot), do: false
-
-  defp current_snapshot(device) do
-    with {:ok, %{agent_module: module}} <- Home.fetch_device(device),
-         pid when is_pid(pid) <- Dobby.Jido.whereis(device),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      module.snapshot(server_state.agent.state)
-    else
-      _not_running -> nil
-    end
-  end
 
   defp never_arrived_reason(expectation) do
     action = expectation.call["service"] || expectation.action

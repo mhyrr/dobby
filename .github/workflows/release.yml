@@ -1,0 +1,73 @@
+# The release, built where the box is not: one tag, two tarballs.
+#
+#     git tag v0.1.0 && git push origin v0.1.0
+#
+# Each tarball is assembled by rel/Dockerfile on Debian 12, on a runner of the
+# same architecture, so nothing is emulated. The tag must name the version in
+# mix.exs. A pull request that touches the build definition runs the build
+# and publishes nothing.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - rel/**
+      - .github/workflows/release.yml
+      - mix.exs
+      - mix.lock
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag names the version in mix.exs
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^ *version: "\(.*\)",$/\1/p' mix.exs)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag is $GITHUB_REF_NAME but mix.exs says $version"
+            exit 1
+          fi
+
+      - name: Build the tarball
+        run: docker build -f rel/Dockerfile --output dist .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dobby-linux-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --title "Dobby $GITHUB_REF_NAME" --generate-notes \
+            dist/*.tar.gz

@@ -120,6 +120,67 @@ defmodule Dobby.HomeConfig do
   def manifest!(path), do: path |> load!() |> manifest()
 
   @doc """
+  Which model is actually answering, whatever the file says.
+
+  One rule, asked in one place, because two readings of it took the house down
+  (TK-037). `config/runtime.exs` let an exported `DOBBY_MODEL` win the
+  `:capable` alias and then built the request options from the file's own
+  `system` section six lines later, so a house whose export named a model not
+  reached through OpenRouter was still sent OpenRouter's `routing` — and ReqLLM
+  rejects that while *building* every request, so every turn failed from boot
+  with a line that told the household nothing.
+
+  The order is the order of who outranks whom. An exported variable beats the
+  file, which is the one-off `DOBBY_MODEL=… mix phx.server` is good at. The file
+  beats whatever was already running, because a file that names a model is the
+  model this house answers with. And what is already running is the floor rather
+  than a compiled-in default: a file that names no model is not choosing
+  Dobby's default *now* — the model still answering is the one that was there a
+  moment ago, and no save moves it until a restart. Callers that have a running
+  house hand that in; `config/runtime.exs`, which is deciding what will run,
+  has nothing to hand and passes nothing.
+  """
+  @spec model_in_force(t() | Dobby.HomeConfig.System.t(), String.t() | nil) :: String.t() | nil
+  def model_in_force(config_or_system, running \\ nil)
+
+  def model_in_force(%__MODULE__{system: system}, running),
+    do: model_in_force(system, running)
+
+  def model_in_force(%Dobby.HomeConfig.System{model: model}, running),
+    do: System.get_env("DOBBY_MODEL") || model || running
+
+  @doc """
+  Whether these settings can be sent to the model that will answer them.
+
+  `:ok`, or `{:error, sentence}` naming the word somebody wrote, its value, and
+  the model that will not take it.
+
+  Three callers, one question, deliberately. `Dobby.Application` asks before any
+  child starts, so a house that would fail every turn does not boot looking
+  healthy. `Dobby.HomeConfig.Writer` asks again on every save, because boot was
+  hours ago and nothing reboots when somebody presses save on /admin — that was
+  the door the boot check did not close. Anything else that writes the `system`
+  section later, the MCP door first among them, asks this and not a fourth
+  thing: a second check written beside this one is how the two readings of the
+  model got here in the first place.
+
+  The answer is computed in `Dobby.HomeConfig.System.check_llm_opts/3`, which
+  owns it because the section owns the translation from the file's words to the
+  provider's, and so owns knowing which of its own words a model refuses. This
+  is where a whole configuration gets to ask, which is the shape every caller
+  actually has in hand.
+  """
+  @spec sendable(t() | Dobby.HomeConfig.System.t(), String.t() | nil, String.t() | nil) ::
+          :ok | {:error, String.t()}
+  def sendable(config_or_system, model, exported \\ nil)
+
+  def sendable(%__MODULE__{system: system}, model, exported),
+    do: sendable(system, model, exported)
+
+  def sendable(%Dobby.HomeConfig.System{} = system, model, exported),
+    do: Dobby.HomeConfig.System.check_llm_opts(system, model, exported)
+
+  @doc """
   Adds one device to a configuration, validated exactly as a file's would be.
 
   The entry is the YAML shape — string keys, string values, `type: "thermostat"`

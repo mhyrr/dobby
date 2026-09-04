@@ -327,17 +327,12 @@ defmodule Dobby.HomeConfig.Writer do
         []
       end
 
-    # Put as one value even when one field changed: what the model is told is
-    # the section's whole answer, and `HomeConfig.System.llm_opts/1` is the one
-    # place the file's words become the provider's.
-    live_options =
+    changed_options =
       for field <- [:reasoning, :routing],
           Map.get(incoming, field) != Map.get(previous, field),
           do: field
 
-    if live_options != [] do
-      Application.put_env(:dobby, :llm_opts, HomeConfig.System.llm_opts(incoming))
-    end
+    {live_options, refused_options} = apply_options(incoming, changed_options, exported_model)
 
     live = live_model ++ live_options
 
@@ -347,7 +342,9 @@ defmodule Dobby.HomeConfig.Writer do
     changed_model? = incoming.model != previous.model
 
     overridden =
-      if changed_model? and not is_nil(exported_model), do: [:model], else: []
+      if changed_model? and not is_nil(exported_model),
+        do: [{:model, exported_model_reason(exported_model)}],
+        else: []
 
     later =
       [
@@ -359,6 +356,53 @@ defmodule Dobby.HomeConfig.Writer do
       |> Enum.filter(&elem(&1, 1))
       |> Enum.map(&elem(&1, 0))
 
-    {live, later, overridden}
+    {live, later, overridden ++ refused_options}
+  end
+
+  # Put as one value even when one field changed: what the model is told is the
+  # section's whole answer, and `HomeConfig.System.llm_opts/1` is the one place
+  # the file's words become the provider's.
+  #
+  # Asked of the model the house is *answering with*, which is not always the
+  # one the file names. Asking the file — which is what this did — put
+  # `routing: latency` into a live house running a model that cannot take it,
+  # and every turn from the save onward died while ReqLLM was still building
+  # the request. The boot check that catches the same pair could not help: boot
+  # was hours ago, and pressing save on /admin reboots nothing (TK-037).
+  defp apply_options(_incoming, [], _exported), do: {[], []}
+
+  defp apply_options(incoming, changed, exported) do
+    model = HomeConfig.model_in_force(incoming, capable_alias())
+
+    case HomeConfig.sendable(incoming, model, exported) do
+      :ok ->
+        Application.put_env(:dobby, :llm_opts, HomeConfig.System.llm_opts(incoming))
+        {changed, []}
+
+      {:error, reason} ->
+        # Nothing applied, not the sendable half of it: what the model is told
+        # is one value, and half of it is a third setting nobody wrote. The
+        # file is still written, because the file describes a consistent house
+        # — its own model beside its own routing — and only the export makes
+        # the pair unsendable. Refusing the save would let a variable in
+        # somebody's shell stop them editing their own house.
+        {[], Enum.map(changed, &{&1, reason})}
+    end
+  end
+
+  # What the running house resolves `:capable` to, which is where the decision
+  # `config/runtime.exs` made at boot is kept, and where this process itself
+  # writes a model change a moment before asking.
+  defp capable_alias,
+    do: :jido_ai |> Application.get_env(:model_aliases, %{}) |> Map.get(:capable)
+
+  # The same shape of sentence the section gives about a setting a model will
+  # not take: what is in force, and who chose it. A field marked overridden and
+  # nothing else asks the person to guess what outranked them and where it
+  # lives — and an export lives in a shell, which is the one place they will
+  # not think to look.
+  defp exported_model_reason(exported) do
+    "#{exported} is the model in force (exported as DOBBY_MODEL), which " <>
+      "outranks the file until it is cleared and Dobby restarts."
   end
 end

@@ -513,6 +513,65 @@ defmodule Dobby.HomeConfigTest do
       assert {:error, from_file} = Section.check_llm_opts(section, @direct, nil)
       refute from_file =~ "DOBBY_MODEL"
     end
+
+    # One question with three askers — boot, the writer, and whatever writes the
+    # system section next — because two readings of the same one is the defect
+    # underneath both outages (TK-037).
+    test "a whole configuration can be asked, and gets the section's own answer" do
+      config = %Dobby.HomeConfig{
+        path: "home.yaml",
+        format: :yaml,
+        system: %Section{routing: "latency"}
+      }
+
+      assert {:error, message} = Dobby.HomeConfig.sendable(config, @direct)
+      assert message =~ "routing: latency"
+      assert Dobby.HomeConfig.sendable(config, @openrouter) == :ok
+      assert Dobby.HomeConfig.sendable(config.system, @openrouter) == :ok
+    end
+  end
+
+  # The one rule about who outranks whom, so the alias and the options cannot be
+  # derived from two different answers to it — which is exactly what happened.
+  describe "which model is actually answering" do
+    alias Dobby.HomeConfig.System, as: Section
+
+    test "an exported variable beats the file, and the file beats what is running" do
+      variable = "DOBBY_MODEL"
+      previous = System.get_env(variable)
+
+      on_exit(fn ->
+        if previous, do: System.put_env(variable, previous), else: System.delete_env(variable)
+      end)
+
+      System.delete_env(variable)
+      assert Dobby.HomeConfig.model_in_force(%Section{model: "openai:file"}) == "openai:file"
+
+      assert Dobby.HomeConfig.model_in_force(%Section{model: "openai:file"}, "openai:running") ==
+               "openai:file"
+
+      System.put_env(variable, "openai:exported")
+
+      assert Dobby.HomeConfig.model_in_force(%Section{model: "openai:file"}, "openai:running") ==
+               "openai:exported"
+    end
+
+    test "a file that names no model is not choosing one: what is running keeps answering" do
+      variable = "DOBBY_MODEL"
+      previous = System.get_env(variable)
+
+      on_exit(fn ->
+        if previous, do: System.put_env(variable, previous), else: System.delete_env(variable)
+      end)
+
+      System.delete_env(variable)
+
+      assert Dobby.HomeConfig.model_in_force(%Section{}, "openai:running") == "openai:running"
+
+      # And nothing running is nothing to report — `config/runtime.exs` is
+      # deciding what will run and has nothing to hand in.
+      assert Dobby.HomeConfig.model_in_force(%Section{}) == nil
+    end
   end
 
   describe "credentials, by reference" do

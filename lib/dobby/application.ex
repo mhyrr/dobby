@@ -55,7 +55,9 @@ defmodule Dobby.Application do
   # with a model not reached through OpenRouter is rejected by ReqLLM while it
   # builds each request, so the only symptom is "Dobby couldn't answer that",
   # once per person who tries. Boot is where that gets a sentence naming the
-  # setting; see `Dobby.HomeConfig.System.check_llm_opts/2`.
+  # setting; see `Dobby.HomeConfig.sendable/3`, which is the same question
+  # `Dobby.HomeConfig.Writer` asks of a save, because boot is not the only way
+  # into that state (TK-037).
   #
   # The file is read a second time here rather than carried from
   # `config/runtime.exs`, which has it in hand: ReqLLM resolves models out of a
@@ -70,7 +72,7 @@ defmodule Dobby.Application do
          {:ok, config} <- Dobby.HomeConfig.load(path) do
       exported = System.get_env("DOBBY_MODEL")
 
-      case Dobby.HomeConfig.System.check_llm_opts(config.system, model, exported) do
+      case Dobby.HomeConfig.sendable(config, model, exported) do
         :ok -> :ok
         {:error, reason} -> raise ArgumentError, reason
       end

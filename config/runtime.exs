@@ -137,17 +137,31 @@ runtime_port =
   end
 
 if not test? do
+  # The section as it is actually in force, which is not always the section the
+  # file describes: `DOBBY_MODEL` outranks the model line, and the two settings
+  # about how that model answers are the file's either way. Named once, because
+  # both of the next two lines are about the same model and used not to be —
+  # the alias took the export while the options took the file, and a house was
+  # sent OpenRouter's `routing` on a model not reached through OpenRouter and
+  # failed every turn from boot (TK-037).
+  #
+  # Whether the pair is sendable is not asked here and cannot be: ReqLLM
+  # resolves a model out of a catalog its own application owns, and no
+  # application has started. `Dobby.Application` asks `Dobby.HomeConfig.sendable/3`
+  # about this same model before any child starts.
+  system = %{home.system | model: Dobby.HomeConfig.model_in_force(home.system)}
+
   # The `:capable` alias, which is the swap design §2.1 says an alias exists to
   # make: the agent names the alias, never the provider. Unset on both sides
   # means the committed default in config/config.exs.
-  if model = System.get_env("DOBBY_MODEL") || home.system.model do
-    config :jido_ai, :model_aliases, %{capable: model}
+  if system.model do
+    config :jido_ai, :model_aliases, %{capable: system.model}
   end
 
   # How the model answers — how hard it reasons, what OpenRouter optimizes for
   # — read by DobbyAgent on every request, the way the alias is. No environment
   # override: the file is the durable place, and the eval tier has its own.
-  config :dobby, :llm_opts, Dobby.HomeConfig.System.llm_opts(home.system)
+  config :dobby, :llm_opts, Dobby.HomeConfig.System.llm_opts(system)
 
   # Opening Dobby to the household: bind every interface and advertise this
   # machine on the LAN for as long as the server runs (Dobby.LanBeacon). Off by

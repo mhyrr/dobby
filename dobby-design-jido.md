@@ -1638,6 +1638,21 @@ before the server exists. Phase B can proceed in parallel.
    first iteration, which is the same judgment about what the utterance was.
    Pinning providers does not close it either: every endpoint serving the
    model that lied advertised tool support (§6.2, §10.3).
+27. Decision 23 relaxed, on purpose, 2026-09-04. After an accepted write the
+   reply may speak the commanded value as done — "Coffee station's on, Greg"
+   — in the household's voice. Greg: the conversational reply is much better
+   than "I told it to turn on", and he wants to see how often the intent
+   actually fails before paying for the stiffness. What makes this affordable
+   is decision 24: every accepted command is checked, and HELD or NOT KNOWN
+   lands beneath the reply if it did not arrive, so a state-shaped sentence
+   is now a claim the house corrects rather than one it cannot. What stays
+   forbidden is a reading the model never took ("the room is 72" after a
+   setpoint) and a command it never sent (decision 26). The instrument is
+   the record: `command_refused` and `command_never_arrived` rows beneath
+   replies are the count of times the relaxed sentence was wrong, and if
+   that count is not rare the rule comes back. The eval rubrics that
+   refuted state after a write were removed with this decision; the ones on
+   observation, refusal and direction stand (§6.2, §7).
 
 ## Sources
 

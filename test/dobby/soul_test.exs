@@ -31,7 +31,7 @@ defmodule Dobby.SoulTest do
       prompt = Soul.system_prompt()
 
       {soul_at, _} = :binary.match(prompt, "capable person who lives here")
-      {doctrine_at, _} = :binary.match(prompt, "Report what you commanded")
+      {doctrine_at, _} = :binary.match(prompt, "You act only through your tools")
 
       assert soul_at < doctrine_at
     end
@@ -39,13 +39,18 @@ defmodule Dobby.SoulTest do
     test "the compiled-in floor is doctrine alone" do
       # If the soul is never installed, Dobby is charmless but still honest.
       refute DobbyAgent.doctrine() =~ "capable person who lives here"
-      assert DobbyAgent.doctrine() =~ "Report what you commanded"
+      assert DobbyAgent.doctrine() =~ "You act only through your tools"
     end
 
     test "write shape belongs to doctrine and not the editable voice" do
+      # The one write example lives in doctrine because a soul example teaches
+      # shape, and shape moved five replies on 2026-08-27 (TK-033). Since
+      # decision 27 the example is warm and state-shaped on purpose; what the
+      # doctrine still forbids is a reading the model never took.
       refute Soul.read!() =~ "I set the main thermostat"
-      assert DobbyAgent.doctrine() =~ "The thread declares intent; the board"
-      assert DobbyAgent.doctrine() =~ "Locking the front door"
+      refute Soul.read!() =~ "Coffee station"
+      assert DobbyAgent.doctrine() =~ "Coffee station's on, Greg"
+      assert DobbyAgent.doctrine() =~ "is yours to say and"
     end
   end
 
@@ -58,6 +63,6 @@ defmodule Dobby.SoulTest do
 
     assert is_binary(installed), "no system prompt installed on the running agent"
     assert installed =~ "capable person who lives here", "soul never reached the agent"
-    assert installed =~ "Report what you commanded", "doctrine missing from the live prompt"
+    assert installed =~ "You act only through your tools", "doctrine missing from the live prompt"
   end
 end

@@ -155,6 +155,12 @@ defmodule Dobby.Conversation.Turn do
     error ->
       Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
       fail(request_id, "something went wrong answering that")
+      # The same barrier both `finish/1` clauses release, released here too. A
+      # HELD or NOT KNOWN correlated to this request is being held by the
+      # witness until the turn says its own last line is stored, and a crash is
+      # still a last line — without this the outcome waits forever for a turn
+      # that has already given up.
+      ThreadEvents.turn_finished(request_id)
   end
 
   @doc """
@@ -183,11 +189,17 @@ defmodule Dobby.Conversation.Turn do
         ThreadEvents.turn_started(request_id)
         fold(events, request_id, speaker)
 
+      # Both of these end the turn without reaching `finish/1`, so both have
+      # to release the barrier themselves. A HELD or a NOT KNOWN correlated to
+      # this request is being held by the witness until the turn says its last
+      # line is stored, and "Dobby isn't running" is a last line.
       {:error, :dobby_not_running} ->
         fail(request_id, "Dobby isn't running")
+        ThreadEvents.turn_finished(request_id)
 
       {:error, reason} ->
         fail(request_id, "Dobby couldn't answer that", describe(reason))
+        ThreadEvents.turn_finished(request_id)
     end
   end
 

@@ -37,7 +37,8 @@ defmodule Dobby.HomeAssistant.Fake do
             trace: [],
             subscribers: [],
             failures: %{},
-            silences: MapSet.new()
+            silences: MapSet.new(),
+            stalls: %{}
 
   # -- client ----------------------------------------------------------------
 
@@ -96,6 +97,23 @@ defmodule Dobby.HomeAssistant.Fake do
   def silence_next(entity_id), do: GenServer.call(__MODULE__, {:silence_next, entity_id})
 
   @doc """
+  Makes the next service call against `entity_id` take `ms` to answer.
+
+  A slow Home Assistant is not a broken one, and it is the condition under
+  which the device agent that emitted the call is *blocked* — it is sitting in
+  `Dobby.HomeAssistant.execute/1` and cannot answer anything, including a
+  question about what it currently reads. Nothing else in the rig produces
+  that, because the fake normally answers instantly.
+
+  The reply is deferred rather than slept on, so the fake itself stays
+  answerable while one caller waits. Keep `ms` under the client's own call
+  timeout; a stall longer than that is a different scenario (a call that
+  never returns) and belongs to the real client's tests.
+  """
+  @spec stall_next(String.t(), pos_integer()) :: :ok
+  def stall_next(entity_id, ms), do: GenServer.call(__MODULE__, {:stall_next, entity_id, ms})
+
+  @doc """
   Every `HACall` executed so far, in order.
   """
   @spec trace() :: [HACall.t()]
@@ -150,20 +168,18 @@ defmodule Dobby.HomeAssistant.Fake do
     {:reply, :ok, state}
   end
 
-  def handle_call({:execute, %HACall{} = call}, _from, state) do
+  def handle_call({:execute, %HACall{} = call}, from, state) do
     state = %{state | trace: state.trace ++ [call]}
     Enum.each(state.subscribers, &send(&1, {:ha_call, call}))
 
-    case Map.pop(state.failures, call.entity_id) do
-      {nil, _failures} ->
-        if MapSet.member?(state.silences, call.entity_id) do
-          {:reply, :ok, %{state | silences: MapSet.delete(state.silences, call.entity_id)}}
-        else
-          {:reply, :ok, confirm(state, call)}
-        end
+    case Map.pop(state.stalls, call.entity_id) do
+      {nil, _stalls} ->
+        {reply, state} = answer(call, state)
+        {:reply, reply, state}
 
-      {reason, failures} ->
-        {:reply, {:error, reason}, %{state | failures: failures}}
+      {ms, stalls} ->
+        Process.send_after(self(), {:answer_stalled, call, from}, ms)
+        {:noreply, %{state | stalls: stalls}}
     end
   end
 
@@ -183,6 +199,10 @@ defmodule Dobby.HomeAssistant.Fake do
 
   def handle_call({:silence_next, entity_id}, _from, state) do
     {:reply, :ok, %{state | silences: MapSet.put(state.silences, entity_id)}}
+  end
+
+  def handle_call({:stall_next, entity_id, ms}, _from, state) do
+    {:reply, :ok, put_in(state.stalls[entity_id], ms)}
   end
 
   def handle_call({:subscribe, pid}, _from, state) do
@@ -221,7 +241,38 @@ defmodule Dobby.HomeAssistant.Fake do
     connected()
 
     {:reply, :ok,
-     %{state | trace: [], entities: %{}, failures: %{}, silences: MapSet.new(), subscribers: []}}
+     %{
+       state
+       | trace: [],
+         entities: %{},
+         failures: %{},
+         silences: MapSet.new(),
+         stalls: %{},
+         subscribers: []
+     }}
+  end
+
+  @impl GenServer
+  def handle_info({:answer_stalled, %HACall{} = call, from}, state) do
+    {reply, state} = answer(call, state)
+    GenServer.reply(from, reply)
+    {:noreply, state}
+  end
+
+  def handle_info(_message, state), do: {:noreply, state}
+
+  defp answer(%HACall{} = call, state) do
+    case Map.pop(state.failures, call.entity_id) do
+      {nil, _failures} ->
+        if MapSet.member?(state.silences, call.entity_id) do
+          {:ok, %{state | silences: MapSet.delete(state.silences, call.entity_id)}}
+        else
+          {:ok, confirm(state, call)}
+        end
+
+      {reason, failures} ->
+        {{:error, reason}, %{state | failures: failures}}
+    end
   end
 
   defp connected, do: Connection.publish(__MODULE__, :connected)

@@ -13,7 +13,14 @@ defmodule Dobby.DeviceAgents.VacuumTest do
 
   device_agent_contract(Dobby.DeviceAgents.Vacuum,
     bindings: %{vacuum: "vacuum.contract"},
-    entity: [entity_id: "vacuum.contract"]
+    entity: [entity_id: "vacuum.contract"],
+    # :returning is the first honest answer to a dock command — the robot has
+    # heard it and is on its way, which is not the same as being home.
+    arrivals: [
+      {%{result: :accepted, action: :start_cleaning}, %{activity: :cleaning},
+       %{activity: :docked}},
+      {%{result: :accepted, action: :dock}, %{activity: :returning}, %{activity: :cleaning}}
+    ]
   )
 
   alias Dobby.Tools.{VacuumDock, VacuumGetStatus, VacuumStart}
@@ -94,6 +101,14 @@ defmodule Dobby.DeviceAgents.VacuumTest do
       refute result.accepted
       assert result.reason =~ "unavailable"
       assert Fake.trace() == []
+    end
+  end
+
+  # A robot docks itself, empties itself and gets stuck by itself. None of
+  # that is somebody doing something, so none of it reaches the thread.
+  test "nothing a vacuum does on its own is somebody's hand on it" do
+    for attribute <- [:activity, :battery_percent, :available] do
+      refute Dobby.DeviceAgents.Vacuum.intervention?(attribute)
     end
   end
 

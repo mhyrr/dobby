@@ -145,6 +145,11 @@ defmodule Dobby.HomeConfig.System do
   defp resolve_model(model) when is_binary(model) do
     {:ok, ReqLLM.model!(model)}
   rescue
+    # Broad because every way `ReqLLM.model!/1` can fail means the same thing
+    # here: this machine cannot resolve that model, so there is nothing to
+    # check its options against. Refusing to boot on it would be this function
+    # answering a question that is not its own — the request will say so in its
+    # own words, and saying it twice in two voices helps nobody.
     _error -> :error
   end
 

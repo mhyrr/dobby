@@ -34,11 +34,6 @@ defmodule Dobby.Tools.VacuumStart do
 
   @doc false
   def command(device_id, signal_type, action, context) do
-    case Dobby.Tools.Device.command(device_id, Vacuum, signal_type, %{}, context, %{
-           action: action
-         }) do
-      {:ok, result} -> {:ok, result}
-      {:error, reason} -> {:error, reason}
-    end
+    Dobby.Tools.Device.command(device_id, Vacuum, signal_type, %{}, context, %{action: action})
   end
 end

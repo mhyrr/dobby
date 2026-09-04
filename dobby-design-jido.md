@@ -1602,6 +1602,30 @@ before the server exists. Phase B can proceed in parallel.
 22. A control that can act on the house offers an undo rather than a confirm
    dialog. Dialogs train people to dismiss dialogs, and a household that has
    learned to is worse off than one that never had them (§10.5).
+23. After a write, the thread declares intent and the board declares state.
+   Tense is not the carrier: "locking the front door" is only an honest
+   sentence because a second sentence can follow it from the record, and the
+   board already reports what Home Assistant said rather than what Dobby
+   commanded. Trying to make the verb tell the truth about the physical world
+   was rejected — a model choosing between "locked" and "locking" is a model
+   being asked to know something it cannot (§7, §10.3).
+24. An accepted command becomes an expectation with a per-type deadline,
+   resolved by the deterministic layer with no model in the loop: `HELD` on
+   Home Assistant's refusal, one `NOT KNOWN` on expiry, cleared quietly by a
+   late echo. Deadlines are type knowledge rather than a house-file knob,
+   because a lock and a shade have different physical response times in every
+   house. The expectation carries its own snapshot, taken in the device
+   agent's process before the call goes out — the executor runs *in* that
+   process and then blocks it for the length of the call, so a witness that
+   asked the agent what it reads would be waiting on a process it had just
+   stopped (§7, §10.3).
+25. `hands_only` binds the language layer in the shared device command
+   protocol, keyed on the trusted caller that crossed it. Not in a prompt,
+   which is a request rather than a rule, and not per tool, which would have
+   to be remembered by every tool a new device type adds. Both language
+   channels — the thread and the MCP door — are bound by the one check, and
+   so is a stored schedule either of them authored, because the protocol is
+   asked again at fire time (§6.6, §9).
 
 ## Sources
 

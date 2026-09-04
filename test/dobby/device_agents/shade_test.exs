@@ -16,7 +16,13 @@ defmodule Dobby.DeviceAgents.ShadeTest do
 
   device_agent_contract(Dobby.DeviceAgents.Shade,
     bindings: %{cover: "cover.contract"},
-    entity: [entity_id: "cover.contract", device_class: "shade"]
+    entity: [entity_id: "cover.contract", device_class: "shade"],
+    arrivals: [
+      {%{result: :accepted, action: :open}, %{shade_state: :opening}, %{shade_state: :closed}},
+      {%{result: :accepted, action: :close}, %{shade_state: :closing}, %{shade_state: :open}},
+      {%{result: :accepted, action: :set_position, position: 40}, %{position: 40},
+       %{position: 60}}
+    ]
   )
 
   # `available` is nil between agent start and the first sync — a command in

@@ -341,6 +341,39 @@ defmodule DobbyWeb.ThreadLiveTest do
       # The work collapses to one row rather than being thrown away: what
       # Dobby actually did is what makes the answer trustworthy a week later.
       assert has_element?(view, "details.collapsed summary", "1 step")
+      refute has_element?(view, "#messages-#{message.id} .note")
+    end
+
+    # TK-038: a model wrote "Done — demo thermostat set to 68." having called no
+    # tool, and the reply looked exactly like an honest one. The record knew —
+    # `steps: []` — and nothing read it against the prose. The line under the
+    # reply is the record speaking, so a completion sentence over an empty
+    # record contradicts itself in plain sight.
+    test "a reply that asked nothing of the house says so beneath itself", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      {:ok, message} =
+        Conversation.append_reply("Done — demo thermostat set to 68.",
+          request_id: "req-3",
+          meta: %{"steps" => [], "duration_ms" => 1_200}
+        )
+
+      ThreadEvents.replied(message)
+
+      selector = "#messages-#{message.id}"
+      assert eventually(fn -> has_element?(view, selector) end)
+      assert has_element?(view, "#{selector} .note", "asked nothing of the house")
+      assert has_element?(view, "#{selector} .note", "1.2 s")
+      refute has_element?(view, "#{selector} details.collapsed")
+
+      # The line is about Dobby's replies. A person's own message asked nothing
+      # of the house either, and saying so would be noise.
+      {:ok, speaker} = Conversation.name_speaker("greg")
+      {:ok, said} = Conversation.append_utterance(Utterance.new("greg", "did it work?"), speaker)
+      ThreadEvents.said(%{said | speaker: speaker})
+      said_selector = "#messages-#{said.id}"
+      assert eventually(fn -> has_element?(view, said_selector) end)
+      refute has_element?(view, "#{said_selector} .note")
     end
 
     test "accepts the internal turn-finished ordering barrier", %{conn: conn} do

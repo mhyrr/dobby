@@ -11,9 +11,18 @@ defmodule Dobby.HomeConfig.Applied do
 
   So the writer reports each outcome rather than claiming the whole thing
   worked: `applied` is in effect now, `on_restart` is written down and waiting,
-  and `overridden` is written down under an exported environment value. This
+  and `overridden` is written down under something that outranks the file. This
   is the same honesty rule the board already keeps about devices — WOULDN'T
   means the device refused, not that Dobby failed — carried into configuration.
+
+  An override carries its own sentence, and the other two do not. "Waiting for
+  a restart" is the whole of what there is to say about a port; "your setting
+  did not take" is not the whole of anything, because the thing that outranked
+  it is somewhere the person is not looking — an exported `DOBBY_MODEL` lives
+  in a shell, not in the file they were just editing, and a setting the model
+  in force cannot be sent (TK-037) is about a model they never chose. So the
+  field arrives paired with the reason, and /admin prints the reason on the
+  field rather than a word that means "ask someone".
   """
 
   alias Dobby.HomeConfig
@@ -27,7 +36,7 @@ defmodule Dobby.HomeConfig.Applied do
           config: HomeConfig.t(),
           applied: [field()],
           on_restart: [field()],
-          overridden: [field()]
+          overridden: [{field(), String.t()}]
         }
 
   @doc """

@@ -526,6 +526,8 @@ defmodule DobbyWeb.AdminLiveTest do
           else: Application.delete_env(:dobby, :llm_opts)
       end)
 
+      with_env("DOBBY_MODEL", nil)
+
       {:ok, view, _html} = open(conn, :system)
 
       view
@@ -537,6 +539,40 @@ defmodule DobbyWeb.AdminLiveTest do
 
       assert Application.get_env(:dobby, :llm_opts) ==
                [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
+    end
+
+    # The other half of the same honesty, and the door the boot check does not
+    # close: boot refuses a house whose settings the model in force cannot be
+    # sent, and boot was hours ago (TK-037). So the save does not take, and the
+    # field says what outranked it — an export in a shell is the one place the
+    # person editing this panel will not think to look.
+    test "a setting the model in force cannot take does not take, and the field says why", %{
+      conn: conn
+    } do
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      with_env("DOBBY_MODEL", "openai:gpt-5.6-luna")
+      Application.put_env(:dobby, :llm_opts, reasoning_effort: :low)
+
+      {:ok, view, _html} = open(conn, :system)
+
+      view |> form("form#system", system: %{"routing" => "latency"}) |> render_submit()
+
+      assert has_element?(view, ".field .effect.waiting")
+      refute has_element?(view, ".field .effect", "In effect now")
+
+      said = view |> element(".system") |> render()
+      assert said =~ "routing: latency"
+      assert said =~ "openai:gpt-5.6-luna"
+      assert said =~ "exported as DOBBY_MODEL"
+
+      assert Application.get_env(:dobby, :llm_opts) == [reasoning_effort: :low]
     end
 
     # The `:capable` alias is the one setting read at the moment it is used,

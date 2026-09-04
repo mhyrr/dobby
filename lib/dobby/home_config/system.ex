@@ -128,6 +128,11 @@ defmodule Dobby.HomeConfig.System do
   A model this machine cannot resolve is deliberately *not* this function's
   business. The request will say so in its own words, and saying it twice in
   two voices helps nobody.
+
+  Callers ask `Dobby.HomeConfig.sendable/3`, which is this with a whole
+  configuration in front of it. The answer is computed here because the
+  translation from the file's words to the provider's is computed here, and
+  knowing which of its own words a model refuses belongs beside it.
   """
   @spec check_llm_opts(t(), String.t() | nil, String.t() | nil) :: :ok | {:error, String.t()}
   def check_llm_opts(%__MODULE__{} = system, model, exported \\ nil) do

@@ -59,7 +59,7 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
 
   attr :effects, :map,
     default: %{},
-    doc: "field => :applied | :on_restart | :overridden, from the saves so far"
+    doc: "field => :applied | :on_restart | {:overridden, reason}, from the saves so far"
 
   attr :error, :string, default: nil
 
@@ -107,10 +107,7 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
           />
 
           <:note>
-            <p
-              :if={field.effect}
-              class={["effect", field.effect in [:on_restart, :overridden] && "waiting"]}
-            >
+            <p :if={field.effect} class={["effect", waiting?(field.effect) && "waiting"]}>
               {effect(field.effect)}
             </p>
           </:note>
@@ -247,17 +244,23 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   """
   @spec effects(map(), Applied.t()) :: map()
   def effects(previous, %Applied{applied: applied, on_restart: later, overridden: overridden}) do
+    # An override arrives with its own sentence, because a field that says only
+    # "overridden" asks the person to guess what outranked them.
+    overridden = Enum.map(overridden, fn {field, reason} -> {field, {:overridden, reason}} end)
+
     previous
-    |> Map.drop(applied ++ later ++ overridden)
+    |> Map.drop(applied ++ later ++ Enum.map(overridden, &elem(&1, 0)))
     |> Map.merge(mark(applied, :applied))
     |> Map.merge(mark(later, :on_restart))
-    |> Map.merge(mark(overridden, :overridden))
+    |> Map.merge(ours(overridden))
   end
 
-  defp mark(fields, effect) do
-    ours = Enum.map(System.schema(), fn {key, _spec} -> key end)
+  defp mark(fields, effect), do: fields |> Enum.map(&{&1, effect}) |> ours()
 
-    fields |> Enum.filter(&(&1 in ours)) |> Map.new(&{&1, effect})
+  defp ours(pairs) do
+    keys = Enum.map(System.schema(), fn {key, _spec} -> key end)
+
+    pairs |> Enum.filter(fn {field, _effect} -> field in keys end) |> Map.new()
   end
 
   defp editable?(nil), do: false
@@ -313,5 +316,15 @@ defmodule DobbyWeb.AdminLive.SystemPanel do
   # and not a state colour — it is the record voice, on the field it is about.
   defp effect(:applied), do: "In effect now"
   defp effect(:on_restart), do: "Waiting for a restart"
-  defp effect(:overridden), do: "The environment override is in effect"
+
+  # The writer's own sentence, printed as it was written. It says what is in
+  # force and who chose it, which is the half a person cannot see from here:
+  # the thing outranking the file is an export in somebody's shell, and the
+  # panel that only said "the environment override is in effect" left them to
+  # find that out.
+  defp effect({:overridden, reason}), do: reason
+
+  defp waiting?(:on_restart), do: true
+  defp waiting?({:overridden, _reason}), do: true
+  defp waiting?(_effect), do: false
 end

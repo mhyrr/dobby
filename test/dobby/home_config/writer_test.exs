@@ -286,6 +286,8 @@ defmodule Dobby.HomeConfig.WriterTest do
           else: Application.delete_env(:dobby, :llm_opts)
       end)
 
+      with_env("DOBBY_MODEL", nil)
+
       config = current(writer)
 
       assert {:ok, applied} =
@@ -318,9 +320,90 @@ defmodule Dobby.HomeConfig.WriterTest do
 
       assert applied.applied == []
       assert applied.on_restart == []
-      assert applied.overridden == [:model]
+
+      # And says what outranked it, because the thing that did lives in a shell
+      # rather than in the file the person was just editing.
+      assert [{:model, reason}] = applied.overridden
+      assert reason =~ "anthropic:exported"
+      assert reason =~ "DOBBY_MODEL"
+
       assert Application.get_env(:jido_ai, :model_aliases) == %{capable: "anthropic:exported"}
       assert current(writer).system.model == "openai:file-value"
+    end
+
+    # The door the boot check does not close (TK-037). `Dobby.Application`
+    # refuses to *start* a house whose settings the model in force cannot be
+    # sent; nothing reboots when somebody presses save, so /admin could still
+    # put a running house into the state where every turn fails while ReqLLM is
+    # building the request.
+    test "a setting the model in force cannot take is refused, and the running house keeps what it had",
+         %{writer: writer, path: path} do
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      # The house that went down: an export naming a model not reached through
+      # OpenRouter, outranking a file that is fine on its own terms.
+      with_env("DOBBY_MODEL", "openai:gpt-5.6-luna")
+      Application.put_env(:dobby, :llm_opts, reasoning_effort: :low)
+
+      assert {:ok, applied} =
+               Writer.save(writer, with_system(current(writer), routing: "latency"))
+
+      assert applied.applied == []
+      assert applied.on_restart == []
+
+      # Left alone, whole: what the model is told is one value, and half of it
+      # is a setting nobody wrote.
+      assert Application.get_env(:dobby, :llm_opts) == [reasoning_effort: :low]
+
+      # The file's word, its value, the model in force, and that an export
+      # chose the model — the four things a person needs to find the shell.
+      assert [{:routing, reason}] = applied.overridden
+      assert reason =~ "routing: latency"
+      assert reason =~ "openai:gpt-5.6-luna"
+      assert reason =~ "exported as DOBBY_MODEL"
+      refute reason =~ "openrouter_provider"
+
+      # Written anyway. The file describes a consistent house — its own model
+      # beside its own routing — and only the export makes the pair
+      # unsendable; refusing the save would let a variable in somebody's shell
+      # stop them editing their own house. The next boot with the export still
+      # there refuses, in the same words.
+      assert File.read!(path) =~ "routing: latency"
+      assert current(writer).system.routing == "latency"
+    end
+
+    test "the same setting applies live on a model that can take it", %{writer: writer} do
+      previous_aliases = Application.get_env(:jido_ai, :model_aliases)
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        Application.put_env(:jido_ai, :model_aliases, previous_aliases)
+
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      with_env("DOBBY_MODEL", nil)
+
+      assert {:ok, applied} =
+               Writer.save(
+                 writer,
+                 with_system(current(writer),
+                   model: "openrouter:openai/gpt-5.6-luna",
+                   routing: "latency"
+                 )
+               )
+
+      assert applied.applied == [:model, :routing]
+      assert applied.overridden == []
+      assert Application.get_env(:dobby, :llm_opts) == [openrouter_provider: %{sort: "latency"}]
     end
 
     test "the port and the LAN wait for a restart, and say so", %{writer: writer} do

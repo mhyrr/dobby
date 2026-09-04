@@ -61,6 +61,12 @@ defimpl Jido.AgentServer.DirectiveExec, for: Dobby.Directive.HACall do
     end
   end
 
+  # The expectation carries the device's own snapshot because this runs *in*
+  # the device agent's process and then blocks it for the length of the HA
+  # call. A witness that asked the agent what it reads would be calling into a
+  # process it had just stopped, and would time out and lose every other
+  # expectation in flight. The values here are what the device read before the
+  # command — which is exactly the reading "already satisfied" has to mean.
   defp expectation(call, input_signal, state) do
     agent_state = state.agent.state
     ref = input_signal.data[:ref]
@@ -71,6 +77,7 @@ defimpl Jido.AgentServer.DirectiveExec, for: Dobby.Directive.HACall do
       name: agent_state.name,
       action: input_signal.type,
       command: command(agent_state.last_command, ref),
+      snapshot: state.agent_module.snapshot(agent_state),
       call: Dobby.Activity.jsonable(call),
       asked_at: DateTime.utc_now(),
       timeout_ms: Dobby.DeviceAgent.confirmation_timeout(state.agent_module),

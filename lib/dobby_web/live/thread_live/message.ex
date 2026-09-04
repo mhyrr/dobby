@@ -232,7 +232,11 @@ defmodule DobbyWeb.ThreadLive.Message do
 
   defp intervention(%Message{}), do: nil
 
+  # NOT KNOWN is Silent Sage on the board, and a thread line saying the same
+  # thing must not paint it Commanded Amber — the two colours mean opposite
+  # things about whether the house heard back (`DESIGN.md`, the state palette).
   defp flap_state("refused"), do: :refused
+  defp flap_state("silent"), do: :silent
   defp flap_state(_set), do: :set
 
   @doc """

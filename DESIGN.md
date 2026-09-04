@@ -957,6 +957,11 @@ The intervention record: what changed in the house, by whatever path.
   there is no per-device vocabulary question on this line — that question
   belongs to what a device currently reads. `HELD` is the other half, for a
   device that declined
+- **`NOT KNOWN`, in Silent Sage, is the third case:** a command the house
+  accepted and Home Assistant never echoed, said once and cleared quietly by a
+  late echo. It is not `HELD` — nothing declined — and painting it in
+  Commanded Amber would say the house set something, which is the one thing
+  it does not know
 - **A refusal's reason takes its own line**, in sentence case and declined
   rust, the same way a step's does
 - **Indents to the body column at 820px**
@@ -1192,6 +1197,13 @@ Still eight, and two new pages did not add a ninth. `SET`, `HELD`, `READY`,
 `QUIET` and `NOT KNOWN` all appear on `/house` and `/admin` with exactly the
 meanings above; nothing was widened to cover a new case, and one case was left
 wordless instead.
+
+Still eight after the confirm loop, and that one is worth naming: `NOT KNOWN`
+gained a *source* without gaining a meaning. A command the house accepted and
+Home Assistant never echoed is, exactly and unwidened, nobody having told us
+yet — the same sentence a device that has never reported gets. A ninth word
+for "asked and unanswered" would have been a second way of saying the one
+thing this vocabulary already says best.
 
 Still eight after the empty states, too, and that was the closer call. Nine
 blanks wanted a way to say "there is nothing here", and none of the eight means

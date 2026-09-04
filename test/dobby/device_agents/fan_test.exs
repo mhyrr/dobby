@@ -16,7 +16,12 @@ defmodule Dobby.DeviceAgents.FanTest do
 
   device_agent_contract(Dobby.DeviceAgents.Fan,
     bindings: %{fan: "fan.contract"},
-    entity: [entity_id: "fan.contract"]
+    entity: [entity_id: "fan.contract"],
+    arrivals: [
+      {%{result: :accepted, action: :set_power, power: :on}, %{power: :on}, %{power: :off}},
+      {%{result: :accepted, action: :set_speed, speed_percent: 35}, %{speed_percent: 35},
+       %{speed_percent: 60}}
+    ]
   )
 
   # `available` is nil between agent start and the first sync — a schedule

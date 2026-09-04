@@ -22,6 +22,7 @@ defmodule DobbyWeb.ThreadLiveTest do
   import Phoenix.LiveViewTest
 
   alias Dobby.Conversation
+  alias Dobby.Interventions
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
 
@@ -166,6 +167,40 @@ defmodule DobbyWeb.ThreadLiveTest do
 
       assert eventually(fn -> has_element?(view, ".msg .attr .sp", "sam") end)
       refute has_element?(view, ".msg .attr .sp", "greg")
+    end
+  end
+
+  # A system line carries its own state word, and the colour is the whole
+  # message: HELD and NOT KNOWN say different things about whether the house
+  # ever heard back, so painting them the same is the thread lying quietly.
+  describe "a system line" do
+    test "paints a refusal in the refused colour", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      Interventions.held(%{
+        device: "lock:front",
+        name: "front door lock",
+        action: "lock.secure",
+        reason: "Home Assistant: unavailable",
+        via: "Home Assistant"
+      })
+
+      assert eventually(fn -> has_element?(view, ".sys .flap[data-st=refused]", "Held") end)
+    end
+
+    test "paints a command that never answered in the silent colour", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      Interventions.not_known(%{
+        device: "lock:front",
+        name: "front door lock",
+        action: "lock.secure",
+        reason: "asked to lock at 2:14 pm, no answer since",
+        via: "Home Assistant"
+      })
+
+      assert eventually(fn -> has_element?(view, ".sys .flap[data-st=silent]", "Not known") end)
+      refute has_element?(view, ".sys .flap[data-st=set]", "Not known")
     end
   end
 

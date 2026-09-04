@@ -16,7 +16,10 @@ defmodule Dobby.DeviceAgents.PowerSwitchTest do
 
   device_agent_contract(Dobby.DeviceAgents.PowerSwitch,
     bindings: %{switch: "switch.contract"},
-    entity: [entity_id: "switch.contract"]
+    entity: [entity_id: "switch.contract"],
+    arrivals: [
+      {%{result: :accepted, action: :set_power, power: :on}, %{power: :on}, %{power: :off}}
+    ]
   )
 
   # `available` is nil between agent start and the first sync — a command in

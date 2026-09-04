@@ -21,7 +21,13 @@ defmodule Dobby.DeviceAgents.SpeakerTest do
 
   device_agent_contract(Dobby.DeviceAgents.Speaker,
     bindings: %{media_player: "media_player.contract"},
-    entity: [entity_id: "media_player.contract", device_class: "speaker"]
+    entity: [entity_id: "media_player.contract", device_class: "speaker"],
+    arrivals: [
+      {%{result: :accepted, action: :play}, %{playback: :playing}, %{playback: :paused}},
+      {%{result: :accepted, action: :pause}, %{playback: :paused}, %{playback: :playing}},
+      {%{result: :accepted, action: :set_volume, volume_percent: 40}, %{volume_percent: 40},
+       %{volume_percent: 30}}
+    ]
   )
 
   # `available` is nil between agent start and the first sync — a command in

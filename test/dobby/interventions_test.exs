@@ -319,6 +319,105 @@ defmodule Dobby.InterventionsTest do
       assert Enum.count(system_lines(), &(&1.meta["word"] == "Not known")) == 1
     end
 
+    # The expectation carries the device's own reading, taken in the device
+    # agent's process before the call went out. Asking the agent for it here
+    # would mean asking a process that is, at that exact moment, blocked
+    # inside Home Assistant.
+    test "a command the device has already answered never becomes an expectation" do
+      seed_house(%{"lock.front_door" => %{state: "locked", attributes: %{}}})
+      settle!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+      settle!()
+
+      assert expectations_for("lock:front") == []
+      assert unknown_for("lock:front") == []
+      assert system_lines() == []
+    end
+
+    test "an echo inside the deadline cancels the expectation with nothing said" do
+      seed_unlocked_lock!()
+      Fake.silence_next("lock.front_door")
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+      settle!()
+
+      assert [expectation] = expectations_for("lock:front")
+      assert is_reference(expectation.timer)
+
+      Fake.inject_state_changed("lock.front_door", %{state: "locked", attributes: %{}})
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert expectations_for("lock:front") == []
+      assert unknown_for("lock:front") == []
+      assert Enum.filter(system_lines(), &(&1.meta["word"] == "Not known")) == []
+    end
+
+    # Three silent commands to one device are one fact about that device.
+    test "a second silence on the same device is a log row, not a second line" do
+      seed_unlocked_lock!()
+      silent_secure!()
+      silent_secure!()
+
+      assert_receive %Jido.Signal{
+                       type: "dobby.device.command_status_changed",
+                       data: %{device: "lock:front", status: :not_known}
+                     },
+                     2_000
+
+      refute_receive %Jido.Signal{
+                       type: "dobby.device.command_status_changed",
+                       data: %{device: "lock:front"}
+                     },
+                     500
+
+      settle!()
+
+      assert Enum.count(system_lines(), &(&1.meta["word"] == "Not known")) == 1
+
+      assert Enum.count(
+               Activity.recent(),
+               &(&1.kind == "command_never_arrived" and &1.device == "lock:front")
+             ) == 2
+    end
+
+    # The defect this shape exists to prevent: the executor runs *in* the
+    # device agent's process and then blocks it for the length of the call, so
+    # a witness that asked the agent what it reads would be waiting on a
+    # process it had just stopped — and would take every other expectation in
+    # flight down with it when the wait ran out.
+    test "keeps watching while a device agent is blocked inside Home Assistant" do
+      seed_unlocked_lock!()
+      watcher = Process.whereis(Dobby.Interventions.Watcher)
+      Fake.stall_next("lock.front_door", 600)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+
+      # The lock's agent will not answer anything for the next half second.
+      # The witness answers at once, and is already holding the expectation.
+      assert :ok = GenServer.call(Dobby.Interventions.Watcher, :settle, 250)
+      assert [%{device: "lock:front"}] = expectations_for("lock:front")
+      assert Process.whereis(Dobby.Interventions.Watcher) == watcher
+
+      # And the slow answer, when it lands, still resolves the expectation.
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert expectations_for("lock:front") == []
+      assert Enum.filter(system_lines(), &(&1.meta["word"] == "Not known")) == []
+      assert Process.whereis(Dobby.Interventions.Watcher) == watcher
+    end
+
     test "a late echo clears NOT KNOWN without another thread line" do
       seed_unlocked_lock!()
       Fake.silence_next("lock.front_door")
@@ -359,6 +458,32 @@ defmodule Dobby.InterventionsTest do
   defp seed_unlocked_lock! do
     seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
     settle!()
+  end
+
+  # The witness is an application process and outlives any one scenario, so
+  # these read the slice of its state that belongs to this device rather than
+  # the whole of it.
+  defp expectations_for(device), do: tracked(:expectations, device)
+  defp unknown_for(device), do: tracked(:unknown, device)
+
+  defp tracked(key, device) do
+    Dobby.Interventions.Watcher
+    |> :sys.get_state()
+    |> Map.fetch!(key)
+    |> Map.values()
+    |> Enum.filter(&(&1.device == device))
+  end
+
+  # One accepted command Home Assistant never answers. The silence is armed per
+  # call, so two of these are two separate unanswered commands.
+  defp silent_secure! do
+    Fake.silence_next("lock.front_door")
+
+    assert {:ok, %{accepted: true}} =
+             Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+    assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+    :ok
   end
 
   defp create!(overrides) do

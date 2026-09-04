@@ -146,15 +146,12 @@ round trip: ok — setpoint restored to 70</p>
       <p class="said">Every phone and tablet on the Wi-Fi can now open the name. Keep the address too. An agent that cannot resolve <span class="arg">.local</span> names will need it; see <a href="agents.html#connect">Let other agents speak house</a>.</p>
     </div>
 
-    <p>Port 4000 is the default. For a bare <span class="arg">http://dobby.local/</span>, run on port 80. On macOS, <code>PORT=80</code> just works. On Linux, put a reverse proxy in front or grant the capability.</p>
+    <p>Port 4000 is the default. For a bare <span class="arg">http://dobby.local/</span>, run on port 80. On macOS, <code>PORT=80</code> just works. On Linux, the installed service's unit grants the capability, so <code>port: 80</code> in the house file is enough there; in development, put a reverse proxy in front or stay on 4000.</p>
     <p>The trust is the Wi-Fi password. Anyone on the network is the household. There is no login, and <span class="arg">/admin</span> is a room, not a privilege. Do not turn on the LAN bind on a network you would not hand the Wi-Fi password to.</p>
 
     <h2 id="service">Running as an installed service</h2>
-    <div class="note unwalked">
-      <span class="label">Not yet walked</span>
-      This is what the code is built to do, read from <span class="arg">config/runtime.exs</span>. Nobody has stood up a release on a box in a closet yet. When someone does, this section becomes a page. <a href="box.html">A place for Dobby to live</a> is the current proposal.
-    </div>
-    <p>A release reads <span class="arg">/opt/dobby/config/home.yaml</span> and <span class="arg">/opt/dobby/config/soul.md</span>. The HA token, the model key, <code>DATABASE_URL</code>, and <code>SECRET_KEY_BASE</code> live in the service environment. It listens on this machine only unless <code>system.lan</code> is true. Dobby speaks plain HTTP on the LAN; put a TLS proxy in front before exposing it further.</p>
+    <p>Dobby ships as a release: a tarball with its own Erlang inside, one per architecture, from the <a href="https://github.com/mhyrr/dobby/releases">GitHub releases page</a>. It runs as a systemd service under <span class="arg">/opt/dobby</span>, migrates the database before every start, and reads <span class="arg">/opt/dobby/config/home.yaml</span> and <span class="arg">/opt/dobby/config/soul.md</span> at boot. The HA token, the model key, <code>DATABASE_URL</code>, and <code>SECRET_KEY_BASE</code> live in <span class="arg">/opt/dobby/config/dobby.env</span>, which the service alone can read. It listens on this machine only unless <code>system.lan</code> is true. Dobby speaks plain HTTP on the LAN; put a TLS proxy in front before exposing it further.</p>
+    <p>The install, the reboot, and the upgrade were walked on 2026-09-04 on a Debian 12 virtual machine standing in for the box. The commands and what they printed are on <a href="box.html#install">the box page</a>.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
       <a class="prev" href="growing.html"><small>Previous</small>Teach Dobby your house</a>

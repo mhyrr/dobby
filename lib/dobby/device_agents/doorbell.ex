@@ -25,6 +25,9 @@ defmodule Dobby.DeviceAgents.Doorbell do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{motion: :boolean}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

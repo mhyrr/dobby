@@ -25,6 +25,9 @@ defmodule Dobby.DeviceAgents.Lock do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{lock_state: {:enum, [:locked, :unlocked, :locking, :unlocking, :jammed]}}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

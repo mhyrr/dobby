@@ -2,6 +2,13 @@
 
 A house elf for your Home Assistant.
 
+**Status:** 0.1.0, released 2026-09-04, is the first tagged release. Linux
+tarballs for amd64 and arm64 are on the
+[releases page](https://github.com/mhyrr/dobby/releases), what is in them is
+in [CHANGELOG.md](CHANGELOG.md), and installing one is the guide's
+[box chapter](https://mhyrr.github.io/dobby/box.html#install). It has run on
+a Debian 12 VM against a local Home Assistant, not yet on a box in a house.
+
 Dobby is a household agent. Everyone in the house, kids included, talks to
 it in one shared thread, and it answers by doing things: reading the
 thermostat, dimming a light, starting the vacuum, setting a schedule for

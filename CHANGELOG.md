@@ -12,35 +12,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 0.1.0 - 2026-09-04
 
+The first tagged release. Linux tarballs for amd64 and arm64 are attached to it, and the guide's [box chapter](https://mhyrr.github.io/dobby/box.html#install) covers installing one.
+
 ##### Added
-- **The thread, the house, and the maintainer's room**: three routes behind one split-flap board. `/` is the household's shared thread, with two or three device rows above the conversation and the composer as the board's set line. `/house` is the same rows with controls on them: a fader that commits on release and offers an undo, never a confirm dialog. `/admin` is health, schedules, the topology of the running house, and the full activity log. A name typed on a browser sticks until switched; it attributes and never permits
-- **The real Home Assistant client**: one shared WebSocket client owning authentication, subscriptions, id-correlated service calls, and reconnect with re-auth, re-subscribe, and re-sync. Proven against a containerized Home Assistant and a real furnace. The house boots whether Home Assistant answers fast, slowly, or not at all: connect runs off the boot path, and a handshake watchdog retries an upgrade that goes unanswered
-- **Sixteen device types, all semantic and vendor-neutral**: thermostat, light, speaker, camera, doorbell, lock, access cover, power switch, shade, fan, environment monitor, contact sensor, occupancy sensor, safety sensor, vacuum, and wifi endpoint. Home Assistant keeps the brands and credentials; Dobby keeps the household contract. Security is per action: the lock can report and secure but never unlock, the garage door can report and close but never open. Discovery proposes a doorbell with its event, camera, and motion bindings as one candidate and never offers a diagnostic entity
-- **One house file**: `home.yaml` is read, validated, and written back, and four surfaces end in the same file: an editor, the `/house` and `/admin` forms, Dobby proposing a device in the thread, and an agent over MCP. Credentials are `env:` references, never values. A missing file names the variable that chose it
-- **The MCP door**: the full tool roster at `/mcp` for an agent that is not Dobby, behind labeled bearer tokens minted and revoked on `/admin`. The label becomes the speaker on every call. Walked with Claude Code as the client, from connect through discover, propose, and confirm
-- **The house says whether a command arrived**: every accepted command becomes an expectation with a per-type deadline, resolved by the deterministic layer with no model call. Arrived: the board moves. Refused: a HELD line beneath Dobby's own sentence. Never arrived: one NOT KNOWN line, once, and NOT KNOWN on the board. A reply that called no tool says so in its record line
-- **`hands_only: true`**: the language layer may read a device and may not command it, through the thread, the MCP door, and a model-authored schedule alike. Card taps and `/admin` schedules still work, because those are a person's hand
-- **Two models through one provider**: Dobby answers through OpenRouter, GPT-5.6 Luna by default and GLM 5.3 Flash as the second. `reasoning` and `routing` are house settings in effect at the next reply. The house refuses to boot on, and `/admin` refuses to save, a setting the model in force cannot be sent
-- **A release**: `mix release` with migrate-then-start under systemd, tarballs for Linux amd64 and arm64 built by GitHub Actions from a `v*` tag, walked on a Debian 12 stand-in box: install, reboot, and an upgrade with two seconds of downtime
-- **The guide**: nine hand-written pages at [mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/), every "what you should see" quoted from a real run
-- **The eval tier**: twelve library scenarios against a real model, a second model that reads each reply back against principles rather than rules, and a derived vocabulary asserting which Home Assistant services each tool may ever call
+- **Three pages**: `/` is the shared thread, with a board of device rows above the conversation. `/house` shows every device with its controls; a control offers an undo after it acts, never a confirm dialog before. `/admin` shows health, schedules, the topology of the running house, and the full activity log. A name entered on a browser is remembered on that browser. It labels who said what; it is not a login
+- **The Home Assistant client**: one WebSocket connection owning authentication, subscriptions, service calls, and reconnect. Dobby starts whether or not Home Assistant is reachable, including a host that accepts the connection and then stalls
+- **Sixteen device types**: thermostat, light, speaker, camera, doorbell, lock, access cover, power switch, shade, fan, environment monitor, contact sensor, occupancy sensor, safety sensor, vacuum, and wifi endpoint. Types are semantic, not per vendor: Home Assistant owns the integrations and credentials, Dobby owns what each type may do. Permissions are per action: the lock can report and lock but not unlock, the garage door can report and close but not open. Discovery groups a doorbell's event, camera, and motion entities into one proposal and never offers a diagnostic entity
+- **The house file**: `home.yaml` is read, validated, and written back. An editor, the `/house` and `/admin` forms, Dobby proposing a device in the thread, and an agent over MCP all write the same file. Credentials are `env:` references, never values. If the file is missing, the error names the variable that pointed at it
+- **MCP**: the full tool set at `/mcp` for an external agent, behind bearer tokens minted and revoked on `/admin`. Each token has a label, and the label is recorded as the speaker on every call. Tested end to end with Claude Code as the client
+- **Command confirmation**: every accepted command becomes an expectation with a per-type deadline, checked by code with no model call. If the device reports the change, the board updates. If Home Assistant refuses the call, a HELD line is written beneath Dobby's reply. If nothing is reported by the deadline, one NOT KNOWN line is written and the board shows NOT KNOWN. A reply that made no tool call is marked `asked nothing of the house`
+- **`hands_only: true`** on a device: the model may read it and may not command it, from the thread, from MCP, or through a schedule the model created. Card taps and schedules made on `/admin` still work
+- **Models**: Dobby answers through OpenRouter. GPT-5.6 Luna is the default and GLM 5.3 Flash is the second model. `reasoning` and `routing` are settings in `home.yaml`, in effect at the next reply. A setting the current model does not accept is refused at boot and on save
+- **Releases**: `mix release`, with migrations run before every start under systemd. GitHub Actions builds tarballs for Linux amd64 and arm64 from a `v*` tag. Tested on a Debian 12 VM: install, reboot, and an upgrade with two seconds of downtime
+- **The guide**: nine pages at [mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/). Every example of output on those pages comes from a real run
+- **Eval tests**: twelve scenarios run the sixteen types against a real model, and a second model judges each reply against a rubric. A separate test derives, per device type, which Home Assistant services each tool is allowed to call
 
 ##### Changed
-- **What Dobby may say after a write**: the reply may speak the commanded value as done, in the household's voice ("Coffee station's on, Greg"), because the house writes HELD or NOT KNOWN beneath it if the command did not arrive. A reading the model never took stays impossible, and so does a command it never sent
-- **Conflicting speakers are taken in order**, and the second person is told what the first one asked for, rather than the model stopping to referee
-- **The soul carries no write example**: the last one moved five replies while every test stayed green. Doctrine is code and eval-tested; `config/soul.md` is voice
+- **Replies after a command**: Dobby may state the commanded value as done ("Coffee station's on, Greg"), because HELD or NOT KNOWN is written beneath the reply if the command did not arrive. It still may not report a reading it never took or a command it never sent
+- **Two people asking for different settings**: Dobby carries out both in order and tells the second person what the first asked for, instead of stopping to ask which to keep
+- **`config/soul.md`** no longer contains an example reply to a command. The last one changed the wording of five replies while every test stayed green. What a reply may claim is decided in code
 
 ##### Fixed
-- **A tool row against no device**: the turn no longer trusts the order its two tool events arrive in. A completion that overtakes its start cannot take Ready back to Listening or record a call against nothing
-- **A slow Home Assistant could kill the witness**: the watcher no longer calls into a device agent blocked on a ten-second service call. Each expectation carries its own snapshot, taken before the call
-- **A finished turn could close the thread**: the ordering barrier was broadcast on the thread topic with no LiveView clause to receive it
-- **The LiveView socket refused a page opened by LAN address**: production checks the origin against the connection instead of a configured host
-- **The name beacon on Linux**: publishing without `-R` collided with avahi-daemon's own reverse record on every Debian box
+- An activity row could record a tool call against no device when the completion event arrived before the start event. Events now carry a sequence number, and a finished step can no longer show as running
+- A slow Home Assistant could crash the confirmation watcher and lose every pending expectation. The watcher no longer calls into a device agent that is blocked on a service call; each expectation carries its own snapshot, taken before the call
+- A finished turn could disconnect the thread page: the end-of-turn broadcast had no handler in the LiveView
+- In production, the LiveView socket refused a page opened by IP address. The origin check now uses the connection's own host
+- `dobby.local` on Linux: `avahi-publish` without `-R` collided with avahi-daemon's own reverse record
 
 ##### Security
-- **MCP tokens are stored as SHA-256 digests**, shown once at minting and never again
-- **The test environment honours no environment variable**, so a stale `DOBBY_*` export cannot point `mix test` at a real house
-- **The release build's ignore file is an allowlist**, so `.env` and the local Home Assistant's storage never enter a build
+- MCP tokens are stored as SHA-256 digests and shown once, at minting
+- The test environment reads no environment variables, so a stale `DOBBY_*` export cannot point `mix test` at a real house
+- The release build's ignore file is an allowlist, so `.env` and the local Home Assistant's storage never enter a build
 
 ##### Upgrade and Migration
-- First release. Six migrations create `schedules`, `speakers`, `messages`, `activity_entries`, `device_proposals`, and `mcp_tokens`; the installed service runs them before every start
+- First release. Six migrations create `schedules`, `speakers`, `messages`, `activity_entries`, `device_proposals`, and `mcp_tokens`. The installed service runs them before every start

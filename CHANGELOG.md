@@ -1,0 +1,46 @@
+# Changelog
+
+What changed for the house, release by release, newest first. Each entry is
+written on the branch that made it (`bin/changelog` creates the file under
+`CHANGELOG/unreleased/`), and `bin/changelog -r <version>` folds those files
+into a release when the tag is cut. The GitHub release carries the same text.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+[Unreleased]: https://github.com/mhyrr/dobby/compare/v0.1.0...main
+[0.1.0]: https://github.com/mhyrr/dobby/commits/v0.1.0
+
+### 0.1.0 - 2026-09-04
+
+##### Added
+- **The thread, the house, and the maintainer's room**: three routes behind one split-flap board. `/` is the household's shared thread, with two or three device rows above the conversation and the composer as the board's set line. `/house` is the same rows with controls on them: a fader that commits on release and offers an undo, never a confirm dialog. `/admin` is health, schedules, the topology of the running house, and the full activity log. A name typed on a browser sticks until switched; it attributes and never permits
+- **The real Home Assistant client**: one shared WebSocket client owning authentication, subscriptions, id-correlated service calls, and reconnect with re-auth, re-subscribe, and re-sync. Proven against a containerized Home Assistant and a real furnace. The house boots whether Home Assistant answers fast, slowly, or not at all: connect runs off the boot path, and a handshake watchdog retries an upgrade that goes unanswered
+- **Sixteen device types, all semantic and vendor-neutral**: thermostat, light, speaker, camera, doorbell, lock, access cover, power switch, shade, fan, environment monitor, contact sensor, occupancy sensor, safety sensor, vacuum, and wifi endpoint. Home Assistant keeps the brands and credentials; Dobby keeps the household contract. Security is per action: the lock can report and secure but never unlock, the garage door can report and close but never open. Discovery proposes a doorbell with its event, camera, and motion bindings as one candidate and never offers a diagnostic entity
+- **One house file**: `home.yaml` is read, validated, and written back, and four surfaces end in the same file: an editor, the `/house` and `/admin` forms, Dobby proposing a device in the thread, and an agent over MCP. Credentials are `env:` references, never values. A missing file names the variable that chose it
+- **The MCP door**: the full tool roster at `/mcp` for an agent that is not Dobby, behind labeled bearer tokens minted and revoked on `/admin`. The label becomes the speaker on every call. Walked with Claude Code as the client, from connect through discover, propose, and confirm
+- **The house says whether a command arrived**: every accepted command becomes an expectation with a per-type deadline, resolved by the deterministic layer with no model call. Arrived: the board moves. Refused: a HELD line beneath Dobby's own sentence. Never arrived: one NOT KNOWN line, once, and NOT KNOWN on the board. A reply that called no tool says so in its record line
+- **`hands_only: true`**: the language layer may read a device and may not command it, through the thread, the MCP door, and a model-authored schedule alike. Card taps and `/admin` schedules still work, because those are a person's hand
+- **Two models through one provider**: Dobby answers through OpenRouter, GPT-5.6 Luna by default and GLM 5.3 Flash as the second. `reasoning` and `routing` are house settings in effect at the next reply. The house refuses to boot on, and `/admin` refuses to save, a setting the model in force cannot be sent
+- **A release**: `mix release` with migrate-then-start under systemd, tarballs for Linux amd64 and arm64 built by GitHub Actions from a `v*` tag, walked on a Debian 12 stand-in box: install, reboot, and an upgrade with two seconds of downtime
+- **The guide**: nine hand-written pages at [mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/), every "what you should see" quoted from a real run
+- **The eval tier**: twelve library scenarios against a real model, a second model that reads each reply back against principles rather than rules, and a derived vocabulary asserting which Home Assistant services each tool may ever call
+
+##### Changed
+- **What Dobby may say after a write**: the reply may speak the commanded value as done, in the household's voice ("Coffee station's on, Greg"), because the house writes HELD or NOT KNOWN beneath it if the command did not arrive. A reading the model never took stays impossible, and so does a command it never sent
+- **Conflicting speakers are taken in order**, and the second person is told what the first one asked for, rather than the model stopping to referee
+- **The soul carries no write example**: the last one moved five replies while every test stayed green. Doctrine is code and eval-tested; `config/soul.md` is voice
+
+##### Fixed
+- **A tool row against no device**: the turn no longer trusts the order its two tool events arrive in. A completion that overtakes its start cannot take Ready back to Listening or record a call against nothing
+- **A slow Home Assistant could kill the witness**: the watcher no longer calls into a device agent blocked on a ten-second service call. Each expectation carries its own snapshot, taken before the call
+- **A finished turn could close the thread**: the ordering barrier was broadcast on the thread topic with no LiveView clause to receive it
+- **The LiveView socket refused a page opened by LAN address**: production checks the origin against the connection instead of a configured host
+- **The name beacon on Linux**: publishing without `-R` collided with avahi-daemon's own reverse record on every Debian box
+
+##### Security
+- **MCP tokens are stored as SHA-256 digests**, shown once at minting and never again
+- **The test environment honours no environment variable**, so a stale `DOBBY_*` export cannot point `mix test` at a real house
+- **The release build's ignore file is an allowlist**, so `.env` and the local Home Assistant's storage never enter a build
+
+##### Upgrade and Migration
+- First release. Six migrations create `schedules`, `speakers`, `messages`, `activity_entries`, `device_proposals`, and `mcp_tokens`; the installed service runs them before every start

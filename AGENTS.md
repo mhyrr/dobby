@@ -195,6 +195,8 @@ mix setup                     # deps, database, assets
 mix phx.server                # needs DOBBY_HOME_MANIFEST
 mix dobby.ha.verify           # prove a real HA connection and initial state sync
 mix reach.check --smells      # advisory review leads (see the elixir-reach skill)
+bin/changelog                 # the branch's entry under CHANGELOG/unreleased/, created and staged
+bin/changelog -r 0.2.0        # cut a release: fold the entries into CHANGELOG/0.2.0.md and CHANGELOG.md
 ```
 
 `mix precommit` before you call anything done. Run the verification and read the
@@ -209,6 +211,11 @@ it once with `claude mcp add --transport http tidewave http://localhost:<PORT>/t
 - **Commit messages are sentences about what changed for the house**, not
   Conventional Commits: "The house answers at dobby.local", "Attribute keys are
   strings, because that is what they are on the wire".
+- **Every branch carries a changelog entry** under `CHANGELOG/unreleased/`,
+  written for the household in the same voice: what changed for the house,
+  not which module moved. `bin/changelog` creates it. The release cut folds
+  the entries into `CHANGELOG/<version>.md`, and the GitHub release publishes
+  that file as its notes.
 - **Moduledocs explain why, not what.** This codebase documents the reasoning
   behind a decision and the alternative that was rejected. Match that density
   — it is the house style, and it is why the design survives contact with a new

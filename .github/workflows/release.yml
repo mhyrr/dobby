@@ -1,11 +1,15 @@
 # The release, built where the box is not: one tag, two tarballs.
 #
-#     git tag v0.1.0 && git push origin v0.1.0
+#     bin/changelog -r 0.2.0            # after setting the version in mix.exs
+#     git commit -m "Dobby 0.2.0"
+#     git tag v0.2.0 && git push origin main v0.2.0
 #
 # Each tarball is assembled by rel/Dockerfile on Debian 12, on a runner of the
 # same architecture, so nothing is emulated. The tag must name the version in
-# mix.exs. A pull request that touches the build definition runs the build
-# and publishes nothing.
+# mix.exs. The release notes are CHANGELOG/<version>.md, the entry the
+# changelog script cut, with GitHub's list of pull requests beneath; a tag
+# with no entry gets the list alone. A pull request that touches the build
+# definition runs the build and publishes nothing.
 
 name: release
 
@@ -59,6 +63,8 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           path: dist
@@ -68,6 +74,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          notes="CHANGELOG/${GITHUB_REF_NAME#v}.md"
+          set -- --generate-notes
+          if [ -f "$notes" ]; then
+            set -- --notes-file "$notes" "$@"
+          else
+            echo "no $notes; the release gets GitHub's generated notes alone"
+          fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "Dobby $GITHUB_REF_NAME" --generate-notes \
+            --verify-tag --title "Dobby $GITHUB_REF_NAME" "$@" \
             dist/*.tar.gz

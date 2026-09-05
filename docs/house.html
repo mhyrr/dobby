@@ -151,6 +151,27 @@
     <span class="k">connectivity:</span> binary_sensor.office_printer</code></pre>
     <p>A printer that drops off at three in the morning shows on its card and in the log. It does not post into the thread.</p>
 
+    <h2 id="rules">Standing rules</h2>
+    <p>Definitions live under <code>house.rules</code>. The House page offers a typed form using each device's available readings. Changes made there apply immediately without restarting Dobby's conversation. Hand edits apply on restart. Proposals and notices are stored in the database.</p>
+    <pre><code>rules:
+  - id: main-room-cold
+    name: Main room cold
+    source: Tell me if the main room stays below 60°F for twenty minutes
+    enabled: true
+    device: thermostat:main
+    kind: state
+    attribute: current_temperature_f
+    operator: lt
+    value: 60
+    duration_seconds: 1200
+    window:
+      start: "20:00"
+      end: "07:00"
+      days: [1, 2, 3, 4, 5]</code></pre>
+    <p>The example belongs inside <code>house</code>. Device ids must match your house. Operators are <code>eq</code> and <code>ne</code>, plus <code>gt</code>, <code>gte</code>, <code>lt</code>, and <code>lte</code> for numbers. Environmental readings also require the exact reported <code>unit</code>. Unsupported readings, values, and fields are refused.</p>
+    <p>An absence rule uses <code>kind: absence</code>, <code>event_kind: device_changed</code>, and <code>action: state_changed</code>, alongside the desired attribute, operator, and value. Only a recorded change to that attribute counts; a battery update while a vacuum is cleaning does not count as another cleaning start. Absence rules for grouped environmental readings are not supported.</p>
+    <p>Rules only report. A hands-only device can still be watched. The limit is 100 rules per house and one year per duration. A state duration may be zero; an absence duration must be positive. For what notices and acknowledgments mean, see <a href="living.html#rules">Living with Dobby</a>.</p>
+
     <h2 id="system">The system section</h2>
     <p>All six settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
 <pre><code><span class="k">system:</span>

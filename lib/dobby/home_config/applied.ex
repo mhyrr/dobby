@@ -30,7 +30,7 @@ defmodule Dobby.HomeConfig.Applied do
   @enforce_keys [:config]
   defstruct [:config, applied: [], on_restart: [], overridden: []]
 
-  @type field :: :house | :model | :reasoning | :routing | :port | :lan | :hostname
+  @type field :: :house | :rules | :model | :reasoning | :routing | :port | :lan | :hostname
 
   @type t :: %__MODULE__{
           config: HomeConfig.t(),

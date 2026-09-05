@@ -1,0 +1,21 @@
+defmodule Dobby.Tools.AcknowledgeRule do
+  @moduledoc """
+  The tool carries intent and attribution. The rules context owns the change.
+  """
+  use Jido.Action,
+    name: "acknowledge_rule",
+    description:
+      "Acknowledge the current notice for a rule. This silences this occurrence, not future breaches.",
+    schema: [id: [type: :string, required: true]]
+
+  @behaviour Dobby.Tools
+  @impl Dobby.Tools
+  def label(_), do: "updating the standing rule"
+  @impl true
+  def run(params, context) do
+    case Dobby.Rules.acknowledge(params.id, context[:speaker] || "the household") do
+      {:ok, _} -> {:ok, %{acknowledged: true, id: params.id}}
+      error -> error
+    end
+  end
+end

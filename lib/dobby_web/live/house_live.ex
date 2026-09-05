@@ -54,7 +54,9 @@ defmodule DobbyWeb.HouseLive do
   alias Dobby.Home
   alias Dobby.HomeConfig
   alias Dobby.HomeConfig.Writer
+  alias Dobby.Rules
   alias DobbyWeb.HouseLive.Editor
+  alias DobbyWeb.HouseLive.RulesPanel
 
   # Long enough to notice you did the wrong thing, short enough that the offer
   # is gone before it stops meaning the last thing you did.
@@ -63,13 +65,14 @@ defmodule DobbyWeb.HouseLive do
   # Everything that changes the house. A house Dobby cannot write never draws
   # any of them, and a crafted event is not an affordance — see the last
   # `handle_event/3` clause.
-  @edits ~w(edit add cancel form save remove remove_confirm)
+  @edits ~w(edit add cancel form save remove remove_confirm rule_add rule_cancel rule_form rule_save rule_toggle rule_delete rule_undo)
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       DeviceEvents.subscribe()
       ConfigEvents.subscribe()
+      Rules.subscribe()
     end
 
     {:ok,
@@ -83,6 +86,11 @@ defmodule DobbyWeb.HouseLive do
      |> assign(:error, nil)
      |> assign(:removing, nil)
      |> assign(:trouble, %{})
+     |> assign(:rule_form, nil)
+     |> assign(:rule_error, nil)
+     |> assign(:rule_undo, nil)
+     |> assign(:rule_devices, Home.devices())
+     |> refresh_rules()
      |> put_config(config())
      |> assign(:snapshots, snapshots())}
   end
@@ -155,6 +163,15 @@ defmodule DobbyWeb.HouseLive do
       <p :if={not @editable and @snapshots != []} class="note">
         Devices are read only here: this house is <span class="file arg">{path(@config)}</span>, and Dobby writes YAML.
       </p>
+
+      <RulesPanel.panel
+        rules={@streams.rules}
+        editable={@editable}
+        form={@rule_form}
+        devices={@rule_devices}
+        error={@rule_error}
+        undo={@rule_undo}
+      />
 
       <%!-- The way in to /admin, and the only one. It is laptop-shaped and
             rarely visited, so it does not earn permanent header space on the
@@ -258,6 +275,92 @@ defmodule DobbyWeb.HouseLive do
          |> assign(:removing, nil)
          |> assign(:trouble, Map.put(socket.assigns.trouble, id, reason))}
     end
+  end
+
+  def handle_event("rule_add", _, %{assigns: %{editable: true}} = socket) do
+    params = RulesPanel.blank(socket.assigns.rule_devices)
+    {:noreply, assign(socket, rule_form: to_form(params, as: :rule), rule_error: nil)}
+  end
+
+  def handle_event("rule_cancel", _, %{assigns: %{editable: true}} = socket) do
+    {:noreply, assign(socket, rule_form: nil, rule_error: nil)}
+  end
+
+  def handle_event("rule_form", %{"rule" => params}, %{assigns: %{editable: true}} = socket) do
+    previous = if socket.assigns.rule_form, do: socket.assigns.rule_form.params, else: %{}
+    params = RulesPanel.normalize(params, previous, socket.assigns.rule_devices)
+    {:noreply, assign(socket, rule_form: to_form(params, as: :rule), rule_error: nil)}
+  end
+
+  def handle_event("rule_save", %{"rule" => params}, %{assigns: %{editable: true}} = socket) do
+    with {:ok, entry} <- RulesPanel.entry(params, socket.assigns.rule_devices),
+         {:ok, _} <- Rules.save(entry, actor: rule_actor(socket), expected: nil) do
+      {:noreply, socket |> assign(rule_form: nil, rule_error: nil) |> refresh_rules()}
+    else
+      {:error, reason} ->
+        {:noreply, assign(socket, rule_form: to_form(params, as: :rule), rule_error: reason)}
+    end
+  end
+
+  def handle_event(
+        "rule_toggle",
+        %{"id" => id, "enabled" => enabled, "revision" => revision},
+        %{assigns: %{editable: true}} = socket
+      )
+      when enabled in ["true", "false"] do
+    case Enum.find(Rules.list(), &(&1.id == id)) do
+      nil ->
+        {:noreply, assign(socket, rule_error: "That rule has been removed.")}
+
+      rule ->
+        result =
+          Rules.set_enabled(id, enabled == "true",
+            actor: rule_actor(socket),
+            expected: rule.rule,
+            expected_revision: revision
+          )
+
+        {:noreply, rule_result(socket, result)}
+    end
+  end
+
+  def handle_event(
+        "rule_delete",
+        %{"id" => id, "revision" => revision},
+        %{assigns: %{editable: true}} = socket
+      ) do
+    case Enum.find(Rules.list(), &(&1.id == id)) do
+      nil ->
+        {:noreply, assign(socket, rule_error: "That rule has been removed.")}
+
+      rule ->
+        case Rules.delete(id,
+               actor: rule_actor(socket),
+               expected: rule.rule,
+               expected_revision: revision
+             ) do
+          {:ok, _} ->
+            token = make_ref()
+            Process.send_after(self(), {:rule_undo_expired, token}, @undo_window)
+
+            {:noreply,
+             socket
+             |> assign(rule_undo: %{entry: rule, token: token}, rule_error: nil)
+             |> refresh_rules()}
+
+          {:error, reason} ->
+            {:noreply, assign(socket, rule_error: reason)}
+        end
+    end
+  end
+
+  def handle_event(
+        "rule_undo",
+        _,
+        %{assigns: %{editable: true, rule_undo: %{entry: entry}}} = socket
+      ) do
+    result = Rules.save(entry.rule, actor: rule_actor(socket), expected: nil)
+    {:noreply, socket |> assign(:rule_undo, nil) |> rule_result(result)}
   end
 
   # A house Dobby cannot write drew none of the above. There is nothing to say
@@ -424,12 +527,27 @@ defmodule DobbyWeb.HouseLive do
     end
   end
 
+  def handle_info({:rules_changed}, socket), do: {:noreply, refresh_rules(socket)}
+
+  def handle_info({:rule_undo_expired, token}, socket) do
+    case socket.assigns.rule_undo do
+      %{token: ^token} -> {:noreply, assign(socket, :rule_undo, nil)}
+      _ -> {:noreply, socket}
+    end
+  end
+
   # Somebody else's browser, or the household thread, changed the house. The
   # page renders from the applied configuration and this is how it stays that —
   # there is no file watcher in v1 and none is needed, because everything Dobby
   # itself writes is announced the moment it takes effect.
   def handle_info({:applied, applied}, socket) do
-    {:noreply, socket |> put_config(applied.config) |> reload() |> reopen()}
+    {:noreply,
+     socket
+     |> put_config(applied.config)
+     |> reload()
+     |> reopen()
+     |> refresh_rules()
+     |> assign(:rule_devices, Home.devices())}
   end
 
   # A form open on a device that has just left the house is a form about
@@ -441,6 +559,12 @@ defmodule DobbyWeb.HouseLive do
   end
 
   defp reopen(socket), do: socket
+
+  defp refresh_rules(socket), do: stream(socket, :rules, Rules.list(), reset: true)
+  defp rule_actor(%{assigns: %{speaker: nil}}), do: "the household"
+  defp rule_actor(%{assigns: %{speaker: speaker}}), do: speaker.name
+  defp rule_result(socket, {:ok, _}), do: socket |> assign(:rule_error, nil) |> refresh_rules()
+  defp rule_result(socket, {:error, reason}), do: assign(socket, :rule_error, reason)
 
   # -- the house -------------------------------------------------------------
 

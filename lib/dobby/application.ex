@@ -40,6 +40,7 @@ defmodule Dobby.Application do
         # than a child of it: applying a changed house means restarting
         # Dobby.Home, which a process living underneath it could not do.
         Dobby.HomeConfig.Writer,
+        Dobby.Rules.Watcher,
         # Start to serve requests, typically the last entry
         DobbyWeb.Endpoint
       ] ++ lan_beacon()

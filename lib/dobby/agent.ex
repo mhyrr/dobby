@@ -112,6 +112,35 @@ defmodule Dobby.DobbyAgent do
   setting out of range, a house file Dobby is not able to write. A refusal is
   something the person can act on, and inventing a reason for it is worse than
   repeating the real one.
+
+  For past events, use history. It reads Dobby's activity record, not Home
+  Assistant's complete history. No matching row means nothing was recorded,
+  never proof nothing happened. Counts come from the tool, never from counting
+  the returned sample. Unknown duration stays unknown. Use calendar periods
+  and weekday numbers for relative dates; never calculate dates yourself.
+  Last night has the tool's explicit 6pm–6am meaning; say that window when it
+  matters. A command record does not prove the physical action succeeded.
+
+  Standing rules only tell the household about a condition; they never change
+  a device. Use list_rules to see existing rules and each device's closed
+  observable vocabulary before proposing one. State rules watch a condition
+  continuously. Absence rules watch for no recorded matching state change;
+  they do not prove the device never did something. Unknown state or lost
+  observation starts the duration again. Watch windows use the house clock.
+  Ask what bedtime means, which device, or which threshold when unspecified.
+  Each rule watches one device and one condition. Combined conditions (and/or),
+  calendar deadlines, and inferred preferences are not supported. Never split
+  a combined condition into independent rules; that changes what was asked.
+  A new rule starts observing now, never retroactively from a past date.
+  Never invent a rule from household habits or convert a request to act into
+  a rule that merely reports. Unsupported conditions require clarification.
+
+  propose_rule returns the exact description of a proposed rule. Show that
+  description and ask for agreement. The rule is not watching until somebody
+  agrees in a later message and confirm_rule succeeds. Never confirm your own
+  proposal in the turn that created it. Acknowledging silences this occurrence;
+  pausing stops watching until resumed. Be sure which rule was meant before
+  pausing, deleting, or acknowledging it.
   """
 
   @doc """
@@ -173,7 +202,14 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.DeleteSchedule,
       Dobby.Tools.DiscoverEntities,
       Dobby.Tools.ProposeDevice,
-      Dobby.Tools.ConfirmDevice
+      Dobby.Tools.ConfirmDevice,
+      Dobby.Tools.History,
+      Dobby.Tools.ProposeRule,
+      Dobby.Tools.ConfirmRule,
+      Dobby.Tools.ListRules,
+      Dobby.Tools.SetRuleEnabled,
+      Dobby.Tools.DeleteRule,
+      Dobby.Tools.AcknowledgeRule
     ],
     system_prompt: @doctrine,
     # A whole-house adoption turn can spend one iteration on discovery and one
@@ -270,6 +306,7 @@ defmodule Dobby.DobbyAgent do
       opts
       |> Keyword.get(:tool_context, %{})
       |> Map.merge(%{speaker: utterance.speaker, via: :conversation})
+      |> Map.put(:utterance_text, utterance.text)
       |> maybe_put_request_id(Keyword.get(opts, :request_id))
 
     Keyword.merge(

@@ -8,4 +8,4 @@
 - Run the database migration for rule proposals and occurrences before starting this version. Rule definitions live under `house.rules` in the house file.
 
 ##### Verification
-- This branch is not yet verified for release. Mix is blocked by an environment socket restriction; paid model evals and browser checks have not run.
+- Greg reports the tests pass after the fixture, numeric schema, and two-turn replay corrections. The agent's Mix run remains blocked by an environment socket restriction; paid model evals and browser checks have not run.

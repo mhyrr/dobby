@@ -34,7 +34,14 @@ defmodule Dobby.Home do
     Dobby.Tools.DeleteSchedule,
     Dobby.Tools.DiscoverEntities,
     Dobby.Tools.ProposeDevice,
-    Dobby.Tools.ConfirmDevice
+    Dobby.Tools.ConfirmDevice,
+    Dobby.Tools.History,
+    Dobby.Tools.ProposeRule,
+    Dobby.Tools.ConfirmRule,
+    Dobby.Tools.ListRules,
+    Dobby.Tools.SetRuleEnabled,
+    Dobby.Tools.DeleteRule,
+    Dobby.Tools.AcknowledgeRule
   ]
 
   # -- lifecycle -------------------------------------------------------------
@@ -66,6 +73,7 @@ defmodule Dobby.Home do
       # the first milliseconds of boot should find a house that has heard from
       # Home Assistant, not one that has not.
       with :ok <- start_scheduler_agent() do
+        Dobby.Rules.Watcher.configure(manifest, snapshots())
         {:ok, %{manifest: manifest}}
       end
     end
@@ -73,6 +81,7 @@ defmodule Dobby.Home do
 
   @impl GenServer
   def terminate(_reason, %{manifest: manifest}) do
+    Dobby.Rules.Watcher.suspend()
     # Device agents live under the Jido instance's dynamic supervisor, not
     # under this process, so they outlive it unless we say otherwise. Leaving
     # them running would make a restart fail on registry IDs already taken —
@@ -163,6 +172,20 @@ defmodule Dobby.Home do
   """
   @spec manifest() :: Manifest.t()
   def manifest, do: :persistent_term.get(@term_key)
+
+  @doc """
+  Applies only standing rules without interrupting the turn that authored one.
+  Device bindings and agents stay owned by the existing bootstrap path.
+  """
+  def apply_rules(rules), do: GenServer.call(__MODULE__, {:apply_rules, rules}, 30_000)
+
+  @impl true
+  def handle_call({:apply_rules, rules}, _from, state) do
+    manifest = %{state.manifest | rules: rules}
+    :ok = Dobby.Rules.Watcher.configure(manifest, snapshots())
+    :persistent_term.put(@term_key, manifest)
+    {:reply, :ok, %{state | manifest: manifest}}
+  end
 
   @doc """
   Looks up a device by its stable Dobby ID.

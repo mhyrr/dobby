@@ -174,8 +174,51 @@ defmodule Dobby.Eval do
       ha       #{inspect(Enum.map(Dobby.Trace.ha_calls(), &"#{&1.domain}.#{&1.service} #{inspect(&1.data)}"))}
       turns    #{usage.turns}   tokens #{usage.input_tokens} in / #{usage.output_tokens} out   #{per_turn(usage)} in per turn   #{Process.get(:eval_elapsed_ms, 0)}ms end-to-end
       reply    #{reply}
+      calls
+    #{tool_trace()}
     """)
   end
+
+  @doc """
+  This test's tool calls as the record holds them: the model's raw arguments
+  and what came back. The arguments are the evidence in an eval — a wrong
+  filter or an invented field is the defect, and the reply only shows its
+  shadow.
+  """
+  def tool_trace do
+    # The turn records its tool calls after the reply is delivered, so the
+    # rows can lag the trace by a moment. Wait for them, but never fail here:
+    # this runs inside another assertion's message.
+    expected = length(Dobby.Trace.tool_calls())
+
+    tool_rows(expected, System.monotonic_time(:millisecond) + 2_000)
+    |> Enum.map_join("\n", fn entry ->
+      "      #{entry.action} #{inspect(entry.args, limit: :infinity, printable_limit: 200)}\n" <>
+        "        -> #{summarize(entry.result)}"
+    end)
+  end
+
+  defp tool_rows(expected, deadline) do
+    rows =
+      Dobby.Activity.recent(40) |> Enum.filter(&(&1.kind == "tool_call")) |> Enum.reverse()
+
+    if length(rows) >= expected or System.monotonic_time(:millisecond) >= deadline do
+      rows
+    else
+      Process.sleep(50)
+      tool_rows(expected, deadline)
+    end
+  end
+
+  defp summarize(%{"value" => ["error", %{"message" => message}]}), do: "error: #{message}"
+
+  defp summarize(%{"value" => ["ok", %{} = value]}) do
+    value
+    |> Map.take(~w(count returned truncated window mode applied id description status enabled))
+    |> inspect(limit: :infinity, printable_limit: 300)
+  end
+
+  defp summarize(other), do: inspect(other, limit: 10, printable_limit: 200)
 
   defp per_turn(%{turns: 0}), do: 0
   defp per_turn(%{turns: turns, input_tokens: input}), do: div(input, turns)
@@ -276,6 +319,8 @@ defmodule Dobby.Eval do
           rubric: #{rubric}
           judge:  NO - #{rationale}
           reply:  #{reply}
+          calls:
+        #{tool_trace()}
         """)
     end
   end

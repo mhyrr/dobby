@@ -15,12 +15,11 @@ thermostat, dimming a light, starting the vacuum, setting a schedule for
 eight o'clock. It does what you said, says what it did, and asks when it is
 not sure.
 
-Underneath are two layers with a hard line between them. A deterministic
+Underneath are two layers. A deterministic
 layer of device agents owns every fact and every action. Above it sits a
 language model that can act only through the closed set of tools those
-agents offer. The model never touches Home Assistant, never does arithmetic,
-and never claims a room got warm. It reports what it commanded; the house
-reports what actually happened.
+agents offer. The model never touches Home Assistant. It reports what it 
+commanded and the house reports what actually happened.
 
 ## The guide
 

@@ -1,11 +1,15 @@
 # Changes on branch `tk-025-027-house-memory`
 
 ##### Added
-- Dobby can answer questions about recorded household events, including who changed a device and which commands did not arrive.
-- The household can ask Dobby to watch a stated condition or a missing recorded change. Rules wait for agreement, report one notice per occurrence, and can be paused or acknowledged without a model.
+- Dobby can answer questions about recorded household events: who changed a device, when something last happened, how many times, and which commands did not arrive. Dates and counts come from the house clock and the record, never from the model.
+- The household can ask Dobby to keep watch: a condition that holds for a stated time, or no recorded change for a stated time, all day or in a daily window. Dobby proposes the exact rule in words, waits for agreement in a later message, and only then watches. A breach is said once in the thread and stands above it until acknowledged. Rules only report; they never change a device.
+- Standing rules can be added, paused, resumed, and deleted on The House page, with an undo, and no model involved.
+- Dobby knows the house's date, time, and clock offset when it answers, so a question about a named day ("what happened on September 1st?") reaches the record as that day.
 
 ##### Upgrade and Migration
-- Run the database migration for rule proposals and occurrences before starting this version. Rule definitions live under `house.rules` in the house file.
+- Run the database migration for rule proposals and occurrences before starting this version. Rule definitions live under `house.rules` in the house file; the guide's house page shows the shape.
 
 ##### Verification
-- Greg reports the tests pass after the fixture, numeric schema, and two-turn replay corrections. The agent's Mix run remains blocked by an environment socket restriction; paid model evals and browser checks have not run.
+- `mix precommit` on 2026-09-06: compile with warnings as errors, unused deps, format, and 631 tests with 0 failures (the paid eval tests excluded). The runtime tests drive the real watcher through the house writer and were each checked to fail on the regression they name.
+- The eval tier ran against a real model (gpt-5.6-luna through OpenRouter) on 2026-09-06: 22 scenarios, 7 for the record and 15 for standing rules, all passing on the final run. The first run failed 6 of 9 on the shape of the tools rather than on judgment, and the tools were reshaped until the model's replies read as the house should: "The vacuum was last recorded starting cleaning Thursday, September 3, at 7:35 AM." and "I can't set that rule as stated: 10pm to 6am is an eight-hour window, so it can't watch for nine hours."
+- In the browser, against the rig house at phone and desktop widths: the notice under the board with its acknowledge act, the standing-rule line in the thread, and the rules panel on The House. Console clean on both routes. The rule form was not driven in a browser, because the rig house is read only; the LiveView tests cover it.

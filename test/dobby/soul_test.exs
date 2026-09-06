@@ -52,6 +52,14 @@ defmodule Dobby.SoulTest do
       assert DobbyAgent.doctrine() =~ "Coffee station's on, Greg"
       assert DobbyAgent.doctrine() =~ "is yours to say and"
     end
+
+    test "the rule paragraph says itself that an ambiguous device is a question" do
+      # glm-5.2, 2026-09-06: "tell me if the door stays unlocked for an hour"
+      # in a house with two locks was proposed for the front door. The general
+      # ambiguity rule sits eight paragraphs above the rule paragraph, and a
+      # model reading the rule paragraph for what to do did not carry it down.
+      assert DobbyAgent.doctrine() =~ ~r/"the door"\s+in a house with two locks is a question/
+    end
   end
 
   test "the running agent actually has the soul, not just the doctrine floor" do

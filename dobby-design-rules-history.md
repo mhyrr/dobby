@@ -112,6 +112,39 @@ says not to narrow by kinds unless the household named a kind of event:
 who set something, or when it last happened, means a hand on a card and a
 schedule as much as a request in the thread.
 
+The rotation to glm-5.2 (2026-09-06, the same 22 scenarios) passed 21 of 22
+on the first run, and the miss was the doctrine's, not a tool's: "tell me if
+the door stays unlocked for an hour" in a house with two locks was proposed
+for the front door. The general rule — a name that fits two devices is a
+question — sits eight paragraphs above the rule paragraph, and a model reading
+the rule paragraph for what to do did not carry it down. The rule paragraph
+now says it itself, and the rerun asked which door in one turn, without
+listing the rules first. No tool hook changed for this model. The other shape
+the run showed was the deterministic boundary doing its work: told "yes, I'm
+sure, go ahead" in the same breath as the request, the model called
+`confirm_rule` in the turn that proposed, the later-turn guard refused, and
+the reply relayed the refusal and showed the rule. The claim that a rule
+nobody agreed to in a later message cannot watch held with no help from the
+doctrine, at the price of one extra turn. Across the 21 scenarios both models
+passed, the tool sequences were identical in 20; glm-5.2's tokenizer counts
+the same prompt about a third higher (8,135 against 5,968 input tokens per
+model turn), end-to-end time was the same within a second on average, and its
+replies carry the speaker's name and a clause more.
+
+The house block was blind, and the survey for the child-agent question found
+it. `RequestTransformer.transform_request/4` read the world model from its
+second argument, which jido_ai fills with the run's own `%ReAct.State{}`; the
+agent's state, where `ObserveDevice` writes the world model, arrives as the
+fourth. So every device rendered "state not yet known" on every real turn
+since the first commit, and the model paid a `*_get_status` turn to learn
+what the block was meant to say: both models did so before proposing the
+humidity rule, and the redundant status round trip TK-032 measured at about
+4,700 tokens was the same fault. Nothing crashed, and no replay scenario
+looked at the messages the runner built, which is why it lasted. Fixed, with
+a scenario that substitutes a per-request transformer to capture the block
+the model is actually sent, on the first turn and on the second turn of a
+request that ran a tool between them.
+
 `source` is provenance when the household said a sentence. A rule from the
 form or from a file has none, and a made-up one is worse than an absence, so
 the field is optional and blank is absent.
@@ -206,6 +239,21 @@ says when, and the closed vocabularies are typed enums.
   above record each one. A history question costs two model turns and about
   5,600 input tokens; a rule proposal costs three, because the doctrine asks
   for `list_rules` first, and about 17,500.
+- The same 22 ran against z-ai/glm-5.2 on 2026-09-06: 21 of 22 on the first
+  run, and the miss was the door in a house with two locks, proposed for the
+  front door. One doctrine sentence, pinned in `SoulTest`, and the rerun asked
+  which door in one turn. No tool hook changed. Per model turn GLM counts
+  8,135 input tokens where Luna counts 5,968 for the same prompt; end-to-end
+  time was the same within a second on average; the tool sequences were
+  identical in 20 of 21 shared scenarios, the exception being the same-breath
+  `confirm_rule` the later-turn guard refused. The eval report now prints a
+  per-step line: which seconds were the model's and which the tools'.
+- The house block carried no device state before this branch, on any turn,
+  for any model. Fixed here with `Dobby.Scenarios.HouseBlockTest`, which
+  fails against the old transformer. The eval numbers above were measured
+  with the blind block; a proposal that opened with a status read should
+  now be one turn shorter, and every turn carries about 245 tokens more of
+  state. Not re-measured against a paid model.
 
 Not done, and left as follow-ups: the notice sentence is templated
 (`Front door: locked equals false`) rather than phrased per type; an absence

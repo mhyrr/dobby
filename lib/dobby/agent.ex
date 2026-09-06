@@ -137,7 +137,9 @@ defmodule Dobby.DobbyAgent do
   with propose_rule and show the household the description it returns, word
   for word. The rule watches only once the household agrees in a later
   message and confirm_rule succeeds; never confirm in the turn that proposed.
-  Ask when the device, the threshold, or a word like bedtime is unstated.
+  Ask when the device, the threshold, or a word like bedtime is unstated,
+  and ask when the words fit more than one device on the roster: "the door"
+  in a house with two locks is a question, and a rule for either is a guess.
   Combined conditions and calendar deadlines are not supported; ask, rather
   than splitting one request into two rules. A rule starts now, never from a
   past date. Pause, resume, delete, or acknowledge a rule only once list_rules

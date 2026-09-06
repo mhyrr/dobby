@@ -173,6 +173,7 @@ defmodule Dobby.Eval do
       tools    #{inspect(Dobby.Trace.tool_calls())}
       ha       #{inspect(Enum.map(Dobby.Trace.ha_calls(), &"#{&1.domain}.#{&1.service} #{inspect(&1.data)}"))}
       turns    #{usage.turns}   tokens #{usage.input_tokens} in / #{usage.output_tokens} out   #{per_turn(usage)} in per turn   #{Process.get(:eval_elapsed_ms, 0)}ms end-to-end
+      steps    #{steps()}
       reply    #{reply}
       calls
     #{tool_trace()}
@@ -219,6 +220,14 @@ defmodule Dobby.Eval do
   end
 
   defp summarize(other), do: inspect(other, limit: 10, printable_limit: 200)
+
+  # Where the end-to-end went, so a slow scenario names its slow step.
+  defp steps do
+    case Dobby.Trace.timeline() do
+      [] -> "none recorded"
+      steps -> Enum.map_join(steps, " · ", fn {label, ms} -> "#{label} #{ms}ms" end)
+    end
+  end
 
   defp per_turn(%{turns: 0}), do: 0
   defp per_turn(%{turns: turns, input_tokens: input}), do: div(input, turns)

@@ -15,6 +15,31 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   them on any prompt tweak. Injecting a separate message immediately *before*
   the utterance keeps the raw utterance last, which keeps scripts readable and
   the caching rationale intact.
+
+  ## Which argument carries the house
+
+  The fourth, not the second. jido_ai calls this as
+  `(request, state, config, runtime_context)`
+  (`deps/jido_ai/lib/jido_ai/reasoning/react/runner.ex:364`), and the second
+  argument is `%Jido.AI.Reasoning.ReAct.State{}` — the *run's* own state:
+  iteration, pending tool calls, streaming buffers. It is a fixed Zoi struct
+  with no room in it for anything of Dobby's, so reading `:world_model` off it
+  returned nil on every turn from the day this file was written. What holds the
+  agent's own state — where `Dobby.DobbyAgent.ObserveDevice` writes
+  `world_model` — is `runtime_context[:state]`, snapshotted when the request
+  starts (`deps/jido_ai/lib/jido_ai/reasoning/react/strategy.ex:653`).
+
+  Nothing crashed, which is why it lasted. Every device rendered "state not yet
+  known", so the model called `*_get_status` to learn what the block was
+  supposed to have told it, and the eval tier quietly paid for the extra turn.
+  A scenario cannot catch that by calling `render/1` itself — it has to read
+  the messages the runner actually built, which is what
+  `Dobby.Scenarios.HouseBlockTest` does.
+
+  One honest limit of that snapshot: it is taken once per request and evolved
+  between tool rounds only by state effects the tools themselves returned
+  (`evolve_context_state_snapshot/2`, runner.ex:840). A device that moves
+  halfway through a turn is in the next turn's block, not this one's.
   """
 
   @behaviour Jido.AI.Reasoning.ReAct.RequestTransformer
@@ -22,10 +47,19 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   @tag "<house>"
 
   @impl true
-  def transform_request(request, state, _config, _extra) do
-    context = render(Map.get(state, :world_model) || %{})
+  def transform_request(request, _state, _config, runtime_context) do
+    context = render(world_model(runtime_context))
     {:ok, %{messages: request.messages |> window() |> inject(context)}}
   end
+
+  defp world_model(runtime_context) when is_map(runtime_context) do
+    case Map.get(runtime_context, :state) do
+      %{} = agent_state -> Map.get(agent_state, :world_model) || %{}
+      _absent -> %{}
+    end
+  end
+
+  defp world_model(_runtime_context), do: %{}
 
   @doc """
   Caps the conversation this request carries (`TK-007`).

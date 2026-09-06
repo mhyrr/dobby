@@ -102,19 +102,28 @@ defmodule Dobby.Rules do
   end
 
   defp put_rule(config, entry) do
+    with {:ok, _manifest, rule} <- load_rule(config, entry), do: {:ok, insert_rule(config, rule)}
+  end
+
+  # Validated against the house as it is, before anything is written.
+  defp load_rule(config, entry) do
     with :ok <- Writer.writable(config),
          {:ok, manifest} <- Dobby.Home.Manifest.load(config.house),
          {:ok, rule} <- Rule.load(entry, manifest.devices) do
-      existing = Keyword.get(config.house, :rules, [])
-      canonical = Rule.to_map(rule)
-
-      rules =
-        if Enum.any?(existing, &(&1["id"] == rule.id)),
-          do: Enum.map(existing, &if(&1["id"] == rule.id, do: canonical, else: &1)),
-          else: existing ++ [canonical]
-
-      {:ok, %{config | house: Keyword.put(config.house, :rules, rules)}}
+      {:ok, manifest, rule}
     end
+  end
+
+  defp insert_rule(config, rule) do
+    existing = Keyword.get(config.house, :rules, [])
+    canonical = Rule.to_map(rule)
+
+    rules =
+      if Enum.any?(existing, &(&1["id"] == rule.id)),
+        do: Enum.map(existing, &if(&1["id"] == rule.id, do: canonical, else: &1)),
+        else: existing ++ [canonical]
+
+    %{config | house: Keyword.put(config.house, :rules, rules)}
   end
 
   defp find_entry(config, id),
@@ -142,10 +151,11 @@ defmodule Dobby.Rules do
   def propose(entry, opts \\ []) do
     config = Writer.current(Writer.server())
 
-    with {:ok, incoming} <- put_rule(config, entry),
-         {:ok, _checked} <- Dobby.Home.Manifest.load(incoming.house),
-         {:ok, manifest} <- Dobby.Home.Manifest.load(config.house),
-         {:ok, rule} <- Rule.load(entry, manifest.devices) do
+    # Twice, on purpose: once against the house as it is, which names the
+    # device, and once with the rule in it, which is where a duplicate id or
+    # the hundred-rule cap shows up.
+    with {:ok, manifest, rule} <- load_rule(config, entry),
+         {:ok, _checked} <- Dobby.Home.Manifest.load(insert_rule(config, rule).house) do
       attrs = %{
         house_id: manifest.id,
         rule_id: rule.id,
@@ -294,35 +304,48 @@ defmodule Dobby.Rules do
   def notify(house_id, rule, since, now) do
     text = notice_text(rule, since)
 
+    changeset =
+      %Occurrence{}
+      |> Ecto.Changeset.change(%{
+        house_id: house_id,
+        rule_id: rule.id,
+        revision: revision(rule),
+        name: rule.name,
+        text: text,
+        observed_since: since
+      })
+      |> Ecto.Changeset.unique_constraint(:rule_id, name: :rule_occurrences_one_standing)
+
     result =
       Repo.transaction(fn ->
-        attrs = %{
-          house_id: house_id,
-          rule_id: rule.id,
-          revision: revision(rule),
-          name: rule.name,
-          text: text,
-          observed_since: since
-        }
-
-        occurrence = Repo.insert!(Ecto.Changeset.change(%Occurrence{}, attrs))
-        meta = %{"rule_id" => rule.id, "occurrence_id" => occurrence.id, "via" => "standing rule"}
-        {:ok, message} = Conversation.append_system_line(text, meta)
-
-        {:ok, _entry} =
-          Activity.record(%{
-            kind: "rule_breached",
-            device: rule.device,
-            action: rule.id,
-            args: meta,
-            result: %{
-              "text" => text,
-              "observed_since" => DateTime.to_iso8601(since),
-              "noticed_at" => DateTime.to_iso8601(now)
+        case Repo.insert(changeset) do
+          {:ok, occurrence} ->
+            meta = %{
+              "rule_id" => rule.id,
+              "occurrence_id" => occurrence.id,
+              "via" => "standing rule"
             }
-          })
 
-        {occurrence, message}
+            {:ok, message} = Conversation.append_system_line(text, meta)
+
+            {:ok, _entry} =
+              Activity.record(%{
+                kind: "rule_breached",
+                device: rule.device,
+                action: rule.id,
+                args: meta,
+                result: %{
+                  "text" => text,
+                  "observed_since" => DateTime.to_iso8601(since),
+                  "noticed_at" => DateTime.to_iso8601(now)
+                }
+              })
+
+            {occurrence, message}
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
+        end
       end)
 
     case result do
@@ -331,8 +354,17 @@ defmodule Dobby.Rules do
         changed()
         {:ok, occurrence}
 
-      error ->
-        error
+      {:error, %Ecto.Changeset{} = changeset} ->
+        # The index holds one standing occurrence per rule. A row this process
+        # never saw means the household was already told; the watcher adopts it
+        # rather than telling them again.
+        case Enum.find(standing(house_id), &(&1.rule_id == rule.id)) do
+          nil -> {:error, Dobby.Changeset.error_message(changeset)}
+          occurrence -> {:error, {:standing, occurrence}}
+        end
+
+      {:error, reason} ->
+        {:error, inspect(reason)}
     end
   end
 

@@ -31,7 +31,11 @@ defmodule DobbyWeb.RulesLiveTest do
     assert rule.rule["attribute"] == "current_temperature_f"
     assert rule.rule["value"] == 75.0
     assert rule.rule["duration_seconds"] == 1_200
-    assert rule.rule["source"] == "House form: Warm room"
+    # A form author already said what they meant in the fields. Inventing a
+    # sentence for them would put words in the household's mouth, so a
+    # form-made rule carries no source at all.
+    refute Map.has_key?(rule.rule, "source")
+    assert rule.source == nil
     assert has_element?(view, "#rules-#{rule.id} .rule-description", rule.description)
     refute has_element?(view, "#rule-form")
     refute_received {:ha_call, _}

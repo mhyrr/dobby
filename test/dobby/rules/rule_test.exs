@@ -206,8 +206,8 @@ defmodule Dobby.Rules.RuleTest do
           %{"enabled" => nil},
           %{"id" => "Bad ID"},
           %{"id" => String.duplicate("x", 81)},
-          %{"source" => " "},
           %{"source" => String.duplicate("x", 2001)},
+          %{"source" => 20},
           %{"name" => nil},
           %{"kind" => "automation"},
           %{"duration_seconds" => -1},
@@ -224,6 +224,43 @@ defmodule Dobby.Rules.RuleTest do
     assert {:error, _} = Rule.load(nil, [device()])
     assert {:error, _} = Rule.load(%{id: "door-open"}, [device()])
     assert {:ok, _} = Rule.load(definition(%{"duration_seconds" => 0}), [device()])
+  end
+
+  test "a rule without the household's sentence keeps no sentence, rather than an empty one" do
+    # The form and the file authors say what they mean in the fields. Absent,
+    # blank, and whitespace all mean the same thing: nobody said it.
+    for source <- [nil, "", "   ", "\n"] do
+      assert {:ok, rule} = Rule.load(definition(%{"source" => source}), [device()])
+      assert rule.source == nil
+      refute Map.has_key?(Rule.to_map(rule), "source")
+      assert {:ok, ^rule} = Rule.load(Rule.to_map(rule), [device()])
+    end
+
+    assert {:ok, rule} = Rule.load(Map.delete(definition(), "source"), [device()])
+    assert rule.source == nil
+  end
+
+  test "a duration the daily window cannot hold is refused, since the watch restarts at its edge" do
+    # 22:00 to 06:00 is eight hours; a rule needing eight hours continuously
+    # would never fire, while its description promises it will.
+    overnight = %{"start" => "22:00", "end" => "06:00"}
+
+    assert {:error, reason} =
+             Rule.load(
+               definition(%{"window" => overnight, "duration_seconds" => 28_800}),
+               [device()]
+             )
+
+    assert reason =~ "shorter than its daily window"
+    assert reason =~ "8 hours"
+
+    assert {:ok, rule} =
+             Rule.load(
+               definition(%{"window" => overnight, "duration_seconds" => 28_799}),
+               [device()]
+             )
+
+    assert rule.duration_seconds == 28_799
   end
 
   test "duplicate rules and unbounded rule lists are refused" do
@@ -252,5 +289,61 @@ defmodule Dobby.Rules.RuleTest do
         end
       end
     end
+  end
+
+  test "describes the rule in the household's words: as soon as, and days by name" do
+    assert {:ok, at_once} = Rule.load(definition(%{"duration_seconds" => 0}), [device()])
+    assert Rule.describe(at_once) == "Tell the house as soon as Front door: open equals true."
+
+    weekdays = %{"start" => "20:00", "end" => "07:00", "days" => [1, 2, 3, 4, 5]}
+    assert {:ok, rule} = Rule.load(definition(%{"window" => weekdays}), [device()])
+    assert Rule.describe(rule) =~ "watching 20:00–07:00 house time on weekdays."
+    refute Rule.describe(rule) =~ "Monday is 1"
+
+    some = %{"start" => "20:00", "end" => "07:00", "days" => [1, 3, 5]}
+    assert {:ok, rule} = Rule.load(definition(%{"window" => some}), [device()])
+    assert Rule.describe(rule) =~ "on Mondays, Wednesdays and Fridays."
+  end
+
+  test "a whole-number threshold the tool handed over as a float reads as the number said" do
+    assert {:ok, rule} =
+             Rule.load(
+               definition(%{
+                 "device" => "thermostat:main",
+                 "attribute" => "current_temperature_f",
+                 "operator" => "lt",
+                 "value" => 60.0
+               }),
+               [
+                 %Device{
+                   id: "thermostat:main",
+                   name: "main thermostat",
+                   agent_module: Dobby.DeviceAgents.Thermostat,
+                   bindings: %{climate: "climate.main_floor"}
+                 }
+               ]
+             )
+
+    assert Rule.condition(rule) == "main thermostat: current temperature is less than 60°F"
+
+    assert {:ok, half} =
+             Rule.load(
+               definition(%{
+                 "device" => "thermostat:main",
+                 "attribute" => "current_temperature_f",
+                 "operator" => "lt",
+                 "value" => 60.5
+               }),
+               [
+                 %Device{
+                   id: "thermostat:main",
+                   name: "main thermostat",
+                   agent_module: Dobby.DeviceAgents.Thermostat,
+                   bindings: %{climate: "climate.main_floor"}
+                 }
+               ]
+             )
+
+    assert Rule.condition(half) =~ "60.5°F"
   end
 end

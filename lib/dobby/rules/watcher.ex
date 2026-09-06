@@ -7,8 +7,10 @@ defmodule Dobby.Rules.Watcher do
   engine marks them announced. A failed record therefore retries instead of
   silently consuming the only notice the household would have received.
 
-  Reconnection discards cached readings. Until a fresh device event arrives,
-  we cannot prove continuity, even if a card still shows the last known state.
+  Reconnection restarts every elapsed interval: a card may still show the last
+  known state, but nothing observed the house while the connection was down.
+  The readings themselves are reread from the device agents, because the
+  resync that follows a reconnect is silent for anything that did not move.
   A restart also starts new elapsed intervals, but loads unresolved occurrences
   to avoid repeating a notice somebody already acknowledged.
   """
@@ -23,22 +25,31 @@ defmodule Dobby.Rules.Watcher do
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
+  # The house boots and restarts whether or not this process is up. A watcher
+  # that is itself restarting reads the house in its own init, so a call that
+  # finds it gone is not an error the house should fail on.
   def configure(manifest, snapshots \\ []) do
-    if Process.whereis(__MODULE__),
-      do: GenServer.call(__MODULE__, {:configure, manifest, snapshots}, 30_000),
-      else: :ok
+    absent_ok(fn -> GenServer.call(__MODULE__, {:configure, manifest, snapshots}, 30_000) end)
   end
 
-  def suspend do
-    if Process.whereis(__MODULE__), do: GenServer.call(__MODULE__, :suspend), else: :ok
-  end
+  def suspend, do: absent_ok(fn -> GenServer.call(__MODULE__, :suspend, 30_000) end)
 
   def notices do
     if Process.whereis(__MODULE__), do: GenServer.call(__MODULE__, :notices), else: []
   end
 
-  def acknowledge(id, actor, opts \\ []),
-    do: GenServer.call(__MODULE__, {:acknowledge, id, actor, opts})
+  def acknowledge(id, actor, opts \\ []) do
+    if Process.whereis(__MODULE__),
+      do: GenServer.call(__MODULE__, {:acknowledge, id, actor, opts}),
+      else: {:error, "the house is not watching right now; try again in a moment"}
+  end
+
+  defp absent_ok(call) do
+    call.()
+  catch
+    :exit, {reason, _} when reason in [:noproc, :normal, :shutdown] -> :ok
+    :exit, {{:shutdown, _}, _} -> :ok
+  end
 
   # A synchronous barrier for tests and callers needing all prior deliveries
   # settled. It uses the same injected clock and transition path as the timer.
@@ -69,9 +80,23 @@ defmodule Dobby.Rules.Watcher do
       tick_ms: Keyword.get(opts, :tick_ms, 1000)
     }
 
-    manifest = Keyword.get_lazy(opts, :manifest, &Home.manifest/0)
-    snapshots = Keyword.get_lazy(opts, :snapshots, &Home.snapshots/0)
-    {:ok, load(state, manifest, snapshots) |> schedule()}
+    # A watcher restarting while the house is between restarts finds no
+    # manifest. It waits idle; `Dobby.Home.init/1` configures it on the way up.
+    case Keyword.get_lazy(opts, :manifest, &current_manifest/0) do
+      nil ->
+        {:ok, state}
+
+      manifest ->
+        snapshots = Keyword.get_lazy(opts, :snapshots, &Home.snapshots/0)
+        {:ok, load(state, manifest, snapshots) |> schedule()}
+    end
+  end
+
+  defp current_manifest do
+    Home.manifest()
+  rescue
+    # `:persistent_term` raises when the house has not put its manifest yet.
+    ArgumentError -> nil
   end
 
   @impl true
@@ -145,25 +170,31 @@ defmodule Dobby.Rules.Watcher do
     if state.running and state.connected and Connection.status() == :connected do
       {now, mono} = state.clock.()
 
-      state =
-        Enum.reduce(state.rules, state, fn {id, rule}, acc ->
-          if rule.enabled and rule.kind == "absence" and
-               is_integer(entry.id) and entry.id > Map.get(acc.activity_cursors, id, 0) and
-               Rule.event_matches?(rule, entry) do
-            acc = recover(acc, id, now)
+      matched =
+        for {id, rule} <- state.rules,
+            rule.enabled and rule.kind == "absence" and is_integer(entry.id) and
+              entry.id > Map.get(state.activity_cursors, id, 0) and
+              Rule.event_matches?(rule, entry),
+            do: id
 
-            %{
-              acc
-              | activity_cursors: Map.put(acc.activity_cursors, id, entry.id),
-                engines:
-                  Map.put(acc.engines, id, %{Engine.new() | since: mono, observed_since: now})
-            }
-          else
+      state =
+        Enum.reduce(matched, state, fn id, acc ->
+          acc = recover(acc, id, now)
+          window_key = Map.get(Map.fetch!(acc.engines, id), :window_key)
+
+          engine =
+            Map.put(%{Engine.new() | since: mono, observed_since: now}, :window_key, window_key)
+
+          %{
             acc
-          end
+            | activity_cursors: Map.put(acc.activity_cursors, id, entry.id),
+              engines: Map.put(acc.engines, id, engine)
+          }
         end)
 
-      {:noreply, evaluate(state)}
+      # The record is busy — every request and tool call lands here — and only
+      # an absence rule that just saw its event has anything new to evaluate.
+      {:noreply, if(matched == [], do: state, else: evaluate(state))}
     else
       {:noreply, state}
     end
@@ -177,7 +208,15 @@ defmodule Dobby.Rules.Watcher do
         {id, %{engine | since: nil, observed_since: nil}}
       end)
 
-    {:noreply, %{state | connected: connected, snapshots: %{}, engines: engines}}
+    # Elapsed time restarts either way: downtime is never evidence a condition
+    # held. The readings do not come back on their own, though. A resync after
+    # reconnect emits nothing for a device that did not move — its sync action
+    # sees `changed: []` — so a cache emptied here would stay empty until the
+    # device physically changed, and a door left open across a blip would
+    # never be noticed. The agents hold the current state; read it from them.
+    snapshots = if connected and state.running, do: Home.snapshots(), else: %{}
+
+    {:noreply, %{state | connected: connected, snapshots: snapshots, engines: engines}}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -276,31 +315,61 @@ defmodule Dobby.Rules.Watcher do
             else: {acc, old}
 
         {next, action} = Engine.step(old, condition, rule.duration_seconds, now, mono)
-        next = Map.put(next, :window_key, window_key)
+        next = next |> Map.put(:window_key, window_key) |> Map.delete(:failing)
 
-        acc =
+        {acc, next} =
           case action do
-            :notify ->
-              {:ok, occurrence} = Rules.notify(state.house_id, rule, next.observed_since, now)
-              %{acc | occurrences: Map.put(acc.occurrences, id, occurrence)}
-
-            :resolve ->
-              recover(acc, id, now)
-
-            :none ->
-              acc
+            :notify -> notify(acc, rule, next, old, now)
+            :resolve -> {recover(acc, id, now), next}
+            :none -> {acc, next}
           end
 
         %{acc | engines: Map.put(acc.engines, id, next)}
       rescue
         # This process is the notice boundary. A database outage must not kill
         # observation of the other rules or consume this rule's pending notice.
+        # The rule is retried every tick and the outage is said once, not once
+        # a tick.
         error ->
-          Logger.error("could not evaluate rule #{id}: #{Exception.message(error)}")
-          acc
+          %{
+            acc
+            | engines: Map.put(acc.engines, id, failed(Map.fetch!(acc.engines, id), id, error))
+          }
       end
     end)
   end
+
+  # The notice is written before the engine remembers it, so a failed write
+  # leaves it pending for the next tick. One failure is not transient: the
+  # database can already hold a standing occurrence this process never saw —
+  # a second watcher on the same database, or a crash between the commit and
+  # the put below. The household was told; adopting that row is the honest
+  # outcome, and repeating the notice is not.
+  defp notify(acc, rule, next, old, now) do
+    case Rules.notify(acc.house_id, rule, next.observed_since, now) do
+      {:ok, occurrence} ->
+        {%{acc | occurrences: Map.put(acc.occurrences, rule.id, occurrence)}, next}
+
+      {:error, {:standing, occurrence}} ->
+        {%{acc | occurrences: Map.put(acc.occurrences, rule.id, occurrence)}, next}
+
+      {:error, reason} ->
+        pending = Map.put(old, :window_key, next.window_key)
+        {acc, failed(pending, rule.id, reason)}
+    end
+  end
+
+  defp failed(engine, id, reason) do
+    unless Map.get(engine, :failing, false) do
+      Logger.error("could not evaluate rule #{id}: #{describe_failure(reason)}")
+    end
+
+    Map.put(engine, :failing, true)
+  end
+
+  defp describe_failure(%{__exception__: true} = error), do: Exception.message(error)
+  defp describe_failure(reason) when is_binary(reason), do: reason
+  defp describe_failure(reason), do: inspect(reason)
 
   defp recover(state, id, now) do
     case state.occurrences[id] do

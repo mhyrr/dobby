@@ -26,6 +26,16 @@ defmodule Dobby.Rules.Window do
   def load(_), do: {:error, "window must contain start and end times"}
 
   @doc """
+  The window's length in seconds, measured across midnight when it must be.
+  """
+  def length_seconds(%{"start" => first, "end" => last}) do
+    {:ok, start_time} = clock(first)
+    {:ok, end_time} = clock(last)
+    diff = Time.diff(end_time, start_time)
+    if diff > 0, do: diff, else: diff + 86_400
+  end
+
+  @doc """
   Identifies one daily watch interval. A delayed tick must not join yesterday's
   observation to today's across hours when the rule was not watching.
   """

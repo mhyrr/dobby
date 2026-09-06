@@ -21,15 +21,35 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
       <h2 id="rules-heading" class="fields-head">Standing rules</h2>
       <div id="rule-list" phx-update="stream">
         <p id="rules-empty" class="note">No standing rules. Nothing is being watched for you yet.</p>
-        <article :for={{dom_id, rule} <- @rules} id={dom_id} class={["standing-rule", !rule.enabled && "paused"]}>
+        <article
+          :for={{dom_id, rule} <- @rules}
+          id={dom_id}
+          class={["standing-rule", !rule.enabled && "paused"]}
+        >
           <h3 class="name">{rule.name}</h3>
           <p class="rule-description">{rule.description}</p>
-          <p :if={rule.source not in [nil, ""] and not String.starts_with?(rule.source, "House form:")} class="rule-source">Asked as: {rule.source}</p>
+          <p :if={rule.source not in [nil, ""]} class="rule-source">
+            Asked as: {rule.source}
+          </p>
           <div :if={@editable} class="acts">
-            <button id={"rule-toggle-#{rule.id}"} type="button" phx-click="rule_toggle" phx-value-id={rule.id} phx-value-revision={rule.revision} phx-value-enabled={to_string(!rule.enabled)}>
+            <button
+              id={"rule-toggle-#{rule.id}"}
+              type="button"
+              phx-click="rule_toggle"
+              phx-value-id={rule.id}
+              phx-value-revision={rule.revision}
+              phx-value-enabled={to_string(!rule.enabled)}
+            >
               {if rule.enabled, do: "pause", else: "resume"}
             </button>
-            <button id={"rule-delete-#{rule.id}"} type="button" class="takes" phx-click="rule_delete" phx-value-id={rule.id} phx-value-revision={rule.revision}>delete</button>
+            <button
+              id={"rule-delete-#{rule.id}"}
+              type="button"
+              class="takes"
+              phx-click="rule_delete"
+              phx-value-id={rule.id}
+              phx-value-revision={rule.revision}
+            >delete</button>
           </div>
         </article>
       </div>
@@ -42,7 +62,6 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
         <button id="rule-add" type="button" phx-click="rule_add">add a standing rule</button>
       </div>
       <.editor :if={@form != nil} form={@form} devices={@devices} />
-      <p :if={not @editable} id="rules-read-only" class="note">Standing rules are read only here. Dobby writes YAML house files.</p>
     </section>
     """
   end
@@ -52,11 +71,22 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
 
   def notices(assigns) do
     ~H"""
-    <div id="standing-notices" class="standing-notices" phx-update="stream" aria-label="Standing notices">
+    <div
+      id="standing-notices"
+      class="standing-notices"
+      phx-update="stream"
+      aria-label="Standing notices"
+    >
       <div :for={{dom_id, notice} <- @notices} id={dom_id} class="standing-notice">
         <p>{notice.text}</p>
         <div class="acts">
-          <button id={"notice-ack-#{notice.rule_id}"} type="button" phx-click="rule_acknowledge" phx-value-id={notice.rule_id} phx-value-occurrence={notice.id}>acknowledge</button>
+          <button
+            id={"notice-ack-#{notice.rule_id}"}
+            type="button"
+            phx-click="rule_acknowledge"
+            phx-value-id={notice.rule_id}
+            phx-value-occurrence={notice.id}
+          >acknowledge</button>
         </div>
       </div>
     </div>
@@ -85,21 +115,57 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
     <.form for={@form} id="rule-form" class="fields" phx-change="rule_form" phx-submit="rule_save">
       <div class="fields-head">A standing rule</div>
       <.input field={@form[:name]} label="What should this rule be called?" />
-      <.input field={@form[:device]} label="Which device should Dobby watch?" options={Enum.map(@devices, &{&1.name, &1.id})} />
-      <.input field={@form[:kind]} label="What should Dobby watch for?" options={[{"A condition that continues", "state"}, {"No event in the record", "absence"}]} />
-        <.input field={@form[:attribute]} label="Which reading?" options={@attributes} />
-        <.input field={@form[:operator]} label="When that reading is" options={operators(@spec)} />
-        <.input field={@form[:value]} label="Compared with" type={value_type(@spec)} options={values(@spec)} />
-        <.input :if={match?({:reading, _}, @spec)} field={@form[:unit]} label="In which unit, as reported by this device?" />
-      <p :if={@form[:kind].value == "absence"} class="note">Watch for no recorded change matching this condition. A gap in the record does not prove nothing happened.</p>
+      <.input
+        field={@form[:device]}
+        label="Which device should Dobby watch?"
+        options={Enum.map(@devices, &{&1.name, &1.id})}
+      />
+      <.input
+        field={@form[:kind]}
+        label="What should Dobby watch for?"
+        options={[{"A condition that continues", "state"}, {"No event in the record", "absence"}]}
+      />
+      <.input field={@form[:attribute]} label="Which reading?" options={@attributes} />
+      <.input field={@form[:operator]} label="When that reading is" options={operators(@spec)} />
+      <.input
+        field={@form[:value]}
+        label="Compared with"
+        type={value_type(@spec)}
+        options={values(@spec)}
+      />
+      <.input
+        :if={match?({:reading, _}, @spec)}
+        field={@form[:unit]}
+        label="In which unit, as reported by this device?"
+      />
+      <p :if={@form[:kind].value == "absence"} class="note">
+        Watch for no recorded change matching this condition. A gap in the record does not prove nothing happened.
+      </p>
       <.input field={@form[:minutes]} label="For how many minutes?" type="number" />
-      <.input field={@form[:windowed]} label="When should this rule watch?" options={[{"All day, every day", "false"}, {"During a daily window", "true"}]} />
+      <.input
+        field={@form[:windowed]}
+        label="When should this rule watch?"
+        options={[{"All day, every day", "false"}, {"During a daily window", "true"}]}
+      />
       <%= if @form[:windowed].value == "true" do %>
         <.input field={@form[:start]} label="From, in house time" type="time" />
         <.input field={@form[:end]} label="Until, in house time" type="time" />
-        <.input field={@form[:days]} label="On which days?" options={[{"Every day", "all"}, {"Weekdays", "weekdays"}, {"Weekends", "weekends"}] ++ Enum.map(1..7, &{Enum.at(~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday), &1 - 1), to_string(&1)})} />
+        <.input
+          field={@form[:days]}
+          label="On which days?"
+          options={
+            [{"Every day", "all"}, {"Weekdays", "weekdays"}, {"Weekends", "weekends"}] ++
+              Enum.map(
+                1..7,
+                &{Enum.at(~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday), &1 - 1),
+                 to_string(&1)}
+              )
+          }
+        />
       <% end %>
-      <p class="note">One notice per occurrence. Unknown readings interrupt the wait. Rules never command a device.</p>
+      <p class="note">
+        One notice per occurrence. Unknown readings interrupt the wait. Rules never command a device.
+      </p>
       <div class="acts">
         <button id="rule-save" type="submit">save</button>
         <button type="button" class="back" phx-click="rule_cancel">cancel</button>
@@ -121,10 +187,22 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
       </label>
       <%= if @options != nil do %>
         <select id={@field.id} name={@field.name}>
-          <option :for={{label, value} <- @options} value={value} selected={to_string(value) == to_string(@field.value)}>{label}</option>
+          <option
+            :for={{label, value} <- @options}
+            value={value}
+            selected={to_string(value) == to_string(@field.value)}
+          >
+            {label}
+          </option>
         </select>
       <% else %>
-        <input id={@field.id} name={@field.name} type={@type} value={@field.value} step={if @type == "number", do: "any"} />
+        <input
+          id={@field.id}
+          name={@field.name}
+          type={@type}
+          value={@field.value}
+          step={if @type == "number", do: "any"}
+        />
       <% end %>
     </div>
     """
@@ -176,7 +254,6 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
       base = %{
         "id" => Ecto.UUID.generate(),
         "name" => params["name"],
-        "source" => "House form: #{params["name"]}",
         "device" => params["device"],
         "kind" => params["kind"],
         "enabled" => true,

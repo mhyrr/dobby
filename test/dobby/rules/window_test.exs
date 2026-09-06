@@ -45,6 +45,14 @@ defmodule Dobby.Rules.WindowTest do
     refute Window.active?(window, ~U[2026-03-08 07:00:00Z], @zone)
   end
 
+  test "a window's length is measured across midnight when it must be" do
+    assert {:ok, daytime} = Window.load(%{"start" => "08:00", "end" => "17:30"})
+    assert Window.length_seconds(daytime) == 34_200
+
+    assert {:ok, overnight} = Window.load(%{"start" => "22:00", "end" => "06:00"})
+    assert Window.length_seconds(overnight) == 28_800
+  end
+
   test "invalid windows are explicit errors" do
     for raw <- [
           %{},

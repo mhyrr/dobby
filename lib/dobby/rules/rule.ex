@@ -5,6 +5,10 @@ defmodule Dobby.Rules.Rule do
   declared by a device become atoms; missing readings remain unknown even for
   a negative comparison. Absence means no matching observation in our record,
   never proof the physical event did not happen.
+
+  The household's sentence is provenance when there is one. A rule from the
+  form or from a file has no sentence, and a made-up one would be worse than
+  none, so `source` is optional.
   """
 
   alias Dobby.Rules.Window
@@ -55,6 +59,7 @@ defmodule Dobby.Rules.Rule do
          :ok <- identity(raw),
          device when not is_nil(device) <- Enum.find(devices, &(&1.id == raw["device"])),
          {:ok, window} <- Window.load(raw["window"]),
+         :ok <- fits_window(raw["duration_seconds"], window),
          {:ok, key, type} <- predicate(raw, device),
          :ok <- event(raw) do
       rule = struct(__MODULE__, Enum.map(@fields, &{&1, Map.get(raw, Atom.to_string(&1))}))
@@ -63,6 +68,7 @@ defmodule Dobby.Rules.Rule do
        %{
          rule
          | enabled: Map.get(raw, "enabled", true),
+           source: present(raw["source"]),
            window: window,
            attribute_key: key,
            value_type: type,
@@ -102,18 +108,30 @@ defmodule Dobby.Rules.Rule do
       matches?(rule, get(entry, :result) || %{}) == true
   end
 
+  # The sentence the household agrees to, so it is written for them: a zero
+  # duration is "as soon as", and a window's days are named, not numbered.
   def describe(rule) do
     condition = condition(rule)
+    held = duration(rule.duration_seconds)
 
     sentence =
-      if rule.kind == "absence",
-        do:
-          "Tell the house when Dobby records no change to #{condition} for #{duration(rule.duration_seconds)}",
-        else:
-          "Tell the house when #{condition} for #{duration(rule.duration_seconds)} continuously"
+      cond do
+        rule.kind == "absence" ->
+          "Tell the house when Dobby records no change to #{condition} for #{held}"
+
+        rule.duration_seconds == 0 ->
+          "Tell the house as soon as #{condition}"
+
+        true ->
+          "Tell the house when #{condition} for #{held} continuously"
+      end
 
     sentence <> window_words(rule.window) <> "."
   end
+
+  # A blank sentence is no sentence.
+  defp present(nil), do: nil
+  defp present(text), do: if(String.trim(text) == "", do: nil, else: text)
 
   defp shape(raw) do
     allowed =
@@ -131,10 +149,13 @@ defmodule Dobby.Rules.Rule do
                Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, raw["id"])) ->
         {:error, "rule id must be a lowercase slug"}
 
-      Enum.any?(~w(name source device), &(not is_binary(raw[&1]) or String.trim(raw[&1]) == "")) ->
-        {:error, "rule needs nonempty name, source, and device"}
+      Enum.any?(~w(name device), &(not is_binary(raw[&1]) or String.trim(raw[&1]) == "")) ->
+        {:error, "rule needs a nonempty name and device"}
 
-      byte_size(raw["name"]) > 120 or byte_size(raw["source"]) > 2000 or
+      not (is_nil(raw["source"]) or is_binary(raw["source"])) ->
+        {:error, "rule source must be text"}
+
+      byte_size(raw["name"]) > 120 or byte_size(raw["source"] || "") > 2000 or
           byte_size(raw["device"]) > 200 ->
         {:error, "rule name, source, or device exceeds its text limit"}
 
@@ -191,6 +212,20 @@ defmodule Dobby.Rules.Rule do
             {:ok, key, type}
         end
     end
+  end
+
+  # The watch restarts at every window edge, so a duration the window cannot
+  # hold is a rule that never fires — while its description promises it will.
+  defp fits_window(_duration, nil), do: :ok
+
+  defp fits_window(duration, window) do
+    length = Window.length_seconds(window)
+
+    if duration < length,
+      do: :ok,
+      else:
+        {:error,
+         "rule duration must be shorter than its daily window, which is #{duration(length)} long"}
   end
 
   defp event(%{"kind" => "state"}), do: :ok
@@ -258,10 +293,13 @@ defmodule Dobby.Rules.Rule do
 
     attribute = String.replace_suffix(attribute, " percent", "")
 
+    # The tool hands thresholds over as floats; a household said "60", not "60.0".
     value =
-      if is_binary(rule.value),
-        do: String.replace(rule.value, "_", " "),
-        else: to_string(rule.value)
+      case rule.value do
+        text when is_binary(text) -> String.replace(text, "_", " ")
+        whole when is_float(whole) and whole == trunc(whole) -> to_string(trunc(whole))
+        other -> to_string(other)
+      end
 
     "#{rule.device_name || rule.device}: #{attribute} #{operator_words(rule.operator)} #{value}#{unit}"
   end
@@ -282,6 +320,19 @@ defmodule Dobby.Rules.Rule do
   defp window_words(nil), do: ""
 
   defp window_words(window),
-    do:
-      ", watching #{window["start"]}–#{window["end"]} local time on days #{Enum.join(window["days"], ", ")} (Monday is 1)"
+    do: ", watching #{window["start"]}–#{window["end"]} house time #{day_words(window["days"])}"
+
+  @days ~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday)
+  defp day_words([1, 2, 3, 4, 5, 6, 7]), do: "every day"
+  defp day_words([1, 2, 3, 4, 5]), do: "on weekdays"
+  defp day_words([6, 7]), do: "on weekends"
+
+  defp day_words(days) do
+    names = Enum.map(days, &(Enum.at(@days, &1 - 1) <> "s"))
+
+    case Enum.split(names, -1) do
+      {[], [only]} -> "on #{only}"
+      {most, [last]} -> "on #{Enum.join(most, ", ")} and #{last}"
+    end
+  end
 end

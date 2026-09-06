@@ -161,7 +161,7 @@ defmodule DobbyWeb.HouseLive do
             round-trip a file with logic in it — and the line names the file so
             that whoever reads it knows which one to move. --%>
       <p :if={not @editable and @snapshots != []} class="note">
-        Devices are read only here: this house is <span class="file arg">{path(@config)}</span>, and Dobby writes YAML.
+        Devices and standing rules are read only here: this house is <span class="file arg">{path(@config)}</span>, and Dobby writes YAML.
       </p>
 
       <RulesPanel.panel

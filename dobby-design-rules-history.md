@@ -260,3 +260,190 @@ Not done, and left as follow-ups: the notice sentence is templated
 notice cites the watch start rather than the last recorded event, which the
 record now holds; form-made rules take a UUID id where a slug from the name
 would read better in the file.
+
+## Design: should the record and the rules be a child agent?
+
+Status: open for Greg's decision, tracked as TK-050. Design mode, not
+implementation. Measured
+on 2026-09-06 in the rig house (18 devices, 49 tools, no rules) with the
+branch as committed; tokens are o200k counts of the exact bytes, and the
+provider's own count is given where a run reported it.
+
+### What every turn carries
+
+| Part | Bytes | Tokens | Rides on | Cacheable |
+|---|---|---|---|---|
+| soul.md | 1,447 | 339 | every turn | yes, byte-identical |
+| doctrine, 11 paragraphs about devices, schedules, adoption, honesty | 4,339 | 1,014 | every turn | yes |
+| doctrine, 2 paragraphs about the record and the rules | 2,104 | 469 | every turn | yes |
+| house block, clock and roster, with state | 2,546 | 691 | every turn | no, it changes |
+| tool schemas, 35 device tools | 10,128 | 2,173 | every turn | yes |
+| tool schemas, 7 record and rule tools | 5,247 | 1,160 | every turn | yes |
+| tool schemas, 4 schedule tools | 1,876 | 431 | every turn | yes |
+| tool schemas, 3 adoption tools | 2,232 | 472 | every turn | yes |
+| `list_rules` result, zero rules, vocabulary for 18 devices | 2,648 | 624 | the rest of the window | no |
+| `history` result, zero rows | 517 | 138 | the rest of the window | no |
+
+Two corrections to the table from the provider's own count. Luna's first turn
+with no tool result was 5,522 tokens; the text parts above account for 2,300
+of it, so the provider serialises the 49 schemas at about 3,200 tokens, three
+quarters of the raw JSON count, which puts the seven record and rule schemas
+near 880 tokens on the wire. And the house block the model has been sent is
+the blind one, 446 tokens, because of the defect fixed on this branch (below);
+the 691 figure is what it carries now.
+
+So the record and the rules ride on every turn at about 1,350 tokens: 469 of
+doctrine and roughly 880 of schemas, a quarter of a 5,600-token turn. That is
+the whole of what a child agent could take off a turn about the lights.
+
+### Where the seconds go
+
+Timed with no model in the loop: `list_rules` runs in 12 ms and `history` in
+7 ms. Timed with one, on the single stepped run so far: the model turn was
+2,614 ms of a 2,691 ms request. Tool execution is noise. Every second is a
+model turn, and the turn count is the multiplier: a history question is two
+turns (extract, then speak), a rule proposal three because the doctrine asks
+for `list_rules` first, propose then confirm five across two household
+messages. The eval report now prints the per-step line, so the next paid run
+shows this for every scenario.
+
+| Request | Turns | Luna input tokens | GLM 5.2 input tokens | Luna ms | GLM ms |
+|---|---|---|---|---|---|
+| history question | 2 | 11,300 | 15,800 | 3,600 to 6,200 | 1,900 to 11,400 |
+| rule proposal | 3 | 18,250 | 24,100 | 7,200 to 9,800 | 3,400 to 8,000 |
+| propose, then confirm in a later message | 5 | 31,400 | 40,700 | 4,000 | 2,200 |
+| pause, delete, or acknowledge by name | 3 | 18,300 | 24,100 | 4,400 to 5,400 | 2,100 to 2,800 |
+
+Three findings from the runs that matter more than the schema bytes.
+
+The house block was blind. `RequestTransformer.transform_request/4` read the
+world model from jido_ai's per-run `%ReAct.State{}`, which has no such key;
+the agent's own state, where `ObserveDevice` writes it, arrives as the fourth
+argument (`deps/jido_ai/lib/jido_ai/reasoning/react/runner.ex`,
+`maybe_transform_request/4`; the payload is built in
+`reasoning/react/strategy.ex` under `worker_start_payload`). Every device has
+rendered as "state not yet known" on every real turn, and the model has paid a
+`*_get_status` turn to learn what the block was meant to say: both models did
+so before proposing the humidity rule, and TK-032's redundant status round
+trip, measured at about 4,700 tokens, is the same fault. Fixed on this branch
+with a regression test that captures the block the model is actually sent.
+
+The `list_rules` turn is the single largest avoidable cost, and it exists
+because the observables vocabulary lives only in that tool's result. Rendering
+it in the house block, the way `can be scheduled to:` already renders the
+schedulable surface, costs 297 tokens per turn for 18 devices; a line naming
+the standing rules and notices costs about 21 plus 10 per rule. That is the
+price of a two-turn proposal instead of three, and of a two-turn pause or
+delete.
+
+Tool results stay in the conversation. The window is 40 projected messages
+and tool traffic counts, so a `list_rules` payload of 624 tokens and every
+`history` row set ride on every following turn until they fall out. The evals
+restart the house per scenario and never see this; a live house does, and
+nobody has measured it, because production records no per-request usage.
+Cached input is likewise unmeasured: ReqLLM normalises `cached_tokens` and
+the runtime's `:llm_completed` event carries it, but jido_ai's telemetry
+measurements drop it, so the eval's `Trace` cannot see it.
+
+### What Jido 2.3 offers
+
+Child agents are first class: `%SpawnAgent{}` with parent tracking and
+`emit_to_parent/3` (`deps/jido/lib/jido/agent/directive.ex`), and the ReAct
+strategy already runs its loop in exactly such a child, a `Worker.Agent` per
+DobbyAgent. A tool whose `run/2` starts a second agent and awaits `ask_sync`
+ships as `Jido.AI.Actions.Reasoning.RunStrategy`; it runs six processes below
+the parent's server, cannot block the parent's mailbox, and is bounded by the
+tool timeout of 15 s by default. Tool results are JSON with no size cap. Per
+request, `:tools` on ask resolves once and is frozen for the run; the only
+seam that can change the tool set between iterations of one request is the
+request transformer, which may override `:tools` and sees the model's last
+message. Tool schemas are rebuilt and sent on every iteration. There is no
+agent-as-tool helper, no conditional tool attachment at the plugin layer, and
+no signal-level request and reply; delegation is a request id and
+`await_completion`.
+
+### The options
+
+**A. A child agent for the record and the rules.** DobbyAgent keeps one tool,
+"ask the house's memory", and the child carries the seven schemas, the two
+doctrine paragraphs, and its own small soul. Saves about 1,350 tokens on
+every turn that is not about the record. Costs one extra model turn on every
+turn that is, because a tool result is not a reply: the parent must still
+speak, and the child must extract and, if it answers in prose, speak too. A
+history question becomes three or four model turns for roughly the tokens it
+costs today. The honesty doctrine splits across two prompts, and the claim
+that a command in the record is not proof it worked has to be true in both.
+The propose-then-confirm boundary survives only if the child inherits the
+parent's request id, since the later-turn guard keys on it, and the proposal
+id must round-trip through the parent's reply. The thread and the activity
+record stay one record only if the child's tool calls are written under the
+parent's request; `Turn` reads the parent's event stream and would not see
+them. The replay tier scripts two agents, and the eval tier judges the
+parent's reply against the child's arguments. When the child is down, the
+tool errors and the parent says so; the forms and the board still work. This
+is the option Greg asked about, and the measurement says it makes the
+requests he named slower.
+
+**B. A per-request tool set.** Keep one agent and choose the schemas before or
+during the request. A classifier in code is a keyword router deciding whether
+the model may see the record, which is the boundary the design refuses to put
+in code. The version Jido supports is two-stage: iteration one carries a stub
+tool ("open the record") and the request transformer adds the seven schemas
+for iteration two once the model calls it, the shape of jido_ai's `LoadSkill`
+applied to schemas. Saves about 880 tokens on turns that never open it, costs
+one turn on those that do, same latency verdict as A, without a second agent
+or a second prompt. Worth reaching for when the tool count doubles, not now.
+
+**C. One agent, less on every turn.** In order of what they return:
+
+1. The house block carries state (fixed): removes the status turn the model
+   was paying to read a blind block.
+2. Observables in the house block and no `list_rules` before a proposal:
+   +297 tokens per turn, one turn and 2 to 3 seconds fewer on every rule
+   request. A rules line in the block does the same for pause, delete, and
+   acknowledge.
+3. Earlier requests' tool traffic dropped from the window, keeping only what
+   people and Dobby said: unmeasured in a live house and likely the largest
+   number here. A transformer change with a replay test.
+4. Cached input recorded per request, from the runtime event `Turn` already
+   consumes, written on the request's activity row, so the next paid run
+   says what the cache actually returns and whether the doctrine's placement
+   in the system prompt is earning anything.
+5. The two doctrine paragraphs tightened, but not moved: 469 tokens, cached,
+   and the sentences that stopped a model answering the past from the thread.
+
+**D. Do nothing.** 11,300, 17,500, and 30,000 as measured, four to six
+seconds a request on Luna, and every new tool family adds about 880 tokens
+per turn for good.
+
+### Recommendation, with its caveat
+
+C, then measure. The child agent costs a model turn on the requests it is
+meant to speed up, and what it removes from the other turns is 1,350 tokens
+that the provider caches anyway. The turn count is the lever, and C.2 removes
+a turn from every rule request for 297 tokens; C.1 already removed one from
+any request the model opened with a status read. The caveat: C keeps every
+schema on every turn, so the per-turn floor still grows with the house's
+capabilities. At roughly double today's tool count, B's two-stage loading is
+the mechanism to adopt, and it is a transformer change, not an architecture
+change. A child agent is the answer to a different problem than speed: a
+second voice, a second doctrine, or a second budget, none of which the record
+and the rules need.
+
+### Questions only Greg can answer
+
+1. Is agreement in a later household message fixed as the rule boundary? It
+   sets the floor: a rule is two messages and at least four model turns,
+   whatever else changes.
+2. Should the house block carry each device's observables and the standing
+   rules, at about 320 tokens per turn in the rig house, so a proposal skips
+   the `list_rules` turn?
+3. Is the target seconds or tokens? Per-turn tokens shrink cost; turns shrink
+   seconds. C.2 and C.3 pull in different directions on the first and the same
+   direction on the second.
+4. Should the window forget earlier requests' tool rows while keeping what
+   was said? Dobby would remember answering "who set the thermostat" and not
+   the rows it answered from; the record still holds them.
+5. Does the rotation change the model in force? GLM 5.2 counts a third more
+   tokens for the same prompt at the same speed; Luna is the cheaper per turn
+   today.

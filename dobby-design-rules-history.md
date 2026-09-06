@@ -304,8 +304,14 @@ Timed with no model in the loop: `list_rules` runs in 12 ms and `history` in
 model turn, and the turn count is the multiplier: a history question is two
 turns (extract, then speak), a rule proposal three because the doctrine asks
 for `list_rules` first, propose then confirm five across two household
-messages. The eval report now prints the per-step line, so the next paid run
-shows this for every scenario.
+messages. The eval report now prints the per-step line, and the ten normal-turn
+scenarios run on GLM 5.3 Flash, latency-sorted, showed the same shape: every
+tool in 1 to 4 ms, "set the thermostat to 70" at 4.1 s as two model turns
+of about 2 s each, a terse "72" at 2.7 s, and the tail entirely the model
+thinking, 14.8 s and 18.7 s for one turn each at low effort. Against the
+August line on main (first token 0.69 to 0.85 s per turn) the first token of
+turn one now lands near 2.0 s; the prompt is 38 percent larger per turn, and
+one run cannot split that gap between prompt size, routing, and load.
 
 | Request | Turns | Luna input tokens | GLM 5.2 input tokens | Luna ms | GLM ms |
 |---|---|---|---|---|---|

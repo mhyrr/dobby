@@ -313,6 +313,22 @@ August line on main (first token 0.69 to 0.85 s per turn) the first token of
 turn one now lands near 2.0 s; the prompt is 38 percent larger per turn, and
 one run cannot split that gap between prompt size, routing, and load.
 
+The same ten then ran on main, minutes later, on the same model and routing,
+to put a number on what this branch added. Tokens: 1,970 more per model turn
+on Flash's count, 5,900 to 7,865 in the rig house and 2,850 to 4,830 in the
+two-thermostat house, since it is a constant added to whatever the house
+already carries; roughly the seven schemas at half or more, the two doctrine
+paragraphs at a third, the clock and the block's state for the rest. Turns:
+none. Seconds: not attributable, because main ran slower with the smaller
+prompt, 3.2 s to the first token of turn one against 2.0 s, 19.6 s for "set
+to 70" against 4.4 s, one request that timed out and two that ended with no
+Home Assistant call, where the branch passed all seven. The endpoint's
+variance within one hour is larger than anything two thousand tokens of
+prefill could carry, so the record and the rules made a normal turn a third
+more expensive and, on the evidence, no slower. The speed levers that remain
+are the provider under the model and the reasoning tail, both settings in
+the house file, not the agent's shape.
+
 | Request | Turns | Luna input tokens | GLM 5.2 input tokens | Luna ms | GLM ms |
 |---|---|---|---|---|---|
 | history question | 2 | 11,300 | 15,800 | 3,600 to 6,200 | 1,900 to 11,400 |

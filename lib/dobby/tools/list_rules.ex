@@ -6,7 +6,7 @@ defmodule Dobby.Tools.ListRules do
   use Jido.Action,
     name: "list_rules",
     description:
-      "List standing rules, current notices, and each device's observable names and typed values. Read before proposing or changing a rule. Missing observations are never proof nothing happened.",
+      "List the standing rules, open proposals, standing notices, and each device's observables with their types.",
     schema: []
 
   @behaviour Dobby.Tools
@@ -31,7 +31,7 @@ defmodule Dobby.Tools.ListRules do
        notices: Dobby.Rules.notices(),
        vocabulary: vocabulary,
        absence:
-         "No recorded change to the typed condition; event_kind device_changed, action state_changed. Observation gaps restart the interval."
+         "No recorded change into the condition; a gap in observation restarts the interval."
      }}
   end
 

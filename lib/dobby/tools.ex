@@ -79,6 +79,26 @@ defmodule Dobby.Tools do
 
   def to_percent(value), do: value
 
+  @doc """
+  Drops the fields a model filled in only because the schema named them.
+
+  Some models send every property a schema lists — `""` for a string they
+  have no use for, `[]` for a list, `null` for the rest — and each one then
+  reads as a value the validators must refuse. The refusal is retryable, the
+  model sends the same shape again, and the turn times out. The eval tier
+  watched gpt-5.6-luna do exactly that on 2026-09-06, on every history call.
+  Absence spelled as blank is transport, not intent, so it goes before
+  validation, and validation keeps refusing what is actually wrong.
+  """
+  @spec without_blanks(map()) :: map()
+  def without_blanks(params) when is_map(params),
+    do: Map.reject(params, fn {_key, value} -> blank?(value) end)
+
+  defp blank?(nil), do: true
+  defp blank?([]), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
+
   defp module(tool_name) do
     Enum.find(Dobby.Home.tools(), fn tool -> tool.name() == tool_name end)
   end

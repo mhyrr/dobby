@@ -6,7 +6,7 @@ defmodule Dobby.Tools.ConfirmRule do
   use Jido.Action,
     name: "confirm_rule",
     description:
-      "Confirm a rule proposal only after the household agrees to its exact description in a later message. Starts observing; never commands a device.",
+      "Apply a rule proposal the household has agreed to. Starts the watch; never commands a device.",
     schema: [id: [type: :integer, required: true, doc: "Proposal id returned by propose_rule."]]
 
   @behaviour Dobby.Tools

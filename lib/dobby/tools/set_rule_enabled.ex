@@ -4,9 +4,11 @@ defmodule Dobby.Tools.SetRuleEnabled do
   """
   use Jido.Action,
     name: "set_rule_enabled",
-    description:
-      "Pause or resume an existing rule by exact id. Pause stops watching; resume begins a new observation interval.",
-    schema: [id: [type: :string, required: true], enabled: [type: :boolean, required: true]]
+    description: "Pause or resume one rule by id.",
+    schema: [
+      id: [type: :string, required: true, doc: "Rule id, as listed by list_rules."],
+      enabled: [type: :boolean, required: true]
+    ]
 
   @behaviour Dobby.Tools
   @impl Dobby.Tools

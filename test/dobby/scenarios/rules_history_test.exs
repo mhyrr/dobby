@@ -74,6 +74,70 @@ defmodule Dobby.Scenarios.RulesHistoryTest do
     assert {:ok, %{count: 1}} = Dobby.History.query(%{kind: "rule_breached"})
   end
 
+  test "a rule proposed in this message cannot be confirmed in the same message" do
+    writable_house!()
+    seed_house(%{"climate.main_floor" => thermostat_entity(current: 66, target: 68)})
+    {:ok, speaker} = Conversation.name_speaker("greg")
+
+    said = Utterance.new("greg", "Tell me if the main room drops below 68.")
+
+    # The two halves of one request, as the queue runs them: the words land in
+    # the thread, then Dobby answers them. `Turn.record/2` is where the request
+    # id comes from, and holding it is the only way to put a proposal *inside*
+    # the message the model is about to answer.
+    #
+    # The proposal is made by `Dobby.Rules.propose/2` — the same function
+    # `propose_rule` calls, with the same request id it would pass. The model's
+    # own call cannot be scripted next to the confirm: `expect_react` fixes a
+    # tool call's arguments before the turn runs, and the proposal id does not
+    # exist until it has.
+    {:ok, request_id} = Turn.record(said, speaker)
+
+    {:ok, proposal} =
+      Rules.propose(
+        %{
+          "id" => "cold-room",
+          "name" => "Cold room",
+          "device" => "thermostat:main",
+          "kind" => "state",
+          "attribute" => "current_temperature_f",
+          "operator" => "lt",
+          "value" => 68.0,
+          "duration_seconds" => 0,
+          "source" => said.text
+        },
+        actor: "greg",
+        via: :conversation,
+        request_id: request_id
+      )
+
+    eager =
+      expect_react do
+        user(Utterance.to_message(said))
+        call("confirm_rule", %{"id" => proposal.id})
+        answer("That's written down. Say the word and I'll start watching.")
+      end
+
+    Turn.answer(said, speaker, request_id, react_opts(eager))
+
+    assert Trace.tool_calls() == ["confirm_rule"]
+    assert Rules.list() == []
+    assert Rules.notices() == []
+    assert Repo.get!(Proposal, proposal.id).status == "proposed"
+    assert Repo.get!(Proposal, proposal.id).confirmed_by == nil
+
+    # The refusal is an observation the model has to account for, not a silent
+    # no-op: it is in the record of this request, in the household's words.
+    assert [recorded] =
+             Enum.filter(
+               Dobby.Activity.for_request(request_id),
+               &(&1.kind == "tool_call" and &1.action == "confirm_rule")
+             )
+
+    assert inspect(recorded.result) =~ "wait for the household to agree in a later message"
+    assert Trace.ha_calls() == []
+  end
+
   test "the exported rule schema does not describe typed values or windows as strings" do
     schema = Jido.Action.Schema.to_json_schema(Dobby.Tools.ProposeRule.schema())
     assert schema["properties"]["number_value"]["type"] == "number"

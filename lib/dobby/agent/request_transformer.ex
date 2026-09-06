@@ -92,12 +92,33 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
 
     """
     #{@tag}
+    #{clock()}
     These are the only devices in the house. Use the id when calling a tool.
     A hands-only device may be read, but language callers may not command or schedule it.
 
     #{devices}
     </house>
     """
+  end
+
+  # The one fact about time the model may not have: which day it is. Without
+  # it "September 1st" cannot become an instant, and the eval tier watched the
+  # model ask "which year?" rather than call the record. It lives here, not in
+  # the system prompt, for the same caching reason as the roster.
+  defp clock do
+    local = Dobby.Home.local(DateTime.utc_now())
+
+    "The house clock reads #{Calendar.strftime(local, "%A %Y-%m-%d %H:%M")} " <>
+      "#{local.zone_abbr}, UTC offset #{offset(local)}."
+  end
+
+  defp offset(%DateTime{utc_offset: utc, std_offset: std}) do
+    total = utc + std
+    sign = if total < 0, do: "-", else: "+"
+    hours = total |> abs() |> div(3600)
+    minutes = total |> abs() |> div(60) |> rem(60)
+
+    "#{sign}#{String.pad_leading(Integer.to_string(hours), 2, "0")}:#{String.pad_leading(Integer.to_string(minutes), 2, "0")}"
   end
 
   defp describe(device, nil) do

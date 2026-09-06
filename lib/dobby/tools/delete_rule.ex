@@ -4,8 +4,8 @@ defmodule Dobby.Tools.DeleteRule do
   """
   use Jido.Action,
     name: "delete_rule",
-    description: "Delete a specific standing rule. Be sure which rule the household meant.",
-    schema: [id: [type: :string, required: true]]
+    description: "Delete one rule by id.",
+    schema: [id: [type: :string, required: true, doc: "Rule id, as listed by list_rules."]]
 
   @behaviour Dobby.Tools
   @impl Dobby.Tools

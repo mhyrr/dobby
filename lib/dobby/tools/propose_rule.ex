@@ -3,53 +3,55 @@ defmodule Dobby.Tools.ProposeRule do
   Interpretation ends at a proposal. The returned deterministic description
   is what the household agrees to; no timer starts here. Duration conversion
   belongs to code, so the model copies 'twenty minutes' as 20 and minutes.
+
+  The schema says what each field is and nothing about when to call. The
+  doctrine in `Dobby.DobbyAgent` says when, once: a rule repeated here rides
+  on every request and can drift from the one that counts. Two fields the
+  file carries are set here rather than asked for — an absence rule's event
+  kind and action are constants today, and a model copying two fixed strings
+  is two more ways to get a rule wrong.
   """
   use Jido.Action,
     name: "propose_rule",
     description:
-      "Propose an observation-only standing rule. First read list_rules for observables. Show the returned description and wait for agreement in a later message; proposing starts no watch. For absence, use device_changed/state_changed plus the desired observed predicate. Never convert a request to act into a notice.",
+      "Propose one observation-only standing rule on one device. Returns the exact description the household must agree to; nothing is watched until confirm_rule.",
     schema: [
-      id: [type: :string, required: true, doc: "Stable lowercase rule slug, e.g. garage-open."],
+      id: [type: :string, required: true, doc: "Lowercase slug, e.g. garage-open."],
       name: [type: :string, required: true, doc: "Short household name."],
-      source: [
-        type: :string,
+      device: [type: :string, required: true, doc: "Device id from the roster."],
+      kind: [
+        type: {:in, ["state", "absence"]},
+        required: true,
         doc:
-          "The household's original words, copied exactly. Conversation supplies this automatically."
+          "state: the condition holds for the duration. absence: no change into the condition is recorded for the duration."
       ],
-      device: [type: :string, required: true, doc: "Exact device id from the roster."],
-      kind: [type: {:in, ["state", "absence"]}, required: true],
       attribute: [type: :string, required: true, doc: "Observable name from list_rules."],
       operator: [type: {:in, ["eq", "ne", "gt", "gte", "lt", "lte"]}, required: true],
       number_value: [
         type: :float,
-        doc: "Numeric threshold. Supply exactly one of number_value, boolean_value, state_value."
+        doc: "Threshold for a number observable. Give exactly one of the three value fields."
       ],
-      boolean_value: [type: :boolean, doc: "True or false for a boolean observable."],
-      state_value: [type: :string, doc: "State word from the observable vocabulary."],
-      duration: [type: :integer, doc: "Duration number as spoken; code converts the unit."],
-      duration_unit: [
-        type: {:in, ["seconds", "minutes", "hours", "days"]},
-        doc: "Unit as spoken, paired with duration."
-      ],
-      duration_seconds: [
+      boolean_value: [type: :boolean, doc: "Value for a boolean observable."],
+      state_value: [type: :string, doc: "Word from an enum observable's vocabulary."],
+      duration: [
         type: :integer,
-        doc:
-          "Alternative only for durations stated in seconds. Do not calculate this from another unit."
+        required: true,
+        doc: "Duration as spoken, e.g. 20; 0 for the moment it happens."
       ],
-      unit: [type: :string, doc: "Exact reported environmental measurement unit, when required."],
-      event_kind: [type: :string, doc: "For absence only: device_changed."],
-      action: [type: :string, doc: "For absence only: state_changed."],
-      window_start: [
+      duration_unit: [type: {:in, ["seconds", "minutes", "hours", "days"]}, required: true],
+      unit: [type: :string, doc: "Reported unit of an environmental reading, from list_rules."],
+      source: [
         type: :string,
-        doc: "Optional local HH:MM; pair with window_end. Ask what bedtime means."
+        doc: "The household's words. Filled from the conversation when omitted."
       ],
+      window_start: [type: :string, doc: "Local HH:MM; pair with window_end."],
       window_end: [
         type: :string,
-        doc: "Exclusive local HH:MM end. Earlier than start means overnight."
+        doc: "Local HH:MM, exclusive. Earlier than window_start means overnight."
       ],
       window_days: [
         type: {:list, :integer},
-        doc: "Optional weekdays 1..7, Monday 1; requires start/end. Omit for every day."
+        doc: "Weekdays 1 (Monday) to 7 (Sunday); omit for every day."
       ]
     ]
 
@@ -57,21 +59,55 @@ defmodule Dobby.Tools.ProposeRule do
   @impl Dobby.Tools
   def label(_), do: "writing down a standing rule"
 
+  @seconds %{"seconds" => 1, "minutes" => 60, "hours" => 3600, "days" => 86_400}
+  @absence_event %{"event_kind" => "device_changed", "action" => "state_changed"}
+
   # NimbleOptions has no :number type. :float exports the JSON number schema;
   # normalize JSON integers before validation without adding an absent value.
   @impl true
-  def on_before_validate_params(%{number_value: value} = params) when is_integer(value),
-    do: {:ok, %{params | number_value: value * 1.0}}
+  def on_before_validate_params(params) do
+    params =
+      params |> Dobby.Tools.without_blanks() |> Map.take(Keyword.keys(schema())) |> one_value()
 
-  def on_before_validate_params(params), do: {:ok, params}
+    case params do
+      %{number_value: value} when is_integer(value) ->
+        {:ok, %{params | number_value: value * 1.0}}
+
+      _ ->
+        {:ok, params}
+    end
+  end
+
+  # Three typed slots, and a model that fills all three — `false` and `0` for
+  # the two it did not mean — and a unit ("°F") for a thermostat reading that
+  # takes none. The device's declared observable says which slot carries the
+  # value and whether a unit applies; the rest is filler and goes. When the
+  # device or observable is unknown nothing is dropped, and the later checks
+  # name the fault.
+  defp one_value(%{device: device, attribute: attribute} = params) do
+    with {:ok, %{agent_module: module}} <- Dobby.Home.fetch_device(device),
+         {_key, type} <-
+           Enum.find(module.observables(), fn {key, _} -> Atom.to_string(key) == attribute end) do
+      keep =
+        case type do
+          :boolean -> :boolean_value
+          {:enum, _} -> :state_value
+          _ -> :number_value
+        end
+
+      params = Map.drop(params, [:number_value, :boolean_value, :state_value] -- [keep])
+      if match?({:reading, _}, type), do: params, else: Map.delete(params, :unit)
+    else
+      _ -> params
+    end
+  end
+
+  defp one_value(params), do: params
 
   @impl true
   def run(params, context) do
-    with {:ok, seconds} <- duration(params),
-         {:ok, value} <- value(params),
+    with {:ok, value} <- value(params),
          {:ok, window} <- window(params) do
-      source = context[:utterance_text] || params[:source]
-
       entry =
         params
         |> Map.drop([
@@ -85,11 +121,16 @@ defmodule Dobby.Tools.ProposeRule do
           :window_days
         ])
         |> Map.put(:value, value)
-        |> Map.put(:duration_seconds, seconds)
-        |> Map.put(:source, source)
+        |> Map.put(
+          :duration_seconds,
+          params.duration * Map.fetch!(@seconds, params.duration_unit)
+        )
+        |> Map.put(:source, context[:utterance_text] || params[:source])
         |> Map.new(fn {key, value} -> {to_string(key), value} end)
+        |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
       entry = if window, do: Map.put(entry, "window", window), else: entry
+      entry = if params.kind == "absence", do: Map.merge(entry, @absence_event), else: entry
 
       case Dobby.Rules.propose(entry,
              actor: context[:speaker] || "the household",
@@ -125,22 +166,4 @@ defmodule Dobby.Tools.ProposeRule do
         {:error, "a watch window needs both start and end times"}
     end
   end
-
-  defp duration(%{duration: number, duration_unit: unit} = params)
-       when is_integer(number) and number >= 0 do
-    if Map.has_key?(params, :duration_seconds) do
-      {:error, "supply duration and its unit, or duration_seconds, not both"}
-    else
-      factor = %{"seconds" => 1, "minutes" => 60, "hours" => 3600, "days" => 86400}
-      {:ok, number * Map.fetch!(factor, unit)}
-    end
-  end
-
-  defp duration(%{duration_seconds: seconds} = params) when is_integer(seconds) do
-    if Map.has_key?(params, :duration) or Map.has_key?(params, :duration_unit),
-      do: {:error, "supply one duration"},
-      else: {:ok, seconds}
-  end
-
-  defp duration(_), do: {:error, "state the duration and its unit"}
 end

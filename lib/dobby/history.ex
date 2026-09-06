@@ -22,6 +22,7 @@ defmodule Dobby.History do
   @modes ~w(events count latest duration)
 
   def kinds, do: @kinds
+  def modes, do: @modes
 
   def query(params, opts \\ [])
 

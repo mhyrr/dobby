@@ -145,7 +145,8 @@ defmodule Dobby.Eval.RulesEvalTest do
 
     Trace.reset()
     %{reply: reply} = turn!("maya", "Pause the Cold room rule.")
-    assert "list_rules" in Trace.tool_calls()
+    # Identified from the block's rules line, so the pause is the call (TK-054).
+    assert "set_rule_enabled" in Trace.tool_calls()
     assert [%{id: "cold-room", enabled: false}] = Rules.list()
     assert proposals() == []
     assert Trace.ha_calls() == []
@@ -292,7 +293,7 @@ defmodule Dobby.Eval.RulesEvalTest do
 
     Trace.reset()
     %{reply: reply} = turn!("maya", "What are you keeping an eye on for us?")
-    assert "list_rules" in Trace.tool_calls()
+    # The block names both rules; whether the model also lists is its call.
     assert proposals() == []
     assert length(Rules.list()) == 2
     assert Trace.ha_calls() == []

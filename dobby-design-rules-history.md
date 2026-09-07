@@ -639,3 +639,45 @@ most of it GLM 5.2 at twenty times Flash's price per token. The speed a pin
 buys is bought again on every reply: GLM 5.2 on together answers "set to 70"
 in half Flash's time at about twenty times its cost per token, and Luna on
 Bedrock sits between them on both.
+
+## Decision: the house block names what can be watched — TK-054
+
+Decided 2026-09-07. Option C.2 from the child-agent survey above, agreed in
+direction by Greg on 2026-09-06.
+
+The `list_rules` turn before every proposal was the single largest avoidable
+cost in the rules work — about 5,800 tokens and two to three seconds — and
+it existed for one reason: the observables vocabulary lived only in that
+tool's result. The house block already rendered the schedulable surface per
+device (`can be scheduled to:`), for the same reason and in the same place;
+the observables now ride beside it (`watches: current_temperature_f
+(number), hvac_mode (off/heat/cool/heat_cool/auto/dry/fan_only),
+target_temperature_f (number)`), in the words `list_rules` returns, so the
+model that reads the block and the model that reads the tool see one
+vocabulary. Beneath the roster, one line names the standing rules by id and
+name with paused ones marked, and one the notices standing, by rule id —
+which is what pausing, deleting and acknowledging take. A house with no rules
+costs the words "Standing rules: none."
+
+The doctrine's rule paragraph no longer asks for `list_rules` before a
+proposal; it says to propose from the block, naming the observable exactly
+as the block names it, and to call `list_rules` only when the block's rules
+line does not identify a rule. `SoulTest` pins both sentences, so the turn
+cannot come back without a test saying so. `list_rules` keeps its whole
+vocabulary for the MCP door, whose callers get no house block; the three
+rule tools' `id` docs and `propose_rule`'s `attribute` and `unit` docs name
+the block first and the tool second, since both audiences read them.
+
+The replay tier proves it through `HouseBlockTest`'s probe, which reads the
+messages the runner built rather than calling `render/1`: the thermostat's
+line carries the three observables in the tool's own words, the block lists
+two saved rules with the paused one marked and the standing notice by rule
+id, and a scripted "pause the cold room rule" is one `set_rule_enabled` call
+with no list first. The two-turn scenario in `RulesHistoryTest` now scripts
+the proposal as one call and the answer. Each of the probe's assertions
+fails against the transformer as it was.
+
+Not yet measured against a paid model. The 15 rules scenarios on Luna and
+GLM 5.2 are the run that says whether a proposal is now two turns and a
+pause two, and that run waits for Greg's word; the pause and list scenarios
+no longer assert a `list_rules` call, since the model has the list in hand.

@@ -132,18 +132,22 @@ defmodule Dobby.DobbyAgent do
   A standing rule watches one condition on one device and tells the household
   when it has held, or when no change into it has been recorded, for a stated
   duration. Rules only report. They never change a device, and a request to
-  act is never turned into a rule. Read list_rules first: it has each device's
-  observables, the rules that exist, and the notices standing now. Propose
-  with propose_rule and show the household the description it returns, word
-  for word. The rule watches only once the household agrees in a later
-  message and confirm_rule succeeds; never confirm in the turn that proposed.
-  Ask when the device, the threshold, or a word like bedtime is unstated,
-  and ask when the words fit more than one device on the roster: "the door"
+  act is never turned into a rule. The house block says, per device, what can
+  be watched — "watches:" names each observable with its type or its words —
+  and lists the standing rules and the notices standing now beneath the
+  roster; propose from the block, without listing first. Propose with
+  propose_rule, naming the observable exactly as the block names it, and show
+  the household the description it returns, word for word. The rule watches
+  only once the household agrees in a later message and confirm_rule
+  succeeds; never confirm in the turn that proposed. Ask when the device,
+  the threshold, or a word like bedtime is unstated, and ask when the words
+  fit more than one device on the roster: "the door"
   in a house with two locks is a question, and a rule for either is a guess.
   Combined conditions and calendar deadlines are not supported; ask, rather
   than splitting one request into two rules. A rule starts now, never from a
-  past date. Pause, resume, delete, or acknowledge a rule only once list_rules
-  has identified it. Acknowledging silences one notice; pausing stops the
+  past date. Pause, resume, delete, or acknowledge a rule by the id the
+  block's rules line gives it; call list_rules only when that line does not
+  identify the rule. Acknowledging silences one notice; pausing stops the
   watch until it is resumed.
   """
 

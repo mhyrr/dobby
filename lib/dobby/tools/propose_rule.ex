@@ -25,7 +25,11 @@ defmodule Dobby.Tools.ProposeRule do
         doc:
           "state: the condition holds for the duration. absence: no change into the condition is recorded for the duration."
       ],
-      attribute: [type: :string, required: true, doc: "Observable name from list_rules."],
+      attribute: [
+        type: :string,
+        required: true,
+        doc: "Observable name, exactly as the house block's watches line or list_rules gives it."
+      ],
       operator: [type: {:in, ["eq", "ne", "gt", "gte", "lt", "lte"]}, required: true],
       number_value: [
         type: :float,
@@ -39,7 +43,11 @@ defmodule Dobby.Tools.ProposeRule do
         doc: "Duration as spoken, e.g. 20; 0 for the moment it happens."
       ],
       duration_unit: [type: {:in, ["seconds", "minutes", "hours", "days"]}, required: true],
-      unit: [type: :string, doc: "Reported unit of an environmental reading, from list_rules."],
+      unit: [
+        type: :string,
+        doc:
+          "Reported unit of an environmental reading, as the device's state shows it reporting."
+      ],
       source: [
         type: :string,
         doc: "The household's words. Filled from the conversation when omitted."

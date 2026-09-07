@@ -40,6 +40,20 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   between tool rounds only by state effects the tools themselves returned
   (`evolve_context_state_snapshot/2`, runner.ex:840). A device that moves
   halfway through a turn is in the next turn's block, not this one's.
+
+  ## What else the block carries, and why it is not a tool result
+
+  Beside each device's state, what can be scheduled on it and what can be
+  watched on it; beneath the roster, the standing rules and the notices
+  standing now. The schedulable surface was rendered here first, because a
+  tool schema is fixed at compile time and the answer is a property of the
+  house. The observables and the rules followed for a different reason
+  (TK-054): the vocabulary lived only in `list_rules`'s result, so the doctrine
+  had to ask for that call before every proposal, and every rule request paid
+  a model turn — about 5,800 tokens and two to three seconds — to read a list
+  that was the same on every turn. Rendered here it costs about 300 tokens
+  per turn in the rig house and no turn at all. `list_rules` keeps the same
+  vocabulary for the MCP door, whose callers get no house block.
   """
 
   @behaviour Jido.AI.Reasoning.ReAct.RequestTransformer
@@ -129,8 +143,11 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     #{clock()}
     These are the only devices in the house. Use the id when calling a tool.
     A hands-only device may be read, but language callers may not command or schedule it.
+    "watches:" names what a standing rule may watch on a device, with each observable's type or its words.
 
     #{devices}
+
+    #{rules()}
     </house>
     """
   end
@@ -156,15 +173,63 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   end
 
   defp describe(device, nil) do
-    "- #{device.id} — #{naming(device)}; state not yet known#{access(device)}"
+    "- #{device.id} — #{naming(device)}; state not yet known#{access(device)}#{watches(device)}"
   end
 
   defp describe(device, snapshot) do
-    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{access(device)}"
+    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{access(device)}#{watches(device)}"
   end
 
   defp access(%{hands_only: true}), do: "; hands only"
   defp access(device), do: schedulable(device)
+
+  # What a standing rule may watch on this device, from the type's own
+  # declaration, in the words `Dobby.Tools.ListRules` uses: the observable's
+  # name, and its type or the closed set of words it takes. A reading names no
+  # unit here, because the unit is the device's to report and the state phrase
+  # beside it shows what it reported. Hands-only devices are watchable — a rule
+  # only reports — so this follows the access clause rather than replacing it.
+  defp watches(device) do
+    case device.agent_module.observables() do
+      empty when map_size(empty) == 0 ->
+        ""
+
+      observables ->
+        "; watches: " <>
+          (observables
+           |> Enum.sort_by(fn {name, _type} -> Atom.to_string(name) end)
+           |> Enum.map_join(", ", fn {name, type} -> "#{name} (#{observable_type(type)})" end))
+    end
+  end
+
+  defp observable_type({:enum, words}), do: Enum.map_join(words, "/", &Atom.to_string/1)
+  defp observable_type({:reading, _binding}), do: "number, in the unit the state reports"
+  defp observable_type(type), do: Atom.to_string(type)
+
+  # The rules that exist and the notices standing now, by rule id, which is
+  # what pausing, deleting and acknowledging take. One line each, so a house
+  # with no rules costs a few words and a house with ten costs a hundred.
+  defp rules do
+    rules =
+      case Dobby.Rules.list() do
+        [] ->
+          "Standing rules: none."
+
+        rules ->
+          "Standing rules: " <>
+            Enum.map_join(rules, "; ", fn rule ->
+              ~s(#{rule.id} "#{rule.name}") <> if(rule.enabled, do: "", else: " (paused)")
+            end) <> "."
+      end
+
+    case Dobby.Rules.notices() do
+      [] ->
+        rules
+
+      notices ->
+        rules <> "\nStanding notices: " <> Enum.map_join(notices, ", ", & &1.rule_id) <> "."
+    end
+  end
 
   # What a schedule may aim at this device, straight from the device type's own
   # declaration (§4.2). Rendered here rather than baked into the

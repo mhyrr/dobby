@@ -10,7 +10,11 @@ defmodule Dobby.Tools.AcknowledgeRule do
     description:
       "Silence one rule's standing notice. The rule keeps watching and reports the next occurrence.",
     schema: [
-      id: [type: :string, required: true, doc: "Rule id, as listed by list_rules."]
+      id: [
+        type: :string,
+        required: true,
+        doc: "Rule id, as the house block's rules line or list_rules gives it."
+      ]
     ]
 
   @behaviour Dobby.Tools

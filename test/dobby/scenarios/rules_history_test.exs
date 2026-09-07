@@ -17,10 +17,11 @@ defmodule Dobby.Scenarios.RulesHistoryTest do
         "Tell me immediately if the main room is below 68 degrees Fahrenheit."
       )
 
+    # No list_rules first: the block carries the observables and the standing
+    # rules (TK-054), so a proposal is the one call and the answer.
     proposing =
       expect_react do
         user(Utterance.to_message(said))
-        call("list_rules", %{})
 
         call("propose_rule", %{
           "id" => "cold-room",
@@ -46,13 +47,12 @@ defmodule Dobby.Scenarios.RulesHistoryTest do
     agreed = Utterance.new("greg", "Yes, save that rule.")
 
     # ReActScript indexes responses by all assistant tool turns in the retained
-    # conversation, not just those since the latest user message. The first two
-    # slots account for list_rules and propose_rule from the previous request;
-    # they must not execute again. Keep the agent running to exercise live apply.
+    # conversation, not just those since the latest user message. The first
+    # slot accounts for propose_rule from the previous request; it must not
+    # execute again. Keep the agent running to exercise live apply.
     confirming =
       expect_react do
         user(Utterance.to_message(agreed))
-        call("list_rules", %{})
         call("list_rules", %{})
         call("confirm_rule", %{"id" => proposal.id})
         answer("The cold-room rule is watching.")

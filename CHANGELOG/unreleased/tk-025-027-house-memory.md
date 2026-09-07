@@ -8,6 +8,9 @@
 - The house file can pin the one OpenRouter endpoint that serves the model (`system.provider`), with no fallback to another, so the first word arrives from the same place every time instead of wherever OpenRouter's routing lands that minute. Set it on `/admin` or in the file; it takes effect at the next reply, and a pin the model in force cannot take is refused and named, the way `routing` is.
 - A paid eval sweeps every endpoint under a model and times each one to its first token, so the pin is a measurement and not a guess.
 
+##### Changed
+- Dobby is told, before every turn, what each device can be watched for and which standing rules and notices exist, so asking for a rule no longer costs a turn spent reading the list first: a proposal is two model turns, and a pause or an acknowledgment is two.
+
 ##### Fixed
 - Dobby is shown each device's last known state before every turn. It had been told "state not yet known" for every device since the first release, and asked the device for its status before answering; a question the board could already answer no longer costs that extra round trip.
 

@@ -52,7 +52,11 @@ defmodule Dobby.Scenarios.HouseBlockTest do
       DobbyAgent.RequestTransformer.transform_request(request, state, config, runtime_context)
 
     with {:ok, %{messages: messages}} <- result do
-      send(Map.fetch!(runtime_context, :probe), {:house_request, messages})
+      probe = Map.fetch!(runtime_context, :probe)
+      send(probe, {:house_request, messages})
+      # The whole request, for the scenario that reads more than the block:
+      # the tools the model is offered and the system prompt it is sent.
+      send(probe, {:house_request_whole, %{request | messages: messages}})
     end
 
     result
@@ -119,6 +123,96 @@ defmodule Dobby.Scenarios.HouseBlockTest do
 
     assert Trace.tool_calls() == ["thermostat_get_status"]
     assert Trace.ha_calls() == []
+  end
+
+  # TK-054. The observables lived only in `list_rules`'s result, so the doctrine
+  # asked for that call before every proposal and every rule request paid a
+  # model turn to read a list that never changed. The block carries it now, in
+  # the tool's own words, and a proposal is two turns.
+  test "the block names what each device can be watched for, in the words list_rules uses" do
+    eventually(fn -> agent_state(DobbyAgent.id()) |> Map.get(:world_model) end)
+
+    utterance = Utterance.new("greg", "what can you keep an eye on?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        answer("The thermostat's temperature, its setpoint, and its mode.")
+      end
+
+    assert {:ok, _reply} = DobbyAgent.say(utterance, probing(script))
+    assert_receive {:house_request, messages}, 5_000
+    [_spoken, house | _earlier] = Enum.reverse(messages)
+
+    line = device_line(text(house), @thermostat)
+
+    assert line =~
+             "watches: current_temperature_f (number), " <>
+               "hvac_mode (off/heat/cool/heat_cool/auto/dry/fan_only), " <>
+               "target_temperature_f (number)"
+
+    # The same words the tool returns, so the model that reads the block and
+    # the model that reads the tool see one vocabulary.
+    {:ok, listed} = Dobby.Tools.ListRules.run(%{}, %{})
+    %{observables: observables} = Enum.find(listed.vocabulary, &(&1.device == @thermostat))
+    assert observables[:hvac_mode] == ~w(off heat cool heat_cool auto dry fan_only)
+    assert observables[:current_temperature_f] == "number"
+
+    # And a house with nothing standing says so, in a few words.
+    assert text(house) =~ "Standing rules: none."
+    refute text(house) =~ "Standing notices"
+    assert Trace.tool_calls() == []
+  end
+
+  test "the block lists the standing rules by id, paused ones marked, and the notices standing" do
+    writable_house!()
+    eventually(fn -> agent_state(DobbyAgent.id()) |> Map.get(:world_model) end)
+
+    assert {:ok, _} = Dobby.Rules.save(rule("cold-room", "Cold room", "lt", 70))
+    assert {:ok, _} = Dobby.Rules.save(rule("hot-room", "Hot room", "gt", 80))
+    assert {:ok, _} = Dobby.Rules.set_enabled("hot-room", false)
+
+    # 68 is below 70 with no duration to wait out, so the cold room is a
+    # standing notice by the time the model is asked anything.
+    :ok = Dobby.Rules.Watcher.check()
+    assert [%{rule_id: "cold-room", acknowledged: false}] = Dobby.Rules.notices()
+
+    utterance = Utterance.new("greg", "pause the cold room rule")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("set_rule_enabled", %{"id" => "cold-room", "enabled" => false})
+        answer("Paused the cold room rule.")
+      end
+
+    assert {:ok, _reply} = DobbyAgent.say(utterance, probing(script))
+    assert_receive {:house_request, messages}, 5_000
+    [_spoken, house | _earlier] = Enum.reverse(messages)
+
+    assert text(house) =~
+             ~s(Standing rules: cold-room "Cold room"; hot-room "Hot room" \(paused\).)
+
+    assert text(house) =~ "Standing notices: cold-room."
+
+    # Identified from the block, so the pause is the only call: no list first.
+    assert Trace.tool_calls() == ["set_rule_enabled"]
+
+    assert [%{id: "cold-room", enabled: false}, %{id: "hot-room", enabled: false}] =
+             Dobby.Rules.list()
+  end
+
+  defp rule(id, name, operator, value) do
+    %{
+      "id" => id,
+      "name" => name,
+      "device" => @thermostat,
+      "kind" => "state",
+      "attribute" => "current_temperature_f",
+      "operator" => operator,
+      "value" => value,
+      "duration_seconds" => 0
+    }
   end
 
   # The script, this module as the transformer, and a way back to the test.

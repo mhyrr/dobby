@@ -6,7 +6,11 @@ defmodule Dobby.Tools.SetRuleEnabled do
     name: "set_rule_enabled",
     description: "Pause or resume one rule by id.",
     schema: [
-      id: [type: :string, required: true, doc: "Rule id, as listed by list_rules."],
+      id: [
+        type: :string,
+        required: true,
+        doc: "Rule id, as the house block's rules line or list_rules gives it."
+      ],
       enabled: [type: :boolean, required: true]
     ]
 

@@ -19,8 +19,11 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
   alias Dobby.DobbyAgent.RequestTransformer
 
   describe "the window" do
-    test "leaves a short conversation alone" do
-      messages = conversation(6)
+    test "leaves a short conversation's words alone" do
+      messages =
+        Enum.flat_map(0..2, fn i ->
+          [%{role: :user, content: "turn #{i}"}, %{role: :assistant, content: "right"}]
+        end)
 
       assert RequestTransformer.window(messages) == messages
     end
@@ -81,7 +84,117 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
     end
   end
 
+  # TK-053. Tool traffic is the largest thing in the window and the least
+  # worth remembering: a `list_rules` result is 624 tokens with no rules in it,
+  # and every `history` row set rode on every following turn until it fell
+  # out. What was said is kept; what was fetched to say it is forgotten, and
+  # the record still holds it.
+  describe "what the window remembers of earlier requests" do
+    test "keeps what was said and drops the tool rows, the pair together" do
+      windowed = RequestTransformer.window(conversation(12))
+
+      refute Enum.any?(windowed, &(role(&1) == :tool))
+      refute Enum.any?(windowed, &tool_calls?/1)
+
+      # The words, in the order they were said: nothing but the current
+      # request has a tool row left, and it has none of its own here.
+      assert Enum.map(windowed, &{role(&1), &1.content}) == [
+               {:user, "turn 0"},
+               {:assistant, "it is 68"},
+               {:user, "turn 1"},
+               {:assistant, "right"},
+               {:user, "turn 2"},
+               {:assistant, "it is 68"},
+               {:user, "turn 3"},
+               {:assistant, "right"}
+             ]
+    end
+
+    test "the current request keeps its own tool traffic, which the model asked for" do
+      # Mid-loop: the person spoke, the model called a tool, the result is
+      # back, and the model has not answered yet. This is the request the
+      # transformer is building, and the result is the whole reason for the
+      # next model turn.
+      current = [
+        %{role: :user, content: "who set the thermostat?"},
+        %{role: :assistant, content: nil, tool_calls: [%{id: "call_now"}]},
+        %{role: :tool, tool_call_id: "call_now", name: "history", content: "rows"}
+      ]
+
+      windowed = RequestTransformer.window(conversation(8) ++ current)
+
+      assert Enum.take(windowed, -3) == current
+      assert_no_orphans(windowed, "a request mid-loop")
+      assert Enum.count(windowed, &(role(&1) == :tool)) == 1
+    end
+
+    test "words said beside a tool call stay, without the call" do
+      earlier = [
+        %{role: :user, content: "is it warm?"},
+        %{role: :assistant, content: "Checking.", tool_calls: [%{id: "call_a"}]},
+        %{role: :tool, tool_call_id: "call_a", name: "thermostat_get_status", content: "68"},
+        %{role: :assistant, content: "It is 68."}
+      ]
+
+      current = [%{role: :user, content: "and now?"}]
+
+      assert RequestTransformer.window(earlier ++ current) == [
+               %{role: :user, content: "is it warm?"},
+               %{role: :assistant, content: "Checking."},
+               %{role: :assistant, content: "It is 68."},
+               %{role: :user, content: "and now?"}
+             ]
+    end
+
+    test "an earlier house block is not conversation" do
+      earlier = [
+        %{role: :user, content: "<house>\nold roster\n</house>"},
+        %{role: :user, content: "[greg] hello"},
+        %{role: :assistant, content: "Hello, Greg."}
+      ]
+
+      current = [
+        %{role: :user, content: "<house>\nnewer roster\n</house>"},
+        %{role: :user, content: "[greg] still there?"}
+      ]
+
+      windowed = RequestTransformer.window(earlier ++ current)
+
+      refute Enum.any?(windowed, &String.starts_with?(&1.content || "", "<house>"))
+      assert List.last(windowed) == %{role: :user, content: "[greg] still there?"}
+      assert length(windowed) == 3
+    end
+
+    test "the cap applies to what is left, and still starts at somebody speaking" do
+      # 402 ends on a plain exchange, so the current request has no tool rows
+      # of its own to keep and the whole window should be words.
+      windowed = RequestTransformer.window(conversation(402))
+
+      assert length(windowed) <= Conversation.window()
+      assert %{role: :user} = List.first(windowed)
+      refute Enum.any?(windowed, &(role(&1) == :tool))
+    end
+
+    # The same policy at the other moment (`Dobby.Conversation.window/0`):
+    # boot rehydration replays only what people and Dobby said, so what boot
+    # remembers is already in the shape the window keeps, and the window
+    # leaves it alone.
+    test "what boot remembers is already in the shape the window keeps" do
+      remembered =
+        Enum.flat_map(0..9, fn i ->
+          [%{role: :user, content: "[greg] turn #{i}"}, %{role: :assistant, content: "ok #{i}"}]
+        end)
+
+      assert RequestTransformer.window(remembered) == remembered
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
+
+  defp role(%{role: role}), do: role
+
+  defp tool_calls?(%{tool_calls: calls}) when is_list(calls), do: calls != []
+  defp tool_calls?(_message), do: false
 
   # Turns as the ReAct strategy actually accumulates them: somebody speaks,
   # the model calls a tool, the result comes back, the model answers. Every

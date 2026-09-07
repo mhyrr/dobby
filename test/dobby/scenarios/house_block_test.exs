@@ -31,9 +31,12 @@ defmodule Dobby.Scenarios.HouseBlockTest do
 
   use Dobby.RigCase, async: false
 
+  import Ecto.Query
   import Jido.AI.Test
 
-  alias Dobby.{DobbyAgent, Utterance}
+  alias Dobby.{Conversation, DobbyAgent, Repo, Rules, Utterance}
+  alias Dobby.Conversation.Turn
+  alias Dobby.Rules.Proposal
 
   @behaviour Jido.AI.Reasoning.ReAct.RequestTransformer
 
@@ -251,6 +254,74 @@ defmodule Dobby.Scenarios.HouseBlockTest do
 
     assert [%{id: "cold-room", enabled: false}, %{id: "hot-room", enabled: false}] =
              Dobby.Rules.list()
+  end
+
+  # TK-053. The window forgets earlier requests' tool rows and keeps what was
+  # said, and the one thing a tool row carried that a later turn needs — a
+  # proposal id — reaches the model from the block instead. Two household
+  # turns through the thread's own path, with the probe on both.
+  test "a proposal id outlives the tool result that made it, and the tool rows do not" do
+    writable_house!()
+    eventually(fn -> agent_state(DobbyAgent.id()) |> Map.get(:world_model) end)
+    {:ok, speaker} = Conversation.name_speaker("greg")
+
+    said = Utterance.new("greg", "Tell me if the main room drops below 68.")
+
+    proposing =
+      expect_react do
+        user(Utterance.to_message(said))
+
+        call("propose_rule", %{
+          "id" => "cold-room",
+          "name" => "Cold room",
+          "device" => @thermostat,
+          "kind" => "state",
+          "attribute" => "current_temperature_f",
+          "operator" => "lt",
+          "number_value" => 68,
+          "duration" => 0,
+          "duration_unit" => "seconds"
+        })
+
+        answer("I'll tell the house as soon as the main room is below 68°F. Shall I save that?")
+      end
+
+    Turn.run(said, speaker, probing(proposing))
+    assert_receive {:house_request, _proposing_turn}, 5_000
+    assert_receive {:house_request, _answering_turn}, 5_000
+    assert [proposal] = Repo.all(from(p in Proposal, where: p.status == "proposed"))
+
+    agreed = Utterance.new("greg", "Yes, save that.")
+
+    # The confirmation, with the id the block gave. No slot stands in for the
+    # previous request's tool turn: the script indexes the request it answers,
+    # and the window has forgotten that turn.
+    confirming =
+      expect_react do
+        user(Utterance.to_message(agreed))
+        call("confirm_rule", %{"id" => proposal.id})
+        answer("The cold-room rule is watching.")
+      end
+
+    Trace.reset()
+    Turn.run(agreed, speaker, probing(confirming))
+    assert_receive {:house_request, messages}, 5_000
+
+    # What was said, and nothing that was fetched to say it.
+    refute Enum.any?(messages, &(&1[:role] == :tool))
+    refute Enum.any?(messages, &(is_list(&1[:tool_calls]) and &1[:tool_calls] != []))
+    assert Enum.any?(messages, &(text(&1) =~ "Shall I save that?"))
+    assert Enum.any?(messages, &(text(&1) == Utterance.to_message(said)))
+
+    # And the id, in the block, on the turn the household said yes.
+    [_spoken, house | _earlier] = Enum.reverse(messages)
+
+    assert text(house) =~
+             "Rule proposals awaiting agreement, by proposal id for confirm_rule: " <>
+               ~s(#{proposal.id} — rule cold-room "Cold room".)
+
+    assert Trace.tool_calls() == ["confirm_rule"]
+    assert [%{id: "cold-room"}] = Rules.list()
   end
 
   defp rule(id, name, operator, value) do

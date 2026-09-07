@@ -76,7 +76,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   defp world_model(_runtime_context), do: %{}
 
   @doc """
-  Caps the conversation this request carries (`TK-007`).
+  What of the conversation this request carries (`TK-007`, `TK-053`).
 
   `Jido.AI.Context` says of itself "no policies, no windowing, just data", and
   both callers inside jido_ai project it with no limit. So without this a
@@ -85,7 +85,29 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   The window is `Dobby.Conversation.window/0` — the same number the boot-time
   rehydration reads, because it is the same policy at two moments.
 
-  ## Why it cannot just keep the last N
+  ## What it forgets first
+
+  Earlier requests' tool traffic. Tool results are the largest thing in the
+  window and the least worth remembering: a `list_rules` result was 624
+  tokens with no rules in it, and every `history` row set rode on every
+  following turn until it fell out of the forty. So for every request before
+  the current one, what was said is kept — the person's words, and the
+  assistant's words, with a `tool_calls` field stripped off any message that
+  carried both — and the assistant's tool calls and their results go
+  together, never one without the other. The current request keeps all of
+  its own traffic: the model asked for that result a moment ago and the next
+  turn is about it. The record still holds every dropped row, and the
+  doctrine already says the past is answered from history, never from the
+  thread.
+
+  A proposal id survives the forgetting by a different route: the house
+  block lists every proposal awaiting agreement on every turn, so a
+  `confirm_rule` the turn after a `propose_rule` reads the id from the block
+  and not from a tool result that is no longer there. The boot rehydration
+  replays only what people and Dobby said, so what boot remembers is already
+  in the shape this keeps.
+
+  ## Why the cap cannot just keep the last N
 
   The projection contains tool traffic: an assistant message carrying
   `tool_calls`, then a `%{role: :tool, tool_call_id: ...}` answering it. Cut
@@ -106,9 +128,69 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   @spec window([map()]) :: [map()]
   def window(messages) do
     case messages do
-      [%{role: :system} = system | rest] -> [system | trim(rest, Dobby.Conversation.window())]
-      rest -> trim(rest, Dobby.Conversation.window())
+      [%{role: :system} = system | rest] -> [system | remembered(rest)]
+      rest -> remembered(rest)
     end
+  end
+
+  defp remembered(messages) do
+    messages
+    |> forget_earlier_tool_rows()
+    |> trim(Dobby.Conversation.window())
+  end
+
+  # The current request begins at the last thing somebody said. Everything
+  # before it is kept as words alone.
+  defp forget_earlier_tool_rows(messages) do
+    case last_utterance_index(messages) do
+      nil ->
+        messages
+
+      index ->
+        {earlier, current} = Enum.split(messages, index)
+        Enum.flat_map(earlier, &said/1) ++ current
+    end
+  end
+
+  defp said(message) do
+    case {role(message), spoken?(message), calls?(message)} do
+      # A person's words, unless they are a house block from an earlier
+      # turn, which `inject/2` would drop anyway and which is not
+      # conversation.
+      {:user, _spoken, _calls} -> if house_block?(message), do: [], else: [message]
+      # Words said beside a tool call stay as words; the call goes.
+      {:assistant, true, true} -> [Map.delete(message, :tool_calls)]
+      # A tool call with nothing said, and the result that answered it.
+      {:assistant, false, true} -> []
+      {:tool, _spoken, _calls} -> []
+      _said -> [message]
+    end
+  end
+
+  defp calls?(%{tool_calls: calls}) when is_list(calls), do: calls != []
+  defp calls?(_message), do: false
+
+  # Content is a string or a list of ReqLLM content parts, depending on how
+  # the entry reached the context, and an assistant message that only called
+  # a tool carries nil or "".
+  defp spoken?(message) do
+    case content(message) do
+      text when is_binary(text) -> String.trim(text) != ""
+      parts when is_list(parts) -> Enum.any?(parts, &spoken_part?/1)
+      _other -> false
+    end
+  end
+
+  defp spoken_part?(%{text: text}) when is_binary(text), do: String.trim(text) != ""
+  defp spoken_part?(text) when is_binary(text), do: String.trim(text) != ""
+  defp spoken_part?(_part), do: false
+
+  defp last_utterance_index(messages) do
+    messages
+    |> Enum.with_index()
+    |> Enum.reduce(nil, fn {message, index}, acc ->
+      if role(message) == :user and not house_block?(message), do: index, else: acc
+    end)
   end
 
   defp trim(messages, limit) do
@@ -222,13 +304,40 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
             end) <> "."
       end
 
-    case Dobby.Rules.notices() do
-      [] ->
-        rules
+    notices =
+      case Dobby.Rules.notices() do
+        [] -> ""
+        notices -> "\nStanding notices: " <> Enum.map_join(notices, ", ", & &1.rule_id) <> "."
+      end
 
-      notices ->
-        rules <> "\nStanding notices: " <> Enum.map_join(notices, ", ", & &1.rule_id) <> "."
-    end
+    rules <> notices <> proposals()
+  end
+
+  # Every proposal awaiting agreement, with the id the confirming tool takes.
+  # Here on every turn rather than in the tool result that made it, because
+  # the window forgets earlier requests' tool results (`window/1`) and the
+  # agreement comes in a later message by design: the id has to be in front
+  # of the model on the turn the household says yes, and this is the only
+  # message that is. Costs nothing while nothing is proposed.
+  defp proposals do
+    rules =
+      Enum.map_join(Dobby.Rules.proposals(), "; ", fn proposal ->
+        ~s(#{proposal.id} — rule #{proposal.rule["id"]} "#{proposal.rule["name"]}")
+      end)
+
+    devices =
+      Dobby.HomeConfig.Proposals.outstanding()
+      |> Enum.reject(&Dobby.HomeConfig.Proposals.expired?/1)
+      |> Enum.map_join("; ", fn proposal ->
+        ~s(#{proposal.id} — device #{proposal.device_id} "#{proposal.name}")
+      end)
+
+    [
+      {"Rule proposals awaiting agreement, by proposal id for confirm_rule: ", rules},
+      {"Device proposals awaiting agreement, by proposal id for confirm_device: ", devices}
+    ]
+    |> Enum.reject(fn {_label, listed} -> listed == "" end)
+    |> Enum.map_join("", fn {label, listed} -> "\n" <> label <> listed <> "." end)
   end
 
   # What a schedule may aim at this device, straight from the device type's own

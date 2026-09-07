@@ -46,14 +46,14 @@ defmodule Dobby.Scenarios.RulesHistoryTest do
 
     agreed = Utterance.new("greg", "Yes, save that rule.")
 
-    # ReActScript indexes responses by all assistant tool turns in the retained
-    # conversation, not just those since the latest user message. The first
-    # slot accounts for propose_rule from the previous request; it must not
-    # execute again. Keep the agent running to exercise live apply.
+    # ReActScript indexes responses by the assistant tool turns in the request
+    # it is answering. Since the window forgets earlier requests' tool rows
+    # (TK-053) that is this request's alone, so no slot stands in for the
+    # previous request's propose_rule. Keep the agent running to exercise
+    # live apply.
     confirming =
       expect_react do
         user(Utterance.to_message(agreed))
-        call("list_rules", %{})
         call("confirm_rule", %{"id" => proposal.id})
         answer("The cold-room rule is watching.")
       end

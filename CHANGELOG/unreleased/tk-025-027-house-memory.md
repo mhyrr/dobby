@@ -11,6 +11,7 @@
 
 ##### Changed
 - Dobby is told, before every turn, what each device can be watched for and which standing rules and notices exist, so asking for a rule no longer costs a turn spent reading the list first: a proposal is two model turns, and a pause or an acknowledgment is two.
+- Dobby remembers what was said in the thread and forgets what it fetched to say it: earlier requests' tool calls and their results leave the conversation it carries to the model, while the words stay. The record still holds every row, and a rule or device proposal awaiting agreement is listed before every turn with the id its confirmation takes, so saying yes a message later still lands.
 
 ##### Fixed
 - Dobby is shown each device's last known state before every turn. It had been told "state not yet known" for every device since the first release, and asked the device for its status before answering; a question the board could already answer no longer costs that extra round trip.

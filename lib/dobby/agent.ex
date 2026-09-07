@@ -139,7 +139,9 @@ defmodule Dobby.DobbyAgent do
   propose_rule, naming the observable exactly as the block names it, and show
   the household the description it returns, word for word. The rule watches
   only once the household agrees in a later message and confirm_rule
-  succeeds; never confirm in the turn that proposed. Ask when the device,
+  succeeds; never confirm in the turn that proposed. The block lists every
+  proposal awaiting agreement with the proposal id confirm_rule and
+  confirm_device take; read the id from there. Ask when the device,
   the threshold, or a word like bedtime is unstated, and ask when the words
   fit more than one device on the roster: "the door"
   in a house with two locks is a question, and a rule for either is a guess.

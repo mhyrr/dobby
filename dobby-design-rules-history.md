@@ -717,3 +717,49 @@ Not measured yet: the live-house week the ticket asks for, which is a
 number that accrues rather than one a run produces. The trim (TK-053) is the
 change that number was going to size; it is taken on the survey's reasoning
 instead, and the row will say afterwards what it was worth.
+
+## Decision: the window keeps what was said — TK-053
+
+Decided 2026-09-07. Option C.3 from the survey above, agreed in direction by
+Greg on 2026-09-06 (question 4: Dobby remembers answering "who set the
+thermostat" and not the rows it answered from; the record still holds them).
+
+The forty-message window counted tool traffic, so a `list_rules` result of
+624 tokens with no rules in it and every `history` row set rode on every
+following turn until they fell out — and the evals never saw it, because
+they restart the house per scenario. `RequestTransformer.window/1` now
+forgets, for every request before the current one, the assistant's tool
+calls and their results together, never one without the other, since a
+provider rejects an orphaned result outright; keeps the person's words and
+the assistant's words, stripping `tool_calls` off a message that carried
+both; drops an earlier turn's house block, which is not conversation; and
+keeps the current request's own traffic whole, because the model asked for
+that result a moment ago and the next turn is about it. The forty-message
+cap then applies to what remains, still cutting at somebody speaking. Boot
+rehydration replays only what people and Dobby said, so what boot remembers
+was already in this shape, and the window leaves it alone — the same policy
+at two moments, now the same shape too.
+
+The ticket's open question was the proposal id: `propose_rule` returns it
+in a tool result, the agreement comes in a later message by design, and the
+reply shows the household the description word for word rather than a
+number. The ticket offered two answers — keep that one tool result, or put
+the id in the reply — and this takes a third, the one TK-054 had just made
+natural: the house block lists every proposal awaiting agreement, rule and
+device, with the id the confirming tool takes, on every turn until it is
+confirmed or expires. The window can then forget uniformly, the id is in
+front of the model on the turn the household says yes and on no other, and
+it costs nothing while nothing is proposed. The doctrine's rule paragraph
+says to read the id from there.
+
+Proven in the replay tier: the window's own tests (the pair goes together,
+words beside a call stay as words, the current request keeps its traffic,
+an earlier block is not conversation, the cap still starts at somebody
+speaking, and boot's shape passes through unchanged), and a probe scenario
+that runs a proposal and its agreement as two household turns through the
+thread's own path and reads the second request as the runner built it: no
+tool row and no tool call from the first request, the words of both
+present, the proposal named in the block with its id, and `confirm_rule`
+the only call. Unmeasured in a live house, by construction; the request row
+TK-052 writes is what will say what it was worth, once a house has talked
+for a day.

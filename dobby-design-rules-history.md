@@ -469,3 +469,173 @@ and the rules need.
 5. Does the rotation change the model in force? GLM 5.2 counts a third more
    tokens for the same prompt at the same speed; Luna is the cheaper per turn
    today.
+
+## Decision: the endpoint under each model is measured and pinned — TK-051
+
+Decided 2026-09-07, from one sweep per model. Greg's standing decisions
+frame it: the model is project configuration (`system.model`, or
+`DOBBY_MODEL` over it, as TK-037's `model_in_force` resolves it), never
+chosen per turn; the models in force are GLM 5.2, GLM 5.3 Flash, and Luna;
+reasoning stays low; the provider pin and the reasoning setting sit under
+the model in the same file.
+
+### What was measured
+
+`Dobby.Eval.ProviderEvalTest`, one run per endpoint per model, with Greg's
+authorisation. The endpoint list is OpenRouter's own listing for the model
+(`/api/v1/models/{model}/endpoints`), read at run time and never written
+down: 24 endpoints under Flash, 31 under GLM 5.2, 7 under Luna. Per
+endpoint, the three streaming scenarios once at low effort, each pinned
+with `provider.order` of one and `allow_fallbacks: false` — "set the
+thermostat to 70", "what can you do?", and "set to 70" again — with the
+streaming tier's invariants as the pass mark, then one more "set to 70" at
+effort none, judged on the doctrine. Every request started a fresh house, so
+every endpoint was sent the same first-turn prompt: 15,600 input tokens over
+two turns on GLM's count, 11,200 on Luna's. First token is measured from the
+model call that produced it, per turn; the median is over the five turns the
+three low-effort runs make.
+
+The first attempt died at endpoint five: the test sandbox's ownership timeout
+is two minutes, and one sweep is one test. `Dobby.RigCase` now turns that
+timeout off and lets ExUnit's be the bound; the two endpoints cut mid-run
+(z-ai/fp8 under Flash, deepinfra/fp4 under GLM 5.2) were run again whole, and
+the tables below merge the two attempts.
+
+### GLM 5.3 Flash, 24 endpoints, 15 passed
+
+| Endpoint | First token p50 | Worst turn | Set to 70 | What can you do |
+|---|---|---|---|---|
+| wafer | 517 ms | 978 ms | 2,179 ms | 8,301 ms |
+| fireworks | 820 ms | 5,385 ms | 4,245 ms | 2,468 ms |
+| sail-research/fp8 | 826 ms | 2,700 ms | 2,738 ms | 2,886 ms |
+| io-net/fp8 | 865 ms | 1,316 ms | 1,886 ms | 2,309 ms |
+| parasail/fp8 | 998 ms | 4,149 ms | 3,569 ms | 5,181 ms |
+| coreweave/fp8 | 1,183 ms | 3,335 ms | 3,488 ms | 4,573 ms |
+| relace/fp4 | 1,279 ms | 2,669 ms | 2,950 ms | 4,496 ms |
+| reka/fp8 | 2,195 ms | 3,289 ms | 3,433 ms | 6,588 ms |
+| streamlake/fp8 | 4,390 ms | 5,364 ms | 8,352 ms | 9,780 ms |
+| z-ai/fp8 | 4,521 ms | 6,494 ms | 9,180 ms | 9,855 ms |
+| novita/fp8 | 4,569 ms | 7,284 ms | 9,168 ms | 8,747 ms |
+| deepinfra/fp4 | 4,605 ms | 6,924 ms | 11,290 ms | 9,325 ms |
+| siliconflow/fp8 | 4,652 ms | 4,974 ms | 8,212 ms | 11,442 ms |
+| nextbit/fp8 | 4,751 ms | 4,973 ms | 8,463 ms | 8,402 ms |
+| gmicloud/fp8 | 5,578 ms | 6,572 ms | 11,817 ms | 10,427 ms |
+
+Nine failed the invariants, none on judgment: makora, modal/fp8 and
+digitalocean answered 429 on every request ("temporarily rate-limited
+upstream", OpenRouter's shared pool for that provider), baseten/fp8,
+cloudflare, together and morph/fp8 on some, and friendli and venice never
+answered inside the 30-second request timeout. The model's own endpoint,
+z-ai/fp8, sits at 4.5 s to the first token. The spread between the fastest
+and the slowest passing endpoint is a factor of ten, on one model, in one
+quarter of an hour.
+
+Effort none: refused by all 24, in about 60 ms, by OpenRouter itself
+("Reasoning is mandatory for this endpoint and cannot be disabled", no
+provider named). It is the model card, not an endpoint.
+
+### GLM 5.2, 31 endpoints, 29 passed
+
+| Endpoint | First token p50 | Worst turn | Set to 70 | What can you do | Effort none |
+|---|---|---|---|---|---|
+| together | 274 ms | 478 ms | 1,099 ms | 2,726 ms | holds, 1,133 ms |
+| digitalocean | 448 ms | 611 ms | 1,773 ms | 2,298 ms | holds, 7,566 ms |
+| friendli | 458 ms | 1,119 ms | 1,754 ms | 2,135 ms | holds, 1,488 ms |
+| fireworks | 551 ms | 1,110 ms | 1,825 ms | 3,640 ms | narrated |
+| coreweave/fp4 | 606 ms | 4,186 ms | 3,039 ms | 1,565 ms | narrated |
+| alibaba/fast | 608 ms | 902 ms | 1,920 ms | 2,491 ms | narrated |
+| mistral | 611 ms | 698 ms | 1,417 ms | 1,545 ms | holds, 1,459 ms |
+| inceptron/fp4 | 645 ms | 881 ms | 2,041 ms | 3,345 ms | holds, 1,918 ms |
+| mistral/zdr | 676 ms | 1,341 ms | 1,897 ms | 1,643 ms | narrated |
+| decart/fast | 679 ms | 710 ms | 1,525 ms | 1,017 ms | narrated |
+| crusoe/fp8 | 699 ms | 794 ms | 1,709 ms | 2,094 ms | narrated |
+| parasail/fp4 | 740 ms | 940 ms | 1,819 ms | 2,469 ms | holds, 1,457 ms |
+| mistral/eu | 816 ms | 1,149 ms | 1,995 ms | 1,238 ms | narrated |
+| alibaba/fp8 | 861 ms | 1,778 ms | 2,862 ms | 3,425 ms | narrated |
+| deepinfra/fp4 | 908 ms | 3,905 ms | 3,462 ms | 4,284 ms | holds, 4,229 ms |
+| ambient/fp8 | 991 ms | 4,669 ms | 4,836 ms | 4,974 ms | narrated |
+| siliconflow/fp8 | 1,013 ms | 1,475 ms | 2,461 ms | 4,673 ms | narrated |
+| baidu/fp4 | 1,076 ms | 1,363 ms | 2,551 ms | 3,019 ms | narrated |
+| baseten/fast | 1,080 ms | 1,680 ms | 2,372 ms | 2,387 ms | holds, 2,577 ms |
+| baidu/fp8 | 1,168 ms | 1,491 ms | 2,900 ms | 4,668 ms | narrated |
+| venice/fp8 | 1,219 ms | 1,500 ms | 3,749 ms | 4,694 ms | holds, 3,160 ms |
+| atlas-cloud/fp8 | 1,589 ms | 1,721 ms | 3,539 ms | 4,002 ms | narrated |
+| gmicloud/fp8 | 1,711 ms | 2,145 ms | 3,835 ms | 8,833 ms | holds, 4,857 ms |
+| phala/fp8 | 1,898 ms | 2,243 ms | 4,381 ms | 4,018 ms | narrated |
+| cloudflare | 2,029 ms | 4,455 ms | 5,412 ms | 4,901 ms | timed out |
+| novita/fp8 | 2,106 ms | 2,276 ms | 4,913 ms | 4,258 ms | narrated |
+| z-ai/fp8 | 2,123 ms | 4,957 ms | 5,390 ms | 6,144 ms | narrated |
+| baseten/fp8 | 2,512 ms | 3,050 ms | 5,876 ms | 1,591 ms | holds, 3,201 ms |
+| streamlake/fp8 | 4,996 ms | 7,856 ms | 11,576 ms | 6,162 ms | narrated |
+
+fireworks/fast-us and fireworks/fast answered 429 on every request. Pinned
+to together, "set the thermostat to 70" is done in 1.1 s, against 4.1 s on
+Flash under latency routing on 2026-09-06 and 3.6 to 6.2 s for a two-turn
+request on Luna in the table above; the same model on streamlake takes
+11.6 s. Effort none was accepted by 28 endpoints, and the doctrine held on
+every one: no reply claimed a reading it had not taken, and the judge said
+so 28 times. What broke was the shape. On 17 of the 28 the first turn
+streamed "Setting the main thermostat to 70°, Greg." as content before the
+tool call, and the second turn said "Done — thermostat's set to 70°"; the
+thread would paint both, and the streaming tier's first invariant — an
+actuating turn calls the tool and says nothing first — is exactly the one
+that fails. Eleven endpoints kept the shape with thinking off, and which
+eleven does not follow the price, the quantisation, or the speed. On
+together, none took 1,133 ms against 1,099 at low: thinking at low effort
+was already costing this model nothing on this turn.
+
+### Luna, 7 endpoints, 4 passed
+
+| Endpoint | First token p50 | Worst turn | Set to 70 | What can you do | Effort none |
+|---|---|---|---|---|---|
+| amazon-bedrock/us-east-1 | 674 ms | 1,896 ms | 1,304 ms | 1,977 ms | holds, 1,326 ms |
+| openai/fast | 1,132 ms | 1,369 ms | 3,201 ms | 1,660 ms | holds, 2,559 ms |
+| azure/eu | 1,454 ms | 1,488 ms | 3,278 ms | 2,017 ms | holds, 3,488 ms |
+| openai | 1,469 ms | 1,655 ms | 3,405 ms | 2,096 ms | holds, 6,579 ms |
+
+azure and azure/us answered 429 on nearly every request, and openai/flex
+passed two runs and let the third sit for 42 s before the timeout. Luna holds
+its shape with thinking off — the tool first, then "Setting the downstairs
+thermostat to 70°, Greg." — and gains nothing by it: 1,326 ms against 1,304
+on Bedrock. Four endpoints is a small list, and Bedrock's 674 ms comes with
+the widest worst turn of the four.
+
+### The decisions
+
+**Pin by first-token median, one per model, in the house file.** Flash:
+`wafer`, in `config/homes/local.yaml` today. GLM 5.2: `together`. Luna:
+`amazon-bedrock/us-east-1`. The setting is `system.provider`, a slug as
+OpenRouter's listing writes it, translated by `Dobby.HomeConfig.System` to
+`provider.order` of one with `allow_fallbacks` off — the shape the model
+settings eval had already proven on the wire by pinning a provider that does
+not exist. It is refused on a model not reached through OpenRouter in the
+words the file used, at boot and on save, exactly as `routing` is; it
+applies live; `/admin` grows the box from the schema. The caveat is the one
+the pin buys: no fallback. Nine of Flash's endpoints were refusing for a
+minute at a time during the sweep, and wafer's listed uptime over the
+previous half hour was 96 percent, the lowest under Flash. io-net/fp8 is the
+alternative with the tightest worst turn (865 ms median, 1,316 ms worst) and
+99 percent; swapping is one word in the file, and the house file says so
+beside the pin. Routing is left out of the local house on purpose: with a
+pin in force the sort has nothing to choose, and both are still sent if both
+are written, because the file's words all travel.
+
+**Reasoning stays low, and none is not a file word.** Flash cannot take it.
+GLM 5.2 takes it and narrates before the tool on 17 of 28 endpoints, and on
+the pinned endpoint it saved nothing. Luna takes it, holds, and saved
+nothing either. A setting that changes the shape of an actuating turn on
+more than half the endpoints of one model, for no measured gain, is not
+offered to the household as a word. The lever left unpulled is a thinking
+budget: OpenRouter takes `reasoning.max_tokens`, and ReqLLM's OpenRouter
+provider deletes `reasoning_token_budget` in `translate_options/3` rather
+than sending it, so reaching it means a provider option ReqLLM does not have
+today, and a paid run nobody has authorised.
+
+**The record, and what it cost.** Both tables are one afternoon's; the eval
+reruns in two to eight minutes per model, and `DOBBY_EVAL_PROVIDERS` names a
+subset. The sweep cost about 1.1 million input tokens on Flash, 1.5 million
+on GLM 5.2, and 250 thousand on Luna, roughly two and a half dollars in all,
+most of it GLM 5.2 at twenty times Flash's price per token. The speed a pin
+buys is bought again on every reply: GLM 5.2 on together answers "set to 70"
+in half Flash's time at about twenty times its cost per token, and Luna on
+Bedrock sits between them on both.

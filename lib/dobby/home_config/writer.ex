@@ -324,8 +324,8 @@ defmodule Dobby.HomeConfig.Writer do
   # The `:capable` alias is a system setting that is only ever read at the
   # moment it is used, which is exactly why design §2.1 made the agent name an
   # alias instead of a provider: swapping the model is configuration, and here
-  # it is configuration that does not need a restart. `reasoning` and `routing`
-  # reach the model the same way, as options on each request.
+  # it is configuration that does not need a restart. `reasoning`, `routing`
+  # and `provider` reach the model the same way, as options on each request.
   defp apply_system(previous, incoming) do
     exported_model = System.get_env("DOBBY_MODEL")
 
@@ -338,7 +338,7 @@ defmodule Dobby.HomeConfig.Writer do
       end
 
     changed_options =
-      for field <- [:reasoning, :routing],
+      for field <- [:reasoning, :routing, :provider],
           Map.get(incoming, field) != Map.get(previous, field),
           do: field
 

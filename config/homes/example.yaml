@@ -210,6 +210,13 @@ system:
   # model: openrouter:z-ai/glm-5.3-flash
   # reasoning: low       # how hard the model thinks first: low, medium or high
   # routing: latency     # what OpenRouter optimizes for: latency, throughput or price
+  #
+  # Or name the one endpoint that serves the model and forbid a fallback, as
+  # a slug from OpenRouter's endpoint listing. Routing lets OpenRouter choose
+  # an endpoint per reply; a pin is the same endpoint every time, which is the
+  # only way a measurement can be repeated. The endpoints measured fastest to
+  # the first word are recorded in the house guide.
+  # provider: deepinfra/fp4
 
   # The port the surface is served on.
   port: 4000

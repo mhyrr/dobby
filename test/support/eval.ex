@@ -97,6 +97,109 @@ defmodule Dobby.Eval do
   end
 
   @doc """
+  Runs one paid request through the production streaming path and returns
+  every runtime event it emitted.
+
+  `Dobby.DobbyAgent.stream/2` is the entry point the thread uses, with the
+  house's tools and the speaker on the tool context, so what comes back is
+  what a person's request would have emitted. The calling process is the
+  event sink and this blocks until the request ends (`Dobby.Conversation.Turn`
+  says why), which is the point: the list is complete when it returns.
+
+  `opts` are the request options `DobbyAgent.stream/2` takes; `:llm_opts`
+  defaults to `llm_opts/0` so a scenario that says nothing gets the tier's
+  reasoning and routing.
+  """
+  @spec stream!(String.t(), String.t(), keyword()) :: [Jido.AI.Runtime.Event.t()]
+  def stream!(speaker, text, opts \\ []) do
+    opts = Keyword.put_new(opts, :llm_opts, llm_opts())
+
+    case DobbyAgent.stream(Utterance.new(speaker, text), opts) do
+      {:ok, %{events: events}} -> Enum.to_list(events)
+      {:error, reason} -> flunk("model request failed: #{inspect(reason)}")
+    end
+  end
+
+  @doc """
+  The reply text as it streamed: `chunk_type: :content` deltas in `seq` order,
+  optionally for one iteration.
+
+  Only `:content` is text. A tool call streams as a delta too, carrying the
+  tool's name, and a thinking model streams its reasoning first; the thread
+  renders neither.
+  """
+  @spec content_deltas([Jido.AI.Runtime.Event.t()], pos_integer() | nil) ::
+          [Jido.AI.Runtime.Event.t()]
+  def content_deltas(events, iteration \\ nil) do
+    events
+    |> Enum.filter(&(&1.kind == :llm_delta and &1.data[:chunk_type] == :content))
+    |> Enum.filter(&(is_nil(iteration) or &1.iteration == iteration))
+    |> Enum.sort_by(& &1.seq)
+  end
+
+  @doc """
+  When each model turn's first token arrived, per turn.
+
+  Two clocks per turn. `from_start_ms` is what the household waits: from the
+  request starting to the first delta of any kind. `after_call_ms` is from the
+  model call that produced it, which is the number an endpoint's routing can
+  change and the one TK-051 pins a provider on. `kind` says what that first
+  delta was — a tool call, thinking, or content — because on an actuating
+  turn there is no content at all, and `content_after_call_ms` is the first
+  word a person could read, when there was one.
+  """
+  @spec first_tokens([Jido.AI.Runtime.Event.t()]) :: [map()]
+  def first_tokens(events) do
+    started = Enum.find(events, &(&1.kind == :request_started))
+
+    events
+    |> Enum.filter(&(&1.kind == :llm_delta))
+    |> Enum.group_by(& &1.iteration)
+    |> Enum.sort()
+    |> Enum.map(fn {iteration, deltas} ->
+      first = Enum.min_by(deltas, & &1.at_ms)
+      call = Enum.find(events, &(&1.kind == :llm_started and &1.iteration == iteration))
+
+      content =
+        deltas
+        |> Enum.filter(&(&1.data[:chunk_type] == :content))
+        |> Enum.min_by(& &1.at_ms, fn -> nil end)
+
+      %{
+        iteration: iteration,
+        kind: first.data[:chunk_type],
+        from_start_ms: started && first.at_ms - started.at_ms,
+        after_call_ms: call && first.at_ms - call.at_ms,
+        content_after_call_ms: content && call && content.at_ms - call.at_ms
+      }
+    end)
+  end
+
+  @doc """
+  `first_tokens/1` as one printed line, with the end-to-end at the end.
+  """
+  @spec first_delta_line([Jido.AI.Runtime.Event.t()]) :: String.t()
+  def first_delta_line(events) do
+    started = Enum.find(events, &(&1.kind == :request_started))
+    completed = Enum.find(events, &(&1.kind == :request_completed))
+
+    turns =
+      events
+      |> first_tokens()
+      |> Enum.map_join("   ", fn turn ->
+        after_call =
+          if turn.after_call_ms, do: " (#{turn.after_call_ms}ms after the call)", else: ""
+
+        "turn #{turn.iteration} #{turn.kind} +#{turn.from_start_ms}ms#{after_call}"
+      end)
+
+    done =
+      if started && completed, do: "   done +#{completed.at_ms - started.at_ms}ms", else: ""
+
+    turns <> done
+  end
+
+  @doc """
   Per-request model options for whichever model the run is pointed at.
 
   Reasoning models take `reasoning_effort` and reject sampling parameters;
@@ -221,8 +324,12 @@ defmodule Dobby.Eval do
 
   defp summarize(other), do: inspect(other, limit: 10, printable_limit: 200)
 
-  # Where the end-to-end went, so a slow scenario names its slow step.
-  defp steps do
+  @doc """
+  Where the end-to-end went, so a slow scenario names its slow step:
+  `Dobby.Trace.timeline/0` as one line.
+  """
+  @spec steps() :: String.t()
+  def steps do
     case Dobby.Trace.timeline() do
       [] -> "none recorded"
       steps -> Enum.map_join(steps, " · ", fn {label, ms} -> "#{label} #{ms}ms" end)

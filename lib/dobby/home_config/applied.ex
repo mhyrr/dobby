@@ -5,7 +5,7 @@ defmodule Dobby.HomeConfig.Applied do
   Some of the home file can be changed while Dobby is running and some of it
   cannot, and the difference is not something a person should have to know. A
   changed house restarts the house. A changed model alias is one
-  `Application.put_env` away, and so are the two settings about how the model
+  `Application.put_env` away, and so are the three settings about how the model
   answers. A port and a LAN binding belong to a listening
   socket that was opened at boot, and no amount of writing the file moves them.
 
@@ -30,7 +30,16 @@ defmodule Dobby.HomeConfig.Applied do
   @enforce_keys [:config]
   defstruct [:config, applied: [], on_restart: [], overridden: []]
 
-  @type field :: :house | :rules | :model | :reasoning | :routing | :port | :lan | :hostname
+  @type field ::
+          :house
+          | :rules
+          | :model
+          | :reasoning
+          | :routing
+          | :provider
+          | :port
+          | :lan
+          | :hostname
 
   @type t :: %__MODULE__{
           config: HomeConfig.t(),

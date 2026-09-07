@@ -501,6 +501,7 @@ defmodule DobbyWeb.AdminLiveTest do
       assert has_element?(view, "input[name='system[model]'][type=text]")
       assert has_element?(view, "input[name='system[port]'][type=number]")
       assert has_element?(view, "input[name='system[hostname]'][type=text]")
+      assert has_element?(view, "input[name='system[provider]'][type=text]")
 
       # Two words rather than a checkbox: a tick is an icon, and this board says
       # things in words.

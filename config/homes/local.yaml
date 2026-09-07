@@ -86,14 +86,12 @@ house:
         connectivity: binary_sensor.office_printer
 
 # The box: this instance answers with GLM 5.3 Flash (TK-034), thinking at low
-# effort, from the one endpoint that got its first token out soonest when
-# every endpoint under the model was timed (TK-051, 2026-09-07: wafer, 517 ms
-# median from the model call, 978 ms at worst; the next were io-net/fp8 at
-# 865 ms with the tightest worst case, and sail-research/fp8 at 826 ms). A pin
-# has no fallback, so an endpoint that stops serving the model refuses the
-# reply; swap the name if wafer goes quiet. Routing is left out on purpose:
-# with a pin in force it has nothing to choose.
+# effort, from whichever endpoint OpenRouter finds fastest at the moment. That
+# is the default on purpose (Greg, 2026-09-07): a household that wants the
+# same endpoint every time writes `provider:` with a slug from OpenRouter's
+# listing, and the house guide records which endpoints measured fastest under
+# each model when every one was timed (TK-051). A pin has no fallback.
 system:
   model: openrouter:z-ai/glm-5.3-flash
   reasoning: low
-  provider: wafer
+  routing: latency

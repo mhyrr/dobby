@@ -620,6 +620,15 @@ beside the pin. Routing is left out of the local house on purpose: with a
 pin in force the sort has nothing to choose, and both are still sent if both
 are written, because the file's words all travel.
 
+**Greg's call, 2026-09-07, after reading the tables: `routing: latency`
+stays the default, and the pin is a household's own choice.** OpenRouter
+choosing per reply is what a house that names nothing gets, and the local
+house names nothing. `provider` stays in the file's vocabulary for the
+household that wants the same endpoint every reply, and the guide records
+which endpoint measured fastest under each model, with io-net/fp8 named
+over wafer for Flash on the whole request and the uptime. The eval tier
+still pins (`DOBBY_EVAL_PROVIDER`) so a run's numbers can be repeated.
+
 **Reasoning stays low, and none is not a file word.** Flash cannot take it.
 GLM 5.2 takes it and narrates before the tool on 17 of 28 endpoints, and on
 the pinned endpoint it saved nothing. Luna takes it, holds, and saved

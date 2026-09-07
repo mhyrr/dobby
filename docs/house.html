@@ -196,7 +196,7 @@
     </table>
     </div>
 
-    <p>Which endpoint serves a model decides how long the first word takes, more than the model does. On 2026-09-07 every endpoint under each of the three models Dobby is run with was timed on the same requests, pinned one at a time with <code>reasoning: low</code>. The fastest to its first token, measured from the model call, and the endpoint to write beside each model:</p>
+    <p><code>routing: latency</code> is the default: OpenRouter picks whichever endpoint looks fastest for each reply, and that is how the local house runs. <code>provider</code> is for a household that wants the same endpoint every time. Which endpoint serves a model decides how long the first word takes, more than the model does. On 2026-09-07 every endpoint under each of the three models Dobby is run with was timed on the same requests, pinned one at a time with <code>reasoning: low</code>. The fastest to its first token, measured from the model call, and the slug to write if you pin:</p>
 
     <div class="table-wrap">
     <table>
@@ -207,7 +207,7 @@
     </table>
     </div>
 
-    <p>The same model on its slowest endpoint took four to twelve seconds for the same request, which is why the pin exists. Two things to know before writing one. A pin has no fallback: an endpoint that is rate-limited or down refuses the reply instead of handing it to another, and on the day of the measurement nine of Flash's twenty-four endpoints were refusing for a minute at a time. And the numbers are one afternoon's; the eval that made them (<code>test/dobby/eval/provider_eval_test.exs</code>) reruns in a few minutes per model when they look stale. GLM 5.2 costs about twenty times Flash per token and answers in half the time; Luna sits between them on both. Luna stays the default because Dobby is built and tested against it first.</p>
+    <p>The same model on its slowest endpoint took four to twelve seconds for the same request, which is why the pin exists. Wafer got its first word out soonest under Flash and finished both requests slower than io.net, with the lowest listed uptime of the twenty-four, so a household pinning Flash would do better with <span class="arg">io-net/fp8</span>. Two things to know before writing a pin. A pin has no fallback: an endpoint that is rate-limited or down refuses the reply instead of handing it to another, and on the day of the measurement nine of Flash's twenty-four endpoints were refusing for a minute at a time. And the numbers are one afternoon's; the eval that made them (<code>test/dobby/eval/provider_eval_test.exs</code>) reruns in a few minutes per model when they look stale. GLM 5.2 costs about twenty times Flash per token and answers in half the time; Luna sits between them on both. Luna stays the default because Dobby is built and tested against it first.</p>
 
     <p>The same seven settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
 

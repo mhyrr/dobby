@@ -802,22 +802,19 @@ defmodule Dobby.HomeConfigTest do
                [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
     end
 
-    # Pinned to the endpoint the sweep of 2026-09-07 measured fastest to its
-    # first token (TK-051). Routing is left out on purpose: with a pin in force
-    # the sort has nothing to choose.
-    test "the local house answers with GLM 5.3 Flash, thinking low, from its measured endpoint" do
+    # Latency routing is the default, and the pin is a household's own choice
+    # (Greg, 2026-09-07, after the TK-051 sweep): the local house names no
+    # endpoint and lets OpenRouter choose per reply.
+    test "the local house answers with GLM 5.3 Flash, thinking low, routed for latency" do
       assert {:ok, config} = HomeConfig.load("config/homes/local.yaml")
 
       assert config.system.model == "openrouter:z-ai/glm-5.3-flash"
       assert config.system.reasoning == "low"
-      assert config.system.provider == "wafer"
-      assert config.system.routing == nil
+      assert config.system.routing == "latency"
+      assert config.system.provider == nil
 
       assert Dobby.HomeConfig.System.llm_opts(config.system) ==
-               [
-                 reasoning_effort: :low,
-                 openrouter_provider: %{order: ["wafer"], allow_fallbacks: false}
-               ]
+               [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
     end
 
     test "this house survived the migration with every real value on it" do

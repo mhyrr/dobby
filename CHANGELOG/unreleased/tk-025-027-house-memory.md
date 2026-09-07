@@ -14,6 +14,7 @@
 - Dobby remembers what was said in the thread and forgets what it fetched to say it: earlier requests' tool calls and their results leave the conversation it carries to the model, while the words stay. The record still holds every row, and a rule or device proposal awaiting agreement is listed before every turn with the id its confirmation takes, so saying yes a message later still lands.
 
 ##### Fixed
+- The model catalog Dobby ships with now knows GLM 5.3 and GLM 5.3 Flash (LLMDB 2026.9.1, ReqLLM 1.22), so a house naming either boots without a warning per reply and with the model's pricing, context, and capabilities on record. GLM 5.3 is not yet a model in force: its paid tool-streaming and judgment evals have not run.
 - Dobby is shown each device's last known state before every turn. It had been told "state not yet known" for every device since the first release, and asked the device for its status before answering; a question the board could already answer no longer costs that extra round trip.
 
 ##### Upgrade and Migration

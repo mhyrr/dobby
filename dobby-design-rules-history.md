@@ -763,3 +763,31 @@ present, the proposal named in the block with its id, and `confirm_rule`
 the only call. Unmeasured in a live house, by construction; the request row
 TK-052 writes is what will say what it was worth, once a house has talked
 for a day.
+
+## Decision: the catalog knows GLM 5.3 — TK-056, first half
+
+Done 2026-09-07: LLMDB 2026.7.5 to 2026.9.1, which ReqLLM 1.22.0 requires,
+so ReqLLM 1.20.0 to 1.22.0 with it. The catalog now carries both GLM 5.3
+entries, and what it says agrees with what the wire said in the September
+runs. GLM 5.3 and 5.3 Flash: reasoning enabled and mandatory, efforts low,
+high and max, tool calling on, tool-call streaming on, 1.31 million
+context; 5.3 at $1.40 in and $4.40 out per million, Flash at $0.075 and
+$0.25, cache reads at about a fifth of input. The mandatory flag is the
+sweep's finding on Flash, now in the catalog. GLM 5.2 is listed with
+reasoning optional and efforts xhigh and high, where the wire took low on
+every endpoint and none on 28 of 31; the catalog is conservative and
+ReqLLM's OpenRouter provider does not validate an effort against it, so
+the house's `reasoning: low` still passes the boot check on every model in
+force and still reaches the provider. Luna lists none among its efforts,
+which the sweep confirmed.
+
+Two consequences in the eval tier. `Dobby.Eval.reasoning_model?/0` now
+answers true for Flash and 5.3, so the tier's default effort of low is sent
+to them without `DOBBY_EVAL_REASONING`, which is the standing decision
+either way. And the unverified-model warning that printed once per model
+call under Flash is gone. ReqLLM's two releases between carried nothing for
+OpenRouter beyond the catalog; the replay tier is green on the new pair.
+
+Not done, and it is what makes 5.3 a model in force: the billed
+tool-streaming and judgment evals on 5.3, once, which wait for Greg's word.
+GLM 5.2 stays the model in force until then.

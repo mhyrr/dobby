@@ -52,6 +52,23 @@ defmodule Dobby.SoulTest do
       assert DobbyAgent.doctrine() =~ "Coffee station's on, Greg"
       assert DobbyAgent.doctrine() =~ "is yours to say and"
     end
+
+    test "the rule paragraph proposes from the house block, and lists only when the block cannot say" do
+      # TK-054: the observables and the standing rules ride in the house block,
+      # so a proposal is two turns and not three. A doctrine that still asked
+      # for list_rules first would put the turn back without anything failing.
+      refute DobbyAgent.doctrine() =~ "Read list_rules first"
+      assert DobbyAgent.doctrine() =~ ~r/propose from the block,\s+without listing first/
+      assert DobbyAgent.doctrine() =~ ~r/call list_rules only when that line does not\s+identify/
+    end
+
+    test "the rule paragraph says itself that an ambiguous device is a question" do
+      # glm-5.2, 2026-09-06: "tell me if the door stays unlocked for an hour"
+      # in a house with two locks was proposed for the front door. The general
+      # ambiguity rule sits eight paragraphs above the rule paragraph, and a
+      # model reading the rule paragraph for what to do did not carry it down.
+      assert DobbyAgent.doctrine() =~ ~r/"the door"\s+in a house with two locks is a question/
+    end
   end
 
   test "the running agent actually has the soul, not just the doctrine floor" do

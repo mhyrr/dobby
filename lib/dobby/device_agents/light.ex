@@ -40,6 +40,9 @@ defmodule Dobby.DeviceAgents.Light do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{power: {:enum, [:on, :off]}, brightness_percent: :number}
+
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent

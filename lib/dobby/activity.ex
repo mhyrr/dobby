@@ -19,6 +19,12 @@ defmodule Dobby.Activity do
   alias Dobby.Repo
 
   @doc """
+  The newest record id at the start of a watch. Queued deliveries from before
+  activation must not count as new events, or extend an absence interval.
+  """
+  def latest_id, do: Repo.one(from(e in Entry, select: max(e.id))) || 0
+
+  @doc """
   Records something that happened.
 
   Deliberately total: an activity entry is a side record, and failing to write
@@ -75,7 +81,7 @@ defmodule Dobby.Activity do
   """
   @spec recent(non_neg_integer()) :: [Entry.t()]
   def recent(limit \\ 100) when is_integer(limit) and limit >= 0 do
-    Repo.all(from e in Entry, order_by: [desc: e.inserted_at, desc: e.id], limit: ^limit)
+    Repo.all(from(e in Entry, order_by: [desc: e.inserted_at, desc: e.id], limit: ^limit))
   end
 
   @doc """
@@ -87,9 +93,10 @@ defmodule Dobby.Activity do
   @spec for_request(String.t()) :: [Entry.t()]
   def for_request(request_id) when is_binary(request_id) do
     Repo.all(
-      from e in Entry,
+      from(e in Entry,
         where: e.request_id == ^request_id,
         order_by: [asc: e.inserted_at, asc: e.id]
+      )
     )
   end
 
@@ -108,10 +115,11 @@ defmodule Dobby.Activity do
   @spec last_changes() :: %{String.t() => DateTime.t()}
   def last_changes do
     Repo.all(
-      from e in Entry,
+      from(e in Entry,
         where: e.kind == "device_changed" and not is_nil(e.device),
         group_by: e.device,
         select: {e.device, max(e.inserted_at)}
+      )
     )
     |> Map.new()
   end
@@ -124,10 +132,67 @@ defmodule Dobby.Activity do
   @spec for_device(String.t(), non_neg_integer()) :: [Entry.t()]
   def for_device(device, limit \\ 100) when is_binary(device) do
     Repo.all(
-      from e in Entry,
+      from(e in Entry,
         where: e.device == ^device,
         order_by: [desc: e.inserted_at, desc: e.id],
         limit: ^limit
+      )
     )
+  end
+
+  @doc """
+  Exact filtered history, with full-window totals and capped evidence.
+
+  `Dobby.History` validates public filters. This query deliberately does not
+  join the current device roster: a removed device still has a past.
+  """
+  def history(filters, window, limit) do
+    query = from(e in Entry, where: e.inserted_at < ^window.until)
+
+    query =
+      if window.since, do: from(e in query, where: e.inserted_at >= ^window.since), else: query
+
+    query =
+      Enum.reduce(
+        [{"device", :device}, {"action", :action}, {"actor", :actor}, {"kind", :kind}],
+        query,
+        fn {key, column}, query ->
+          case filters[key] do
+            nil -> query
+            value -> from(e in query, where: field(e, ^column) == ^value)
+          end
+        end
+      )
+
+    query =
+      case filters["kinds"] do
+        nil -> query
+        kinds -> from(e in query, where: e.kind in ^kinds)
+      end
+
+    # One statement gives counts and evidence the same database snapshot even
+    # while the watcher writes another event. Window aggregates preserve the
+    # total before the outer limit is applied.
+    rows =
+      Repo.all(
+        from(e in query,
+          select: {e, fragment("count(*) OVER ()")},
+          order_by: [desc: e.inserted_at, desc: e.id],
+          limit: ^limit
+        )
+      )
+
+    count =
+      case rows do
+        [{_, count} | _] -> count
+        [] -> 0
+      end
+
+    %{
+      entries: Enum.map(rows, &elem(&1, 0)),
+      count: count,
+      returned: length(rows),
+      truncated: count > length(rows)
+    }
   end
 end

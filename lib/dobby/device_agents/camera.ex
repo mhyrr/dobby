@@ -23,6 +23,9 @@ defmodule Dobby.DeviceAgents.Camera do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{activity: {:enum, [:streaming, :recording, :idle]}, motion: :boolean}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

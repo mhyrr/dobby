@@ -8,27 +8,44 @@ defmodule Dobby.HomeConfig.System do
   which is exactly the swap the `:capable` alias exists to make (broken items 1
   and 3 in the ticket).
 
-  Two more say how the model answers rather than which one does. `reasoning`
+  Three more say how the model answers rather than which one does. `reasoning`
   is how hard a reasoning model thinks before it replies; `routing` is what
-  OpenRouter optimizes for when it picks the endpoint that serves the model.
-  Both are the household's business: between them they decide what a reply
-  costs and how long the thread waits for its first word, and a model chosen
-  for speed (GLM 5.3 Flash, TK-034) is only fast with both set. They live here
-  and not in `config/config.exs` for the reason the model does — changing them
-  is a file edit, never a release.
+  OpenRouter optimizes for when it picks the endpoint that serves the model;
+  `provider` names that endpoint outright and forbids a fallback. All three
+  are the household's business: between them they decide what a reply costs
+  and how long the thread waits for its first word, and a model chosen for
+  speed (GLM 5.3 Flash, TK-034) is only fast with them set. They live here and
+  not in `config/config.exs` for the reason the model does — changing them is
+  a file edit, never a release.
+
+  `provider` exists because `routing` was measured and found wanting
+  (TK-051). Sorting by latency lets OpenRouter choose a different endpoint on
+  a different minute, and the same model's first token moved from 0.57 s to
+  3.2 s inside one hour on that setting. A pin is a measurement that can be
+  repeated: the eval tier times every endpoint under a model and the winner is
+  written here, in the slug OpenRouter's own endpoint listing uses
+  (`together`, `io-net/fp8`). With a pin in force the sort has nothing
+  left to choose, so the two are not expected together; both are still sent
+  if both are written, because the file's words all travel.
 
   What is *not* here is as deliberate. `DATABASE_URL` and `SECRET_KEY_BASE` are
   an operator's business and stay environment-only: household-facing knobs go
   in the file a household owns, and nothing else does.
 
-  Three of the six can be changed while Dobby is running — the model and the
-  two about how it answers, all read at the moment of use — and three cannot.
+  Four of the seven can be changed while Dobby is running — the model and the
+  three about how it answers, all read at the moment of use — and three cannot.
   See `Dobby.HomeConfig.Writer`, which says so out loud rather than pretending.
   """
 
   @reasoning_levels ["low", "medium", "high"]
   @reasoning_effort %{"low" => :low, "medium" => :medium, "high" => :high}
   @routing_goals ["latency", "throughput", "price"]
+
+  # A slug as OpenRouter's endpoint listing writes it: a provider, or a
+  # provider and one endpoint variant after a slash. Checked for shape only —
+  # the list of endpoints is OpenRouter's and changes without notice, so the
+  # request is what says whether the name is served.
+  @provider_slug ~r/\A[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9.-]*)?\z/
 
   @schema [
     model: [
@@ -44,6 +61,11 @@ defmodule Dobby.HomeConfig.System do
       type: {:in, @routing_goals},
       doc:
         "What OpenRouter optimizes for when it picks the endpoint that serves the model: latency, throughput or price."
+    ],
+    provider: [
+      type: :string,
+      doc:
+        "The one OpenRouter endpoint that serves the model, with no fallback to another, as a slug from OpenRouter's endpoint listing such as `together`."
     ],
     port: [
       type: :pos_integer,
@@ -62,12 +84,19 @@ defmodule Dobby.HomeConfig.System do
 
   @mdns_hostname ~r/\A[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.local\z/
 
-  defstruct model: nil, reasoning: nil, routing: nil, port: nil, lan: false, hostname: nil
+  defstruct model: nil,
+            reasoning: nil,
+            routing: nil,
+            provider: nil,
+            port: nil,
+            lan: false,
+            hostname: nil
 
   @type t :: %__MODULE__{
           model: String.t() | nil,
           reasoning: String.t() | nil,
           routing: String.t() | nil,
+          provider: String.t() | nil,
           port: pos_integer() | nil,
           lan: boolean(),
           hostname: String.t() | nil
@@ -87,25 +116,45 @@ defmodule Dobby.HomeConfig.System do
   What the section tells the model on every request.
 
   The file's words become the provider's here and nowhere else: `reasoning: low`
-  is ReqLLM's `reasoning_effort`, and `routing: latency` is OpenRouter's
-  `provider.sort`. `Dobby.DobbyAgent` reads the result at the moment of each
-  request, the way it reads the alias, so a change the writer applies is in
-  effect at the next reply and a restart is never part of trying a setting.
+  is ReqLLM's `reasoning_effort`, `routing: latency` is OpenRouter's
+  `provider.sort`, and `provider: together` is `provider.order` with one
+  name in it and `allow_fallbacks` off — proven on the wire by the model
+  settings eval, which pins a provider that does not exist and is refused
+  before anything is generated. `Dobby.DobbyAgent` reads the result at the
+  moment of each request, the way it reads the alias, so a change the writer
+  applies is in effect at the next reply and a restart is never part of
+  trying a setting.
 
-  `routing` is an OpenRouter field and is documented as one. OpenRouter is
-  Dobby's provider (TK-034); a model reached some other way would be sent an
-  option it does not know, and that is the file's mistake to make, named.
+  `routing` and `provider` are OpenRouter fields and are documented as such.
+  OpenRouter is Dobby's provider (TK-034); a model reached some other way
+  would be sent an option it does not know, and that is the file's mistake to
+  make, named.
   """
   @spec llm_opts(t()) :: keyword()
-  def llm_opts(%__MODULE__{reasoning: reasoning, routing: routing}) do
+  def llm_opts(%__MODULE__{reasoning: reasoning, routing: routing, provider: provider}) do
     Enum.reject(
       [
         reasoning_effort: reasoning && Map.fetch!(@reasoning_effort, reasoning),
-        openrouter_provider: routing && %{sort: routing}
+        openrouter_provider: preferences(routing, provider)
       ],
       fn {_option, value} -> is_nil(value) end
     )
   end
+
+  # One map, because OpenRouter takes one: the sort when there is one, and the
+  # pin as an order of one with fallbacks refused. An order that allowed
+  # fallbacks would be a preference, and a preference is what `routing` is.
+  defp preferences(nil, nil), do: nil
+
+  defp preferences(routing, provider) do
+    %{}
+    |> put_present(:sort, routing)
+    |> put_present(:order, provider && [provider])
+    |> put_present(:allow_fallbacks, provider && false)
+  end
+
+  defp put_present(map, _key, nil), do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
 
   @doc """
   Refuses a house whose settings the model in force cannot be sent.
@@ -190,11 +239,20 @@ defmodule Dobby.HomeConfig.System do
   defp source(model, model) when is_binary(model), do: " (exported as DOBBY_MODEL)"
   defp source(_model, _exported), do: ""
 
-  # The inverse of the two lines in `llm_opts/1`, and it stays beside them for
-  # that reason: a word added there needs its clause here or a refusal names
-  # the option instead of the setting.
+  # The inverse of `llm_opts/1`, and it stays beside it for that reason: a
+  # word added there needs its clause here or a refusal names the option
+  # instead of the setting. The preferences map can carry two of the file's
+  # words, and a refusal names each one that was written.
   defp said(:reasoning_effort, effort), do: "reasoning: #{effort}"
-  defp said(:openrouter_provider, %{sort: sort}), do: "routing: #{sort}"
+
+  defp said(:openrouter_provider, %{} = preferences) do
+    [
+      preferences[:sort] && "routing: #{preferences.sort}",
+      preferences[:order] && "provider: #{Enum.join(preferences.order, ", ")}"
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(", ")
+  end
 
   @doc """
   Builds the section from the file's raw `system:` map.
@@ -208,7 +266,8 @@ defmodule Dobby.HomeConfig.System do
 
     with {:ok, pairs} <- known_pairs(raw, known),
          {:ok, options} <- validate(pairs),
-         :ok <- validate_hostname(options[:hostname]) do
+         :ok <- validate_hostname(options[:hostname]),
+         :ok <- validate_provider(options[:provider]) do
       {:ok, struct!(__MODULE__, options)}
     end
   end
@@ -242,6 +301,18 @@ defmodule Dobby.HomeConfig.System do
     else
       {:error,
        "system.hostname must be one DNS label followed by .local, for example dobby.local"}
+    end
+  end
+
+  defp validate_provider(nil), do: :ok
+
+  defp validate_provider(provider) do
+    if Regex.match?(@provider_slug, provider) do
+      :ok
+    else
+      {:error,
+       "system.provider must be an OpenRouter provider slug as its endpoint listing " <>
+         "writes it, for example deepinfra or deepinfra/fp4"}
     end
   end
 

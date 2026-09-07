@@ -32,7 +32,7 @@ defmodule Dobby.Eval.StreamingEvalTest do
 
   use Dobby.RigCase, async: false
 
-  alias Dobby.{DobbyAgent, Home, Utterance}
+  import Dobby.Eval, only: [stream!: 2, content_deltas: 1, content_deltas: 2, first_delta_line: 1]
 
   @moduletag :eval
   @moduletag timeout: 180_000
@@ -86,27 +86,6 @@ defmodule Dobby.Eval.StreamingEvalTest do
     refute Enum.any?(content_deltas(events), &(&1.data[:delta] =~ "thermostat_set"))
   end
 
-  defp stream!(speaker, text) do
-    utterance = Utterance.new(speaker, text)
-    pid = Dobby.Jido.whereis(DobbyAgent.id())
-
-    {:ok, %{events: events}} =
-      DobbyAgent.ask_stream(pid, Utterance.to_message(utterance),
-        tools: Home.tools(),
-        tool_context: %{speaker: speaker},
-        llm_opts: Dobby.Eval.llm_opts()
-      )
-
-    Enum.to_list(events)
-  end
-
-  defp content_deltas(events, iteration \\ nil) do
-    events
-    |> Enum.filter(&(&1.kind == :llm_delta and &1.data[:chunk_type] == :content))
-    |> Enum.filter(&(is_nil(iteration) or &1.iteration == iteration))
-    |> Enum.sort_by(& &1.seq)
-  end
-
   defp report(events) do
     deltas = content_deltas(events)
     seqs = Enum.map(events, & &1.seq)
@@ -136,29 +115,5 @@ defmodule Dobby.Eval.StreamingEvalTest do
       tokens   #{usage.input_tokens} in / #{usage.output_tokens} out over #{usage.turns} turns
       reply    #{Enum.map_join(deltas, & &1.data[:delta])}
     """)
-  end
-
-  # Time to first token, per turn: from the request starting, and from the
-  # model call that produced it. The household waits on the first number; the
-  # second is the one a provider's routing can change.
-  defp first_delta_line(events) do
-    started = Enum.find(events, &(&1.kind == :request_started))
-    completed = Enum.find(events, &(&1.kind == :request_completed))
-
-    turns =
-      events
-      |> Enum.filter(&(&1.kind == :llm_delta))
-      |> Enum.group_by(& &1.iteration)
-      |> Enum.sort()
-      |> Enum.map_join("   ", fn {iteration, deltas} ->
-        first = Enum.min_by(deltas, & &1.at_ms)
-        call = Enum.find(events, &(&1.kind == :llm_started and &1.iteration == iteration))
-
-        after_call = if call, do: " (#{first.at_ms - call.at_ms}ms after the call)", else: ""
-
-        "turn #{iteration} #{first.data[:chunk_type]} +#{first.at_ms - started.at_ms}ms#{after_call}"
-      end)
-
-    turns <> "   done +#{completed.at_ms - started.at_ms}ms"
   end
 end

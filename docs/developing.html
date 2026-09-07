@@ -111,6 +111,17 @@ execute_sql_query, browser_eval, create_design_canvas</p>
     <h2 id="reading">Reading the repository</h2>
     <p><span class="arg">CLAUDE.md</span> at the root is the map. Module docs explain why each thing is the way it is, and what was rejected.</p>
 
+    <h2 id="changelog">The changelog</h2>
+    <p>Every branch says what it changed for the house before it merges. <code>bin/changelog</code> creates <span class="arg">CHANGELOG/unreleased/&lt;branch&gt;.md</span> from a template and stages it. Fill the headings that apply; the ones left empty are dropped when the release is cut. Write the bullets the way the commit messages are written: sentences about what changed for the house, not which module moved.</p>
+<pre><code>bin/changelog        <span class="c"># create the branch's entry if missing, print its path</span>
+bin/changelog -e     <span class="c"># the same, opened in $EDITOR</span>
+bin/changelog -d     <span class="c"># preview the release entry the unreleased files would make</span></code></pre>
+    <p>A release folds those files into one entry. Set the version in <span class="arg">mix.exs</span>, run the script with it, commit, and push the tag. The tag must name the version in <span class="arg">mix.exs</span>, or the build refuses it. The workflow publishes the entry as the release notes, with GitHub's list of pull requests beneath.</p>
+<pre><code>bin/changelog -r 0.2.0    <span class="c"># CHANGELOG/0.2.0.md, the top of CHANGELOG.md, unreleased emptied</span>
+git commit -m "Dobby 0.2.0"
+git tag v0.2.0 &amp;&amp; git push origin main v0.2.0</code></pre>
+    <p><a href="https://github.com/mhyrr/dobby/blob/main/CHANGELOG.md">CHANGELOG.md</a> is the whole record, newest first. The <a href="box.html#upgrade">upgrade</a> walk is what a household does with it.</p>
+
     <p class="colophon">This guide is hand-written HTML under <span class="arg">docs/</span>, served as committed. Edit the page; there is no build.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">

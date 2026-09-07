@@ -63,10 +63,25 @@ defmodule Dobby.HomeConfig.Proposals do
 
   @doc """
   Every proposal that is still outstanding, oldest first.
+
+  `within_ttl: true` keeps the query to proposals young enough to confirm.
+  Nothing moves an expired row off `:proposed`, so without the bound a house
+  that has proposed devices for a year loads every one of them on every read
+  — and the house block reads this on every model turn.
   """
-  @spec outstanding() :: [Proposal.t()]
-  def outstanding do
-    Repo.all(from p in Proposal, where: p.status == :proposed, order_by: [asc: p.id])
+  @spec outstanding(keyword()) :: [Proposal.t()]
+  def outstanding(opts \\ []) do
+    query = from(p in Proposal, where: p.status == :proposed, order_by: [asc: p.id])
+
+    query =
+      if Keyword.get(opts, :within_ttl, false) do
+        since = DateTime.add(DateTime.utc_now(), -@ttl_hours, :hour)
+        from(p in query, where: p.inserted_at > ^since)
+      else
+        query
+      end
+
+    Repo.all(query)
   end
 
   @doc """

@@ -111,10 +111,12 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
       # got right, it is the only branch that exists.
       tool_names = Enum.map(Dobby.Home.tools(), & &1.name())
 
-      # Device tools come from the manifest; the schedule tools and the config
-      # three belong to the house and are offered whatever is plugged in. Every
-      # half is pinned, because "what can Dobby do at all" is exactly the list
-      # this asserts — and a tool arriving here unnoticed is the failure mode.
+      # Device tools come from the manifest; the schedule tools, the config
+      # three, and the record-and-rules seven belong to the house and are
+      # offered whatever is plugged in. Every half is pinned, because "what can
+      # Dobby do at all" is exactly the list this asserts — and a tool arriving
+      # here unnoticed is the failure mode. The seven read the record and write
+      # standing rules; none of them can command a device.
       #
       # Note what the config three can and cannot do. They can describe a
       # device; they cannot invent a media player, because a type not in
@@ -137,7 +139,14 @@ defmodule Dobby.Scenarios.OutOfScopeTest do
                "delete_schedule",
                "discover_entities",
                "propose_device",
-               "confirm_device"
+               "confirm_device",
+               "history",
+               "propose_rule",
+               "confirm_rule",
+               "list_rules",
+               "set_rule_enabled",
+               "delete_rule",
+               "acknowledge_rule"
              ]
 
       refute Enum.any?(tool_names, &(&1 =~ ~r/play|media|music|speaker|sonos/i))

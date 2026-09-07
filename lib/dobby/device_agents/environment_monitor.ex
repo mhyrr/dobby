@@ -23,6 +23,9 @@ defmodule Dobby.DeviceAgents.EnvironmentMonitor do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: Map.new(subscribed_bindings(), &{&1, {:reading, &1}})
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

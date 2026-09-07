@@ -36,6 +36,13 @@ defmodule Dobby.DeviceAgents.Vacuum do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables,
+    do: %{
+      activity: {:enum, [:cleaning, :docked, :paused, :idle, :returning, :error]},
+      battery_percent: :number
+    }
+
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent

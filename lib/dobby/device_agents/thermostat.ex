@@ -39,6 +39,14 @@ defmodule Dobby.DeviceAgents.Thermostat do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables,
+    do: %{
+      current_temperature_f: :number,
+      target_temperature_f: :number,
+      hvac_mode: {:enum, [:off, :heat, :cool, :heat_cool, :auto, :dry, :fan_only]}
+    }
+
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent

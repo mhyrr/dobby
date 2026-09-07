@@ -247,6 +247,79 @@ defmodule Dobby.Conversation.TurnTest do
     assert [_tool, _request] = Activity.for_request(request_id) |> Enum.sort_by(& &1.kind)
   end
 
+  # TK-052. Production recorded no per-request usage, so what the window
+  # carries in a live house and what the provider's cache returns were both
+  # unmeasured. The runtime's `:llm_completed` event carries the provider's
+  # whole usage map per model turn — the telemetry keeps only two of its
+  # counters — and the request row sums it.
+  test "the request row says what the request cost, summed over its model turns",
+       %{speaker: speaker} do
+    utterance = Utterance.new("greg", "how warm is it?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+
+        call("thermostat_get_status", %{"device" => @thermostat},
+          usage: %{
+            input_tokens: 5_600,
+            output_tokens: 20,
+            cached_tokens: 4_000,
+            reasoning_tokens: 90
+          }
+        )
+
+        answer("68° in here.",
+          usage: %{
+            input_tokens: 5_900,
+            output_tokens: 17,
+            cached_tokens: 5_500,
+            reasoning_tokens: 6
+          }
+        )
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    assert %Message{role: :assistant, request_id: request_id} =
+             Conversation.list_messages() |> List.last()
+
+    assert [request] = Activity.for_request(request_id) |> Enum.filter(&(&1.kind == "request"))
+
+    assert request.result["usage"] == %{
+             "turns" => 2,
+             "input_tokens" => 11_500,
+             "output_tokens" => 37,
+             "cached_tokens" => 9_500,
+             "reasoning_tokens" => 96
+           }
+
+    assert is_integer(request.duration_ms)
+  end
+
+  test "a scripted turn with no usage still counts as a turn, at zero", %{speaker: speaker} do
+    utterance = Utterance.new("greg", "hello")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        answer("Hello, Greg.")
+      end
+
+    Turn.run(utterance, speaker, react_opts(script))
+
+    assert %Message{request_id: request_id} = Conversation.list_messages() |> List.last()
+    assert [request] = Activity.for_request(request_id)
+
+    assert request.result["usage"] == %{
+             "turns" => 1,
+             "input_tokens" => 0,
+             "output_tokens" => 0,
+             "cached_tokens" => 0,
+             "reasoning_tokens" => 0
+           }
+  end
+
   # TK-038, reproduced: on 2026-08-28 a real model replied "Done — demo
   # thermostat set to 68." having called no tool. The replay tier cannot make a
   # model do that, but it can script one that does, and prove the record the

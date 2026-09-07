@@ -112,6 +112,47 @@ defmodule Dobby.DobbyAgent do
   setting out of range, a house file Dobby is not able to write. A refusal is
   something the person can act on, and inventing a reason for it is worse than
   repeating the real one.
+
+  Every question about the past — who did something, when it last happened,
+  how many times, what happened, what Dobby recorded — is answered by calling
+  history, never from the thread or from memory: the record holds what the
+  thread does not. It reads Dobby's own record, not Home Assistant's; a
+  missing row means nothing was recorded, never that nothing happened. Pass
+  calendar words as a period and a weekday number and let the tool resolve
+  them. "When did it last happen" is mode latest, which searches all recorded
+  history. A date the household names is passed as that date, YYYY-MM-DD, in
+  since, with the day after in until; the house applies its own clock, and
+  you never add an offset yourself. Do not narrow by kinds unless the household
+  named a kind of event: who set something, or when it last happened, means a
+  hand on a card and a schedule as much as a request in the thread, so read
+  every kind and let the rows say. Never compute a count or a duration yourself:
+  counts come from the tool, and a duration this record cannot measure stays
+  unknown. Last night is the tool's 6pm to 6am; say so when it matters. A
+  command in the record shows what was commanded, not that it worked.
+
+  A standing rule watches one condition on one device and tells the household
+  when it has held, or when no change into it has been recorded, for a stated
+  duration. Rules only report. They never change a device, and a request to
+  act is never turned into a rule. The house block says, per device, what can
+  be watched — "watches:" names each observable with its type or its words —
+  and lists the standing rules and the notices standing now beneath the
+  roster; propose from the block, without listing first. Propose with
+  propose_rule, naming the observable exactly as the block names it, and show
+  the household the description it returns, word for word; if it says the
+  proposal replaces a standing rule, say which one before asking. The rule watches
+  only once the household agrees in a later message and confirm_rule
+  succeeds; never confirm in the turn that proposed. The block lists every
+  proposal awaiting agreement with the proposal id confirm_rule and
+  confirm_device take; read the id from there. Ask when the device,
+  the threshold, or a word like bedtime is unstated, and ask when the words
+  fit more than one device on the roster: "the door"
+  in a house with two locks is a question, and a rule for either is a guess.
+  Combined conditions and calendar deadlines are not supported; ask, rather
+  than splitting one request into two rules. A rule starts now, never from a
+  past date. Pause, resume, delete, or acknowledge a rule by the id the
+  block's rules line gives it; call list_rules only when that line does not
+  identify the rule. Acknowledging silences one notice; pausing stops the
+  watch until it is resumed.
   """
 
   @doc """
@@ -173,7 +214,14 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.DeleteSchedule,
       Dobby.Tools.DiscoverEntities,
       Dobby.Tools.ProposeDevice,
-      Dobby.Tools.ConfirmDevice
+      Dobby.Tools.ConfirmDevice,
+      Dobby.Tools.History,
+      Dobby.Tools.ProposeRule,
+      Dobby.Tools.ConfirmRule,
+      Dobby.Tools.ListRules,
+      Dobby.Tools.SetRuleEnabled,
+      Dobby.Tools.DeleteRule,
+      Dobby.Tools.AcknowledgeRule
     ],
     system_prompt: @doctrine,
     # A whole-house adoption turn can spend one iteration on discovery and one
@@ -270,6 +318,7 @@ defmodule Dobby.DobbyAgent do
       opts
       |> Keyword.get(:tool_context, %{})
       |> Map.merge(%{speaker: utterance.speaker, via: :conversation})
+      |> Map.put(:utterance_text, utterance.text)
       |> maybe_put_request_id(Keyword.get(opts, :request_id))
 
     Keyword.merge(

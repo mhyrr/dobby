@@ -33,6 +33,9 @@ defmodule Dobby.DeviceAgents.WifiEndpoint do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{online: :boolean}
+
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent

@@ -151,12 +151,34 @@
     <span class="k">connectivity:</span> binary_sensor.office_printer</code></pre>
     <p>A printer that drops off at three in the morning shows on its card and in the log. It does not post into the thread.</p>
 
+    <h2 id="rules">Standing rules</h2>
+    <p>Definitions live under <code>house.rules</code>. The House page offers a typed form using each device's available readings. Changes made there apply immediately without restarting Dobby's conversation. Hand edits apply on restart. Proposals and notices are stored in the database.</p>
+    <pre><code>rules:
+  - id: main-room-cold
+    name: Main room cold
+    source: Tell me if the main room stays below 60°F for twenty minutes
+    enabled: true
+    device: thermostat:main
+    kind: state
+    attribute: current_temperature_f
+    operator: lt
+    value: 60
+    duration_seconds: 1200
+    window:
+      start: "20:00"
+      end: "07:00"
+      days: [1, 2, 3, 4, 5]</code></pre>
+    <p>The example belongs inside <code>house</code>. Device ids must match your house. Operators are <code>eq</code> and <code>ne</code>, plus <code>gt</code>, <code>gte</code>, <code>lt</code>, and <code>lte</code> for numbers. Environmental readings also require the exact reported <code>unit</code>. Unsupported readings, values, and fields are refused.</p>
+    <p>An absence rule uses <code>kind: absence</code>, <code>event_kind: device_changed</code>, and <code>action: state_changed</code>, alongside the desired attribute, operator, and value. Only a recorded change to that attribute counts; a battery update while a vacuum is cleaning does not count as another cleaning start. Absence rules for grouped environmental readings are not supported.</p>
+    <p>Rules only report. A hands-only device can still be watched. The limit is 100 rules per house and one year per duration. A state duration may be zero; an absence duration must be positive. A rule with a window must have a duration shorter than the window, because the watch starts over at every window edge. <code>source</code> is the household's own sentence when Dobby wrote the rule from the thread; a rule written by hand or from the form has none. For what notices and acknowledgments mean, see <a href="living.html#rules">Living with Dobby</a>.</p>
+
     <h2 id="system">The system section</h2>
-    <p>All six settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
+    <p>All seven settings are optional. Three have an environment variable that wins while it is exported, so you can try something without editing the file.</p>
 <pre><code><span class="k">system:</span>
   <span class="k">model:</span> openrouter:openai/gpt-5.6-luna
   <span class="k">reasoning:</span> low
   <span class="k">routing:</span> latency
+  <span class="k">provider:</span> together
   <span class="k">port:</span> 4000
   <span class="k">lan:</span> true
   <span class="k">hostname:</span> dobby.local</code></pre>
@@ -164,18 +186,30 @@
     <div class="table-wrap">
     <table>
       <tr><th>Key</th><th>Override</th><th>Takes effect</th></tr>
-      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. OpenRouter names use <span class="arg">openrouter:author/model</span>. Two have been walked: <span class="arg">openai/gpt-5.6-luna</span>, the default, and <span class="arg">z-ai/glm-5.3-flash</span>.</td></tr>
+      <tr><td><code>model</code></td><td><code>DOBBY_MODEL</code></td><td>At the next reply. OpenRouter names use <span class="arg">openrouter:author/model</span>. Three have been walked: <span class="arg">openai/gpt-5.6-luna</span>, the default, <span class="arg">z-ai/glm-5.3-flash</span>, and <span class="arg">z-ai/glm-5.2</span>.</td></tr>
       <tr><td><code>reasoning</code></td><td>—</td><td>At the next reply. How hard a reasoning model thinks before it answers: <span class="arg">low</span>, <span class="arg">medium</span> or <span class="arg">high</span>. Unset leaves the provider's default.</td></tr>
       <tr><td><code>routing</code></td><td>—</td><td>At the next reply. What OpenRouter optimizes for when it picks the endpoint that serves the model: <span class="arg">latency</span>, <span class="arg">throughput</span> or <span class="arg">price</span>. It is an OpenRouter setting, so it needs a model reached through OpenRouter: set it beside a <code>model</code> that is not an <span class="arg">openrouter:</span> name and the house refuses to start, saying so. That is deliberate — the alternative is a house that starts and then cannot answer anything.</td></tr>
+      <tr><td><code>provider</code></td><td>—</td><td>At the next reply. The one OpenRouter endpoint that serves the model, with no fallback to another, named by the slug OpenRouter's endpoint listing uses: <span class="arg">together</span>, <span class="arg">io-net/fp8</span>, <span class="arg">amazon-bedrock/us-east-1</span>. Set it when a measurement has chosen an endpoint and you want the same one every time; <code>routing</code> lets OpenRouter choose per request, and the same model's first word moved from half a second to three within one hour on that setting. With a pin in force the routing has nothing left to choose. An endpoint that stops serving the model refuses the reply rather than falling back, which is the point of a pin. Like <code>routing</code>, it needs a model reached through OpenRouter.</td></tr>
       <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
       <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
       <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>
     </table>
     </div>
 
-    <p>GLM 5.3 Flash is the fast choice, and only with <code>reasoning: low</code> and <code>routing: latency</code>: on the day it was measured, its first word arrived in under a second where Luna took one to three, and a reply cost about the same on either. Luna stays the default because Dobby is built and tested against it first.</p>
+    <p><code>routing: latency</code> is the default: OpenRouter picks whichever endpoint looks fastest for each reply, and that is how the local house runs. <code>provider</code> is for a household that wants the same endpoint every time. Which endpoint serves a model decides how long the first word takes, more than the model does. On 2026-09-07 every endpoint under each of the three models Dobby is run with was timed on the same requests, pinned one at a time with <code>reasoning: low</code>. The fastest to its first token, measured from the model call, and in the last column the slug worth writing if you pin, which is not always the first to speak:</p>
 
-    <p>The same six settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Model</th><th>Fastest first token</th><th>First token, median</th><th>Worst turn</th><th>"Set the thermostat to 70", end to end</th><th><code>provider</code> worth writing</th></tr>
+      <tr><td><span class="arg">z-ai/glm-5.3-flash</span></td><td><span class="arg">wafer</span></td><td>0.5 s</td><td>1.0 s</td><td>2.2 s</td><td><span class="arg">io-net/fp8</span></td></tr>
+      <tr><td><span class="arg">z-ai/glm-5.2</span></td><td><span class="arg">together</span></td><td>0.3 s</td><td>0.5 s</td><td>1.1 s</td><td><span class="arg">together</span></td></tr>
+      <tr><td><span class="arg">openai/gpt-5.6-luna</span></td><td><span class="arg">amazon-bedrock/us-east-1</span></td><td>0.7 s</td><td>1.9 s</td><td>1.3 s</td><td><span class="arg">amazon-bedrock/us-east-1</span></td></tr>
+    </table>
+    </div>
+
+    <p>The same model on its slowest endpoint took four to twelve seconds for the same request, which is why the pin exists. Wafer got its first word out soonest under Flash and finished both requests slower than io.net, with the lowest listed uptime of the twenty-four, so a household pinning Flash would do better with <span class="arg">io-net/fp8</span>. Two things to know before writing a pin. A pin has no fallback: an endpoint that is rate-limited or down refuses the reply instead of handing it to another, and on the day of the measurement nine of Flash's twenty-four endpoints were refusing for a minute at a time. And the numbers are one afternoon's; the eval that made them (<code>test/dobby/eval/provider_eval_test.exs</code>) reruns in a few minutes per model when they look stale. GLM 5.2 costs about twenty times Flash per token and answers in half the time; Luna sits between them on both. Luna stays the default because Dobby is built and tested against it first.</p>
+
+    <p>The same seven settings are a form on <a href="living.html#admin"><span class="arg">/admin</span></a>. After a save, each field says whether it took effect now or waits for a restart.</p>
 
     <h2 id="written">Dobby writes this file too</h2>
     <p>The forms on <span class="arg">/house</span> and <span class="arg">/admin</span>, a device Dobby proposes in the thread, and an agent over MCP all write to this file. One writer handles every change, so two saves at once queue instead of colliding. Two things to know before you edit by hand:</p>

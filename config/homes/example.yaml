@@ -194,6 +194,26 @@ house:
       bindings:
         connectivity: binary_sensor.office_printer
 
+  # Standing rules: conditions Dobby watches and reports on, never acts on.
+  # Dobby writes these from the thread once the household agrees, and The
+  # House page writes them from a form; this is the shape either way. Rules
+  # only report. The guide's house page explains each field.
+  #
+  # rules:
+  #   - id: cold-room
+  #     name: Cold room
+  #     device: thermostat:hall
+  #     kind: state                    # state: holds for the duration; absence: no recorded change into it
+  #     attribute: current_temperature_f
+  #     operator: lt                   # eq, ne, and for numbers gt, gte, lt, lte
+  #     value: 60
+  #     duration_seconds: 1200
+  #     enabled: true
+  #     window:                        # optional: watch only inside a daily window
+  #       start: "22:00"
+  #       end: "06:00"                 # earlier than start means overnight
+  #       days: [1, 2, 3, 4, 5]        # Monday is 1
+
 # The box Dobby runs on, rather than the house it looks after. Everything here
 # is optional. DOBBY_MODEL, PORT and DOBBY_LAN override their matching fields
 # while exported, so a one-off experiment does not mean editing this file.
@@ -210,6 +230,13 @@ system:
   # model: openrouter:z-ai/glm-5.3-flash
   # reasoning: low       # how hard the model thinks first: low, medium or high
   # routing: latency     # what OpenRouter optimizes for: latency, throughput or price
+  #
+  # Or name the one endpoint that serves the model and forbid a fallback, as
+  # a slug from OpenRouter's endpoint listing. Routing lets OpenRouter choose
+  # an endpoint per reply; a pin is the same endpoint every time, which is the
+  # only way a measurement can be repeated. The endpoints measured fastest to
+  # the first word are recorded in the house guide.
+  # provider: together
 
   # The port the surface is served on.
   port: 4000

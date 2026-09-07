@@ -85,8 +85,12 @@ house:
       bindings:
         connectivity: binary_sensor.office_printer
 
-# The box: this instance answers with GLM 5.3 Flash (TK-034). Flash is only
-# fast with low reasoning and latency routing, so the three lines go together.
+# The box: this instance answers with GLM 5.3 Flash (TK-034), thinking at low
+# effort, from whichever endpoint OpenRouter finds fastest at the moment. That
+# is the default on purpose (Greg, 2026-09-07): a household that wants the
+# same endpoint every time writes `provider:` with a slug from OpenRouter's
+# listing, and the house guide records which endpoints measured fastest under
+# each model when every one was timed (TK-051). A pin has no fallback.
 system:
   model: openrouter:z-ai/glm-5.3-flash
   reasoning: low

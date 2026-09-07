@@ -26,6 +26,45 @@ defmodule Dobby.RulesRuntimeTest do
       %{config: writable_house!()}
     end
 
+    # Review of 2026-09-07: a proposal whose id a standing rule already holds
+    # is an edit, and confirming it replaces that rule and its watch. The
+    # machinery always allowed that and said nothing, so the household agreed
+    # to the new rule alone. The tool now names what it would replace.
+    test "a proposal that would replace a standing rule says so" do
+      assert {:ok, _} = Rules.save(definition())
+      assert [%{id: id, description: standing}] = Rules.list()
+
+      # Atom keys, as Jido hands a tool its validated params.
+      params = %{
+        id: id,
+        name: "Cold room, an hour",
+        device: @device,
+        kind: "state",
+        attribute: "current_temperature_f",
+        operator: "lt",
+        number_value: 60,
+        duration: 60,
+        duration_unit: "minutes"
+      }
+
+      context = %{speaker: "greg", via: :conversation, request_id: "turn-9"}
+      assert {:ok, described} = Jido.Exec.run(Dobby.Tools.ProposeRule, params, context)
+
+      assert described.replaces.id == id
+      assert described.replaces.description == standing
+      assert described.replaces.note =~ "replaces that rule"
+
+      # A fresh id replaces nothing and says nothing about it.
+      assert {:ok, fresh} =
+               Jido.Exec.run(
+                 Dobby.Tools.ProposeRule,
+                 %{params | id: "cold-room-hour"},
+                 context
+               )
+
+      refute Map.has_key?(fresh, :replaces)
+    end
+
     test "proposal does not watch until a later household request confirms it", %{config: config} do
       assert {:ok, proposal} =
                Rules.propose(definition(),

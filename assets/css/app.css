@@ -284,7 +284,7 @@ body {
    `/house` and `/admin` is exactly what it looked like. `:only-child` is the
    condition itself, and it costs no route class. */
 .board > .plate:only-child,
-.board:not(:has(> .rows)) > .plate:has(~ .standing-notices:empty) {
+.board:not(:has(> .rows)) > .plate:has(~ .standing-notices:not(:has(.standing-notice))) {
   padding-bottom: 0;
   margin-bottom: 0;
   border-bottom: 0;
@@ -917,7 +917,9 @@ body {
 .rule-source { margin: .5rem 0; font-size: .86rem; color: var(--ink-faint); overflow-wrap: anywhere; }
 .standing-rule.paused .name, .standing-rule.paused .rule-description { color: var(--ink-faint); }
 .standing-rules .why, .board > .why { color: var(--st-refused); }
-.standing-notices:empty { display: none; }
+/* Not `:empty`: the stream container renders with whitespace inside it, which
+   `:empty` does not match, so the guard asks whether a notice is in it. */
+.standing-notices:not(:has(.standing-notice)) { display: none; }
 .standing-notices { max-width: var(--pitch); max-height: 25dvh; overflow-y: auto; }
 .standing-notice { border-top: 1px solid var(--rule); padding: .5rem 0; }
 .standing-notice p { margin: 0; font-family: var(--board-type); font-size: .86rem; color: var(--ink-quiet); overflow-wrap: anywhere; }

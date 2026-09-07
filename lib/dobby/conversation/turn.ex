@@ -407,10 +407,12 @@ defmodule Dobby.Conversation.Turn do
   end
 
   defp reply(turn, text) do
+    # The same sum the request row carries, so the reply and the record never
+    # name two different numbers "usage".
     meta = %{
       "steps" => Enum.map(turn.order, &step_meta(Map.fetch!(turn.steps, &1))),
       "duration_ms" => elapsed(turn),
-      "usage" => jsonable(turn.usage)
+      "usage" => jsonable(cost(Enum.reverse(turn.model_turns)))
     }
 
     case Conversation.append_reply(text, request_id: turn.request_id, meta: meta) do
@@ -569,11 +571,13 @@ defmodule Dobby.Conversation.Turn do
   end
 
   # A provider's map arrives with whatever keys ReqLLM's normaliser gave it,
-  # and a scripted turn arrives with none at all.
+  # and a scripted turn arrives with none at all. A float is a count too — a
+  # provider that reports 5600.0 reported 5600, and reading it as nothing
+  # would make the row say the cache missed when it did not.
   defp model_turn(usage) when is_map(usage) do
     Map.new(@counters, fn counter ->
       value = Map.get(usage, counter) || Map.get(usage, Atom.to_string(counter)) || 0
-      {counter, if(is_integer(value) and value >= 0, do: value, else: 0)}
+      {counter, if(is_number(value) and value >= 0, do: trunc(value), else: 0)}
     end)
   end
 

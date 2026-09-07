@@ -58,6 +58,8 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
 
   @behaviour Jido.AI.Reasoning.ReAct.RequestTransformer
 
+  require Logger
+
   @tag "<house>"
 
   @impl true
@@ -139,8 +141,13 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     |> trim(Dobby.Conversation.window())
   end
 
-  # The current request begins at the last thing somebody said. Everything
-  # before it is kept as words alone.
+  # The current request begins at the last thing somebody in the house said.
+  # Everything before it is kept as words alone. "Somebody in the house" is
+  # the point: jido_ai appends its own user message mid-request when the model
+  # repeats a tool call (`@cycle_warning`, runner.ex), and a boundary drawn at
+  # any user message would then strip the in-flight request's own results and
+  # tell the model to answer from results it no longer has. A household
+  # utterance is the one shape `Dobby.Utterance.to_message/1` writes.
   defp forget_earlier_tool_rows(messages) do
     case last_utterance_index(messages) do
       nil ->
@@ -159,16 +166,46 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
       # conversation.
       {:user, _spoken, _calls} -> if house_block?(message), do: [], else: [message]
       # Words said beside a tool call stay as words; the call goes.
-      {:assistant, true, true} -> [Map.delete(message, :tool_calls)]
+      {:assistant, true, true} -> [words_only(message)]
       # A tool call with nothing said, and the result that answered it.
       {:assistant, false, true} -> []
       {:tool, _spoken, _calls} -> []
+      {:assistant, _spoken, _calls} -> [words_only(message)]
       _said -> [message]
     end
   end
 
-  defp calls?(%{tool_calls: calls}) when is_list(calls), do: calls != []
-  defp calls?(_message), do: false
+  # What an assistant message said, and nothing it did or thought. A reasoning
+  # model's message carries its chain of thought as a content part and as
+  # `reasoning_details`, and on the models in force that block is the largest
+  # thing in the message — larger than the tool result the trim was written to
+  # drop. It is not conversation either: the current request keeps its own
+  # turns whole, since a provider may need the reasoning of a turn it is
+  # continuing, and an earlier request's reasoning is over.
+  defp words_only(message) do
+    message
+    |> Map.drop([:tool_calls, "tool_calls", :thinking, "thinking", :reasoning_details])
+    |> Map.delete("reasoning_details")
+    |> update_content(fn
+      parts when is_list(parts) -> Enum.filter(parts, &spoken_part?/1)
+      text -> text
+    end)
+  end
+
+  defp update_content(%{content: _} = message, fun), do: Map.update!(message, :content, fun)
+  defp update_content(%{"content" => _} = message, fun), do: Map.update!(message, "content", fun)
+  defp update_content(message, _fun), do: message
+
+  # Both key shapes, because `role/1` accepts both and a message classified by
+  # its role must be read by the same rule: a string-keyed assistant call kept
+  # while its string-keyed result was dropped would be the orphan in the other
+  # direction, an advertised call with no answer.
+  defp calls?(message) do
+    case Map.get(message, :tool_calls, Map.get(message, "tool_calls")) do
+      calls when is_list(calls) -> calls != []
+      _none -> false
+    end
+  end
 
   # Content is a string or a list of ReqLLM content parts, depending on how
   # the entry reached the context, and an assistant message that only called
@@ -189,8 +226,16 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     messages
     |> Enum.with_index()
     |> Enum.reduce(nil, fn {message, index}, acc ->
-      if role(message) == :user and not house_block?(message), do: index, else: acc
+      if utterance?(message), do: index, else: acc
     end)
+  end
+
+  defp utterance?(message) do
+    role(message) == :user and
+      case content(message) do
+        text when is_binary(text) -> Dobby.Utterance.message?(text)
+        _other -> false
+      end
   end
 
   defp trim(messages, limit) do
@@ -289,9 +334,31 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   defp observable_type(type), do: Atom.to_string(type)
 
   # The rules that exist and the notices standing now, by rule id, which is
-  # what pausing, deleting and acknowledging take. One line each, so a house
-  # with no rules costs a few words and a house with ten costs a hundred.
+  # what pausing, deleting and acknowledging take, then every proposal
+  # awaiting agreement. One line each, so a house with no rules costs a few
+  # words and a house with ten costs a hundred.
+  #
+  # Guarded, because this runs inside the model's request on every turn and
+  # reads the watcher and the database to do it. jido_ai rescues an exception
+  # from a transformer and fails the request; an exit — a `GenServer.call`
+  # timeout while the watcher is loading rules against a slow database — it
+  # does not catch at all, and the turn then hangs with the queue behind it.
+  # A thermostat request must not die because the rules could not be read
+  # that second: the block says so and the turn goes on.
   defp rules do
+    standing() <> proposals()
+  rescue
+    error -> unreadable("rules", error)
+  catch
+    :exit, reason -> unreadable("rules", reason)
+  end
+
+  defp unreadable(what, reason) do
+    Logger.warning("the house block could not read the #{what}: #{inspect(reason)}")
+    "Standing rules and proposals: not readable right now."
+  end
+
+  defp standing do
     rules =
       case Dobby.Rules.list() do
         [] ->
@@ -304,13 +371,13 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
             end) <> "."
       end
 
-    notices =
-      case Dobby.Rules.notices() do
-        [] -> ""
-        notices -> "\nStanding notices: " <> Enum.map_join(notices, ", ", & &1.rule_id) <> "."
-      end
+    case Dobby.Rules.notices() do
+      [] ->
+        rules
 
-    rules <> notices <> proposals()
+      notices ->
+        rules <> "\nStanding notices: " <> Enum.map_join(notices, ", ", & &1.rule_id) <> "."
+    end
   end
 
   # Every proposal awaiting agreement, with the id the confirming tool takes.
@@ -318,7 +385,8 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   # the window forgets earlier requests' tool results (`window/1`) and the
   # agreement comes in a later message by design: the id has to be in front
   # of the model on the turn the household says yes, and this is the only
-  # message that is. Costs nothing while nothing is proposed.
+  # message that is. Costs nothing while nothing is proposed. Both reads are
+  # bounded to the day a proposal can still be confirmed in.
   defp proposals do
     rules =
       Enum.map_join(Dobby.Rules.proposals(), "; ", fn proposal ->
@@ -326,8 +394,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
       end)
 
     devices =
-      Dobby.HomeConfig.Proposals.outstanding()
-      |> Enum.reject(&Dobby.HomeConfig.Proposals.expired?/1)
+      Dobby.HomeConfig.Proposals.outstanding(within_ttl: true)
       |> Enum.map_join("; ", fn proposal ->
         ~s(#{proposal.id} — device #{proposal.device_id} "#{proposal.name}")
       end)
@@ -385,8 +452,11 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     end
   end
 
+  # Before the household's utterance, which is the request's own boundary —
+  # not before whatever user message is last, since jido_ai's cycle warning
+  # can be last and the block belongs with what the person said.
   defp split_before_last_user(messages) do
-    case last_user_index(messages) do
+    case last_utterance_index(messages) || last_user_index(messages) do
       nil -> {messages, []}
       index -> Enum.split(messages, index)
     end
@@ -396,7 +466,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     messages
     |> Enum.with_index()
     |> Enum.reduce(nil, fn {message, index}, acc ->
-      if role(message) in [:user, "user"], do: index, else: acc
+      if role(message) == :user, do: index, else: acc
     end)
   end
 
@@ -405,5 +475,6 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
   defp role(_message), do: nil
 
   defp content(%{content: content}), do: content
+  defp content(%{"content" => content}), do: content
   defp content(_message), do: nil
 end

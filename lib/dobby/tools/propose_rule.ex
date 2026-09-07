@@ -144,11 +144,33 @@ defmodule Dobby.Tools.ProposeRule do
              actor: context[:speaker] || "the household",
              request_id: context[:request_id]
            ) do
-        {:ok, proposal} -> {:ok, Dobby.Rules.describe_proposal(proposal)}
+        {:ok, proposal} -> {:ok, proposal |> Dobby.Rules.describe_proposal() |> replacing()}
         error -> error
       end
     end
   end
+
+  # A proposal whose id a standing rule already holds is an edit: confirming
+  # it replaces that rule and its watch. The proposal machinery has always
+  # allowed that and said nothing, so the household agreed to the new rule
+  # alone and lost the old one unannounced. The result now names what would
+  # be replaced, and the doctrine says to tell the household before asking.
+  defp replacing(%{rule: %{"id" => id}} = described) do
+    case Enum.find(Dobby.Rules.list(), &(&1.id == id)) do
+      nil ->
+        described
+
+      standing ->
+        Map.put(described, :replaces, %{
+          id: standing.id,
+          name: standing.name,
+          description: standing.description,
+          note: "Confirming this proposal replaces that rule and its watch."
+        })
+    end
+  end
+
+  defp replacing(described), do: described
 
   defp value(params) do
     case Map.take(params, [:number_value, :boolean_value, :state_value]) |> Map.values() do

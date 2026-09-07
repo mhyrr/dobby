@@ -64,9 +64,14 @@ defmodule Dobby.Tools.History do
       ],
       since: [
         type: :string,
-        doc: "ISO 8601 instant with offset, only when the household gave a date. Not with period."
+        doc:
+          "Only when the household named a date: that date as YYYY-MM-DD, and the house applies its own clock. Not with period."
       ],
-      until: [type: :string, doc: "ISO 8601 instant with offset; now when omitted."],
+      until: [
+        type: :string,
+        doc:
+          "Only beside since: the day after the last day asked about, as YYYY-MM-DD, exclusive. Now when omitted."
+      ],
       mode: [
         type: {:in, ["events", "count", "latest", "duration"]},
         doc:
@@ -114,8 +119,56 @@ defmodule Dobby.Tools.History do
 
   @impl true
   def run(params, _context) do
-    with {:ok, result} <- Dobby.History.query(params), do: {:ok, on_the_house_clock(result)}
+    with {:ok, params} <- dated(params),
+         {:ok, result} <- Dobby.History.query(params) do
+      {:ok, on_the_house_clock(result)}
+    end
   end
+
+  # A date the household named arrives as a date, and code makes the instant.
+  # The record takes instants with offsets, and the doctrine used to ask the
+  # model to attach the house clock's offset to any date it was given — which
+  # is the model doing time-zone arithmetic, and it did it wrong: today's
+  # offset on a January date is off by an hour at both ends in a house that
+  # keeps daylight time. So `since` and `until` may be bare dates; each
+  # becomes local midnight in the house's zone here, `until` exclusive, with
+  # an ambiguous midnight taking its first reading and a missing one the
+  # first instant after the gap. An instant with an offset still passes as it
+  # was, for a caller that has one.
+  defp dated(params) do
+    Enum.reduce_while([:since, :until], {:ok, params}, fn edge, {:ok, params} ->
+      case Map.fetch(params, edge) do
+        {:ok, value} ->
+          case midnight(value) do
+            {:ok, instant} -> {:cont, {:ok, Map.put(params, edge, instant)}}
+            :not_a_date -> {:cont, {:ok, params}}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+
+        :error ->
+          {:cont, {:ok, params}}
+      end
+    end)
+  end
+
+  defp midnight(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} ->
+        zone = Dobby.Home.manifest().timezone
+
+        case DateTime.new(date, ~T[00:00:00], zone, Dobby.Schedules.Cron.time_zone_database()) do
+          {:ok, at} -> {:ok, DateTime.to_iso8601(at)}
+          {:ambiguous, first, _second} -> {:ok, DateTime.to_iso8601(first)}
+          {:gap, _before, after_gap} -> {:ok, DateTime.to_iso8601(after_gap)}
+          {:error, _reason} -> {:error, "#{value} is not a day the house's clock can place."}
+        end
+
+      {:error, _not_a_date} ->
+        :not_a_date
+    end
+  end
+
+  defp midnight(_other), do: :not_a_date
 
   # The record stamps rows in UTC and the model reads them beside a house
   # clock in the household's zone. Asked what happened last night, GLM 5.2 on

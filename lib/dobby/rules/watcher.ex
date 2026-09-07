@@ -34,8 +34,14 @@ defmodule Dobby.Rules.Watcher do
 
   def suspend, do: absent_ok(fn -> GenServer.call(__MODULE__, :suspend, 30_000) end)
 
+  # No notices is the answer when the watcher is absent, restarting, or too
+  # busy to say: this is read on every model turn and on every board mount,
+  # and an exit here would end a thermostat request or crash a kitchen's
+  # browser over a line the block can do without for one turn.
   def notices do
-    if Process.whereis(__MODULE__), do: GenServer.call(__MODULE__, :notices), else: []
+    GenServer.call(__MODULE__, :notices, 5_000)
+  catch
+    :exit, _reason -> []
   end
 
   def acknowledge(id, actor, opts \\ []) do
@@ -177,20 +183,37 @@ defmodule Dobby.Rules.Watcher do
               Rule.event_matches?(rule, entry),
             do: id
 
+      # `recover/3` writes the occurrence's resolution to the database, and
+      # this handler runs on every recorded event in the house. Broad, and
+      # this is why: a database that is restarting must not take the watcher
+      # with it — the supervisor would bring it back into the same outage,
+      # `init/1` would raise loading its standing occurrences, and three
+      # restarts inside five seconds stop the house. The event is left for
+      # the next tick, which is what a missed write costs; the cursor does not
+      # advance, so the same event is seen again once the database answers.
       state =
-        Enum.reduce(matched, state, fn id, acc ->
-          acc = recover(acc, id, now)
-          window_key = Map.get(Map.fetch!(acc.engines, id), :window_key)
+        try do
+          Enum.reduce(matched, state, fn id, acc ->
+            acc = recover(acc, id, now)
+            window_key = Map.get(Map.fetch!(acc.engines, id), :window_key)
 
-          engine =
-            Map.put(%{Engine.new() | since: mono, observed_since: now}, :window_key, window_key)
+            engine =
+              Map.put(%{Engine.new() | since: mono, observed_since: now}, :window_key, window_key)
 
-          %{
-            acc
-            | activity_cursors: Map.put(acc.activity_cursors, id, entry.id),
-              engines: Map.put(acc.engines, id, engine)
-          }
-        end)
+            %{
+              acc
+              | activity_cursors: Map.put(acc.activity_cursors, id, entry.id),
+                engines: Map.put(acc.engines, id, engine)
+            }
+          end)
+        rescue
+          error ->
+            Logger.warning(
+              "the rules watcher could not record a recovery: #{Exception.message(error)}"
+            )
+
+            state
+        end
 
       # The record is busy — every request and tool call lands here — and only
       # an absence rule that just saw its event has anything new to evaluate.

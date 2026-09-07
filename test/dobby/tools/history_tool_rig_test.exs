@@ -53,4 +53,33 @@ defmodule Dobby.HistoryToolRigTest do
     # midnight and says so with its offset.
     assert result.window.since =~ ~r/T00:00:00-0[45]:00\z/
   end
+
+  # A date the household named arrives as a date, and code makes the instant.
+  # The doctrine used to ask the model for an offset, and in a house that
+  # keeps daylight time the model attached today's offset to a January date:
+  # an hour off at both ends, the model doing time-zone arithmetic.
+  test "a bare date is midnight on the house's clock, at both edges" do
+    assert {:ok, result} =
+             Jido.Exec.run(
+               Dobby.Tools.History,
+               %{since: "2026-01-05", until: "2026-01-06"},
+               %{}
+             )
+
+    # January in America/New_York is -05:00, whatever today's offset is.
+    assert result.window.since == "2026-01-05T00:00:00-05:00"
+    assert result.window.until == "2026-01-06T00:00:00-05:00"
+  end
+
+  test "an instant with its own offset still passes as it was" do
+    assert {:ok, result} =
+             Jido.Exec.run(
+               Dobby.Tools.History,
+               %{since: "2026-01-05T06:00:00-05:00", until: "2026-01-05T09:00:00-05:00"},
+               %{}
+             )
+
+    assert result.window.since == "2026-01-05T06:00:00-05:00"
+    assert result.window.until == "2026-01-05T09:00:00-05:00"
+  end
 end

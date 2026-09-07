@@ -256,6 +256,33 @@ defmodule Dobby.Scenarios.HouseBlockTest do
              Dobby.Rules.list()
   end
 
+  # The block reads the watcher and the database on every turn. A watcher
+  # that cannot answer in time exits the call, jido_ai rescues exceptions from
+  # a transformer and not exits, and the turn hung with the queue behind it
+  # (review of 2026-09-07). A thermostat request does not die because the
+  # rules could not be read that second.
+  test "a watcher that cannot answer does not take the turn with it" do
+    eventually(fn -> agent_state(DobbyAgent.id()) |> Map.get(:world_model) end)
+
+    :ok = :sys.suspend(Dobby.Rules.Watcher)
+    on_exit(fn -> :sys.resume(Dobby.Rules.Watcher) end)
+
+    utterance = Utterance.new("greg", "what is the thermostat at?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        answer("It's 68°, set to 68°.")
+      end
+
+    assert {:ok, "It's 68°, set to 68°."} = DobbyAgent.say(utterance, probing(script))
+    assert_receive {:house_request, messages}, 10_000
+
+    [_spoken, house | _earlier] = Enum.reverse(messages)
+    assert text(house) =~ "Standing rules: none."
+    assert device_line(text(house), @thermostat) =~ "currently 68°F"
+  end
+
   # TK-053. The window forgets earlier requests' tool rows and keeps what was
   # said, and the one thing a tool row carried that a later turn needs — a
   # proposal id — reaches the model from the block instead. Two household

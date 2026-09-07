@@ -886,3 +886,94 @@ fix is a doctrine sentence measured on 5.3, or the reply fold joining
 turns with a break, or both, and it is recorded on TK-056 for Greg's call.
 The model-settings check on ReqLLM 1.22 passed 2 of 2, which is the wire
 check the dependency bump needed.
+
+## Reviewed before merging — 2026-09-07
+
+Greg's shape: Fable orchestrating, four Opus reviewers on the subsystems
+with the Elixir skills and CLAUDE.md read first, one Fable fork on the
+critical path. Findings only, verified against the code, then verified
+again here. Three would have taken the floor down; a dozen are fixed on
+the branch; the rest are TK-057 to TK-063 with the sequence that breaks
+each one.
+
+**Fixed, with a test that fails against the code as it was.**
+
+- The window's request boundary was any user message. jido_ai appends its
+  own user message when the model repeats a tool call (`@cycle_warning`),
+  and the trim then read it as a new request, stripped the in-flight
+  request's own tool results, and told the model to answer from results it
+  no longer had — bounded only by `max_iterations`, and burning the turns
+  the trim exists to save. The boundary is now the last household
+  utterance, the one shape `Dobby.Utterance.to_message/1` writes and
+  `Utterance.message?/1` recognises, and the block is injected before it.
+- The block's reads ran unguarded inside the model's request. A
+  `GenServer.call` timeout while the watcher loads rules against a slow
+  database is an exit, jido_ai rescues exceptions from a transformer and
+  not exits, `Turn.fold/3` waits on a stream with no timeout, and the queue
+  behind it stops answering the whole house. The rules and proposals lines
+  are read under a rescue and a catch with the reason stated, and a
+  thermostat request goes on with "not readable right now" in the block.
+  `Watcher.notices/0` catches the exit itself, since the thread reads it on
+  every mount.
+- The watcher's `{:recorded, …}` handler wrote to the database with no
+  rescue; a `Repo.update` raising during a Postgres restart crashed the
+  watcher, `init/1` raised on the same outage loading its standing
+  occurrences, and three restarts inside five seconds stop the house. The
+  write is rescued with the reason stated and the event waits for the next
+  tick. The `init/1` half is TK-059, and it is the one change on this branch
+  made inside `Dobby.Rules`, because the alternative was shipping a known
+  crash loop.
+- The trim kept an earlier turn's whole chain of thought — the largest thing
+  in a reasoning model's message — while dropping its one-line tool result.
+  What was said stays; thinking parts and `reasoning_details` go with the
+  call. And string-keyed messages, which `role/1` accepted, were classified
+  by a rule that could not read them, leaving a call whose result was
+  dropped; both key shapes are read by one rule now, and the orphan test
+  checks both directions, which it could not fail before.
+- The doctrine told the model to attach the house clock's offset to any
+  named date, three sentences after forbidding it arithmetic, and a January
+  date in a house on daylight time came out an hour off at both ends. A
+  named date now reaches the history tool as a date, and the tool places it
+  at local midnight on the house's clock, an ambiguous midnight taking its
+  first reading and a missing one the first instant after the gap. `until`
+  is documented as belonging beside `since`, which is what the record
+  enforces.
+- A proposal whose id a standing rule already held was an edit the
+  machinery allowed and said nothing about, so the household agreed to the
+  new rule alone and lost the old one and its watch unannounced.
+  `propose_rule` now names what it would replace, and the doctrine says to
+  tell the household before asking.
+- `HomeConfig.Proposals.outstanding/0` was unbounded and read on every model
+  turn; the block now asks for proposals young enough to confirm. `Turn`
+  recorded a float counter as zero and wrote a different `usage` on the
+  reply than on the row; both say one number. A `rules:` key with nothing
+  under it — the file a household is left with after deleting its last rule
+  by hand — refused the boot. The feed shouted `SAY` on request rows from
+  before the counters; they say "cost not recorded". The board's void guard
+  matched `:empty` on a container that renders whitespace, so `/` opened on
+  an empty plate before Home Assistant reported; it asks for a notice
+  instead. The rules panel's undo line wore the wrong ink. The guide's pin
+  table named Wafer in the column a household copies from, and every
+  example slug was one no model measured fastest. The example house had no
+  rules block. `HomeConfig.add_rule/update_rule/delete_rule` had no caller
+  in production, and their test proved guarantees the shipping path does
+  not have; both are gone.
+
+**Filed, not fixed.** TK-057 (the record's time window in DST-at-midnight
+zones, exact midnight, latest's count, until without since), TK-058 (rule
+events carry no device; a device count includes Dobby's reads), TK-059 (the
+watcher's boot on a database outage, its reconnect calls into every device
+agent, the delete-window notice, acknowledging by occurrence id twice, a
+DST-short window's duration), TK-060 (the agreement boundary fails open
+without `via: :conversation`; proposals unscoped to a house), TK-061 (the
+form's unit box; the notices in landscape), TK-062 (the writer's unguarded
+`apply_rules` call; the hybrid manifest during a deferred restart), TK-063
+(the block's state carries no age).
+
+Checked hard and found sound, across the five: the window-function count,
+the zoned parameters through Ecto, the SQL surface, weekday resolution
+across DST days; predicate type safety, the timer generation guard, the
+standing-occurrence race and its adoption, DST inside a window; the
+agreement boundary through every entry point; the provider slug shapes and
+the merged preferences map; the atom table and the MCP door's reach; the
+LiveView event guards; YAML round-trips of a windowed rule.

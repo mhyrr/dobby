@@ -187,8 +187,16 @@ defmodule Dobby.Eval.HistoryEvalTest do
     report("history last night", reply)
   end
 
-  test "an explicit date is passed as an instant with an offset, and only that day is reported" do
-    record("control", local(~D[2026-09-01], ~T[15:00:00]), %{
+  test "an explicit date is passed as a date, and only that day is reported" do
+    # The first of last month, so the day is in the past whatever today is and
+    # the year is the one the house clock shows; the utterance names it the
+    # way a person would.
+    today = DateTime.to_date(Home.local(DateTime.utc_now()))
+    first = today |> Date.beginning_of_month() |> Date.add(-1) |> Date.beginning_of_month()
+    day_after = Date.add(first, 1)
+    month = Calendar.strftime(first, "%B")
+
+    record("control", local(first, ~T[15:00:00]), %{
       device: "thermostat:main",
       actor: "greg",
       action: "set_temperature",
@@ -196,7 +204,7 @@ defmodule Dobby.Eval.HistoryEvalTest do
       result: %{"status" => "accepted"}
     })
 
-    record("control", local(~D[2026-09-02], ~T[09:00:00]), %{
+    record("control", local(day_after, ~T[09:00:00]), %{
       device: "light:living_room",
       actor: "maya",
       action: "turn_off",
@@ -204,22 +212,26 @@ defmodule Dobby.Eval.HistoryEvalTest do
       result: %{"status" => "accepted"}
     })
 
-    %{reply: reply} = turn!("greg", "What did you record on September 1st?")
+    %{reply: reply} = turn!("greg", "What did you record on #{month} 1st?")
     assert "history" in Trace.tool_calls(), no_call(reply)
     assert Trace.ha_calls() == []
 
-    # The record keeps the model's raw arguments, filler period and all; the
-    # hook lets the instants win. What matters here is that the date reached
-    # the tool as the household's own instants, with the house offset.
+    # The record keeps the model's raw arguments. What matters here is that
+    # the date reached the tool as the household's own date, for code to
+    # place on the house's clock — never as an instant the model built.
     assert Enum.any?(history_calls(), fn call ->
-             is_binary(call.args["since"]) and
-               String.starts_with?(call.args["since"], "2026-09-01T00:00:00-04:00")
+             call.args["since"] == Date.to_iso8601(first)
            end),
-           "a date the household gave must reach the tool as since, not as a period\n#{tool_trace()}"
+           "a date the household gave must reach the tool as that date\n#{tool_trace()}"
+
+    refute Enum.any?(history_calls(), fn call ->
+             is_binary(call.args["since"]) and String.contains?(call.args["since"], "T")
+           end),
+           "the model built an instant, which is its arithmetic and not the house's\n#{tool_trace()}"
 
     assert_claims(
       reply,
-      "Reports a thermostat command on September 1, attributed to Greg or to the person asking, and does not report the light being turned off on September 2."
+      "Reports a thermostat command on the 1st of the month, attributed to Greg or to the person asking, and does not report a light being turned off on the 2nd."
     )
 
     report("history explicit date", reply)

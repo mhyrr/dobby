@@ -120,8 +120,9 @@ defmodule Dobby.DobbyAgent do
   missing row means nothing was recorded, never that nothing happened. Pass
   calendar words as a period and a weekday number and let the tool resolve
   them. "When did it last happen" is mode latest, which searches all recorded
-  history. A date the household names becomes since and until with the UTC
-  offset the house clock shows. Do not narrow by kinds unless the household
+  history. A date the household names is passed as that date, YYYY-MM-DD, in
+  since, with the day after in until; the house applies its own clock, and
+  you never add an offset yourself. Do not narrow by kinds unless the household
   named a kind of event: who set something, or when it last happened, means a
   hand on a card and a schedule as much as a request in the thread, so read
   every kind and let the rows say. Never compute a count or a duration yourself:
@@ -137,7 +138,8 @@ defmodule Dobby.DobbyAgent do
   and lists the standing rules and the notices standing now beneath the
   roster; propose from the block, without listing first. Propose with
   propose_rule, naming the observable exactly as the block names it, and show
-  the household the description it returns, word for word. The rule watches
+  the household the description it returns, word for word; if it says the
+  proposal replaces a standing rule, say which one before asking. The rule watches
   only once the household agrees in a later message and confirm_rule
   succeeds; never confirm in the turn that proposed. The block lists every
   proposal awaiting agreement with the proposal id confirm_rule and

@@ -22,7 +22,7 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
     test "leaves a short conversation's words alone" do
       messages =
         Enum.flat_map(0..2, fn i ->
-          [%{role: :user, content: "turn #{i}"}, %{role: :assistant, content: "right"}]
+          [%{role: :user, content: "[greg] turn #{i}"}, %{role: :assistant, content: "right"}]
         end)
 
       assert RequestTransformer.window(messages) == messages
@@ -55,8 +55,11 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
     # there. Every offset is checked because the cut lands wherever the
     # arithmetic puts it, and only some offsets land mid-turn.
     test "never orphans a tool result, wherever the cut lands" do
-      for length <- 40..80 do
-        windowed = RequestTransformer.window(conversation(length))
+      # The transformer runs before a model call, so the messages it sees end
+      # at a person speaking or at a tool result — never between a call and
+      # its answer. Lengths that would cut there are not a request shape.
+      for length <- 40..80, messages = conversation(length), not mid_call?(messages) do
+        windowed = RequestTransformer.window(messages)
 
         assert_no_orphans(windowed, "at #{length} messages")
         assert %{role: :user} = List.first(windowed)
@@ -68,7 +71,7 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
     # tokens would be the wrong trade.
     test "sends a single oversized turn whole rather than breaking it" do
       long_turn =
-        [%{role: :user, content: "do the big thing"}] ++
+        [%{role: :user, content: "[greg] do the big thing"}] ++
           Enum.flat_map(1..60, fn i ->
             [
               %{role: :assistant, content: nil, tool_calls: [%{id: "call_#{i}"}]},
@@ -99,13 +102,13 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
       # The words, in the order they were said: nothing but the current
       # request has a tool row left, and it has none of its own here.
       assert Enum.map(windowed, &{role(&1), &1.content}) == [
-               {:user, "turn 0"},
+               {:user, "[greg] turn 0"},
                {:assistant, "it is 68"},
-               {:user, "turn 1"},
+               {:user, "[greg] turn 1"},
                {:assistant, "right"},
-               {:user, "turn 2"},
+               {:user, "[greg] turn 2"},
                {:assistant, "it is 68"},
-               {:user, "turn 3"},
+               {:user, "[greg] turn 3"},
                {:assistant, "right"}
              ]
     end
@@ -116,7 +119,7 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
       # transformer is building, and the result is the whole reason for the
       # next model turn.
       current = [
-        %{role: :user, content: "who set the thermostat?"},
+        %{role: :user, content: "[greg] who set the thermostat?"},
         %{role: :assistant, content: nil, tool_calls: [%{id: "call_now"}]},
         %{role: :tool, tool_call_id: "call_now", name: "history", content: "rows"}
       ]
@@ -130,19 +133,19 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
 
     test "words said beside a tool call stay, without the call" do
       earlier = [
-        %{role: :user, content: "is it warm?"},
+        %{role: :user, content: "[greg] is it warm?"},
         %{role: :assistant, content: "Checking.", tool_calls: [%{id: "call_a"}]},
         %{role: :tool, tool_call_id: "call_a", name: "thermostat_get_status", content: "68"},
         %{role: :assistant, content: "It is 68."}
       ]
 
-      current = [%{role: :user, content: "and now?"}]
+      current = [%{role: :user, content: "[greg] and now?"}]
 
       assert RequestTransformer.window(earlier ++ current) == [
-               %{role: :user, content: "is it warm?"},
+               %{role: :user, content: "[greg] is it warm?"},
                %{role: :assistant, content: "Checking."},
                %{role: :assistant, content: "It is 68."},
-               %{role: :user, content: "and now?"}
+               %{role: :user, content: "[greg] and now?"}
              ]
     end
 
@@ -175,6 +178,98 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
       refute Enum.any?(windowed, &(role(&1) == :tool))
     end
 
+    # jido_ai appends its own user message when the model repeats a tool call
+    # (`@cycle_warning`, react/runner.ex). It is not a household utterance and
+    # must not start a request: the review of 2026-09-07 traced the trim
+    # reading it as one and stripping the in-flight request's own results,
+    # then telling the model to answer from results it no longer had.
+    test "jido's cycle warning does not start a new request" do
+      current = [
+        %{role: :user, content: "[greg] who set the thermostat?"},
+        %{role: :assistant, content: nil, tool_calls: [%{id: "c1"}]},
+        %{role: :tool, tool_call_id: "c1", name: "history", content: "rows"},
+        %{role: :assistant, content: nil, tool_calls: [%{id: "c2"}]},
+        %{role: :tool, tool_call_id: "c2", name: "history", content: "rows"},
+        %{role: :user, content: "You already called the same tool(s) with identical parameters."}
+      ]
+
+      earlier = [%{role: :user, content: "[greg] hello"}, %{role: :assistant, content: "Hi."}]
+
+      assert RequestTransformer.window(earlier ++ current) == earlier ++ current
+    end
+
+    test "the block is injected before the utterance even when jido's warning is last" do
+      # Through the real transformer with an empty world model: the block
+      # sits before what the person said, not before jido's message.
+      messages = [
+        %{role: :user, content: "[greg] who set the thermostat?"},
+        %{role: :assistant, content: nil, tool_calls: [%{id: "c1"}]},
+        %{role: :tool, tool_call_id: "c1", name: "history", content: "rows"},
+        %{role: :user, content: "You already called the same tool(s)."}
+      ]
+
+      {:ok, %{messages: built}} =
+        RequestTransformer.transform_request(%{messages: messages}, %{}, %{}, %{})
+
+      [block, spoken | _rest] = built
+      assert String.starts_with?(block.content, "<house>")
+      assert spoken.content == "[greg] who set the thermostat?"
+      assert List.last(built).content == "You already called the same tool(s)."
+    end
+
+    test "string-keyed messages are read by the same rule as atom-keyed ones" do
+      earlier = [
+        %{"role" => "user", "content" => "[greg] is it warm?"},
+        %{"role" => "assistant", "content" => nil, "tool_calls" => [%{id: "c"}]},
+        %{"role" => "tool", "tool_call_id" => "c", "name" => "t", "content" => "68"},
+        %{"role" => "assistant", "content" => "It is 68."}
+      ]
+
+      current = [%{role: :user, content: "[greg] and now?"}]
+      windowed = RequestTransformer.window(earlier ++ current)
+
+      assert windowed == [
+               %{"role" => "user", "content" => "[greg] is it warm?"},
+               %{"role" => "assistant", "content" => "It is 68."},
+               %{role: :user, content: "[greg] and now?"}
+             ]
+
+      assert_no_orphans(windowed, "string keys")
+    end
+
+    # A reasoning model's message carries its chain of thought as a content
+    # part; on the models in force that block is larger than the tool result
+    # the trim exists to drop. What was said stays; what was thought goes.
+    test "an earlier turn's thinking goes with its tool call, and its words stay" do
+      earlier = [
+        %{role: :user, content: "[greg] set it to 70"},
+        %{
+          role: :assistant,
+          content: [
+            %{type: :thinking, thinking: String.duplicate("hmm ", 200)},
+            %{type: :text, text: "Setting it to 70, Greg."}
+          ],
+          tool_calls: [%{id: "c"}],
+          reasoning_details: [%{type: "reasoning.text", text: "..."}]
+        },
+        %{role: :tool, tool_call_id: "c", name: "thermostat_set_temperature", content: "ok"},
+        %{
+          role: :assistant,
+          content: [%{type: :thinking, thinking: "done?"}, %{type: :text, text: "Done."}],
+          tool_calls: nil
+        }
+      ]
+
+      current = [%{role: :user, content: "[greg] thanks"}]
+
+      assert RequestTransformer.window(earlier ++ current) == [
+               %{role: :user, content: "[greg] set it to 70"},
+               %{role: :assistant, content: [%{type: :text, text: "Setting it to 70, Greg."}]},
+               %{role: :assistant, content: [%{type: :text, text: "Done."}]},
+               %{role: :user, content: "[greg] thanks"}
+             ]
+    end
+
     # The same policy at the other moment (`Dobby.Conversation.window/0`):
     # boot rehydration replays only what people and Dobby said, so what boot
     # remembers is already in the shape the window keeps, and the window
@@ -193,6 +288,13 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
 
   defp role(%{role: role}), do: role
 
+  defp mid_call?(messages) do
+    case List.last(messages) do
+      %{tool_calls: calls} when is_list(calls) -> calls != []
+      _other -> false
+    end
+  end
+
   defp tool_calls?(%{tool_calls: calls}) when is_list(calls), do: calls != []
   defp tool_calls?(_message), do: false
 
@@ -204,7 +306,7 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
       turn =
         if rem(i, 2) == 0 do
           [
-            %{role: :user, content: "turn #{i}"},
+            %{role: :user, content: "[greg] turn #{i}"},
             %{role: :assistant, content: nil, tool_calls: [%{id: "call_#{i}"}]},
             %{
               role: :tool,
@@ -215,7 +317,7 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
             %{role: :assistant, content: "it is 68"}
           ]
         else
-          [%{role: :user, content: "turn #{i}"}, %{role: :assistant, content: "right"}]
+          [%{role: :user, content: "[greg] turn #{i}"}, %{role: :assistant, content: "right"}]
         end
 
       {turn, i + 1}
@@ -224,18 +326,34 @@ defmodule Dobby.DobbyAgent.RequestTransformerTest do
     |> Enum.take(count)
   end
 
+  # Both directions: a result whose call is gone, and a call whose result is
+  # gone. Providers reject either, and the trim can only be trusted if it
+  # never produces the second while guarding against the first.
   defp assert_no_orphans(messages, context) do
     offered =
       messages
-      |> Enum.flat_map(fn
-        %{tool_calls: calls} when is_list(calls) -> Enum.map(calls, & &1.id)
-        _other -> []
+      |> Enum.flat_map(fn message ->
+        case Map.get(message, :tool_calls, Map.get(message, "tool_calls")) do
+          calls when is_list(calls) -> Enum.map(calls, & &1.id)
+          _none -> []
+        end
       end)
       |> MapSet.new()
 
-    for %{role: :tool, tool_call_id: id} <- messages do
+    answered =
+      messages
+      |> Enum.map(&(Map.get(&1, :tool_call_id) || Map.get(&1, "tool_call_id")))
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    for id <- answered do
       assert MapSet.member?(offered, id),
              "#{context}: tool result #{id} has no matching tool_calls in the window"
+    end
+
+    for id <- offered do
+      assert MapSet.member?(answered, id),
+             "#{context}: tool call #{id} has no result in the window"
     end
   end
 end

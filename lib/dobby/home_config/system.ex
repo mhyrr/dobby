@@ -24,7 +24,7 @@ defmodule Dobby.HomeConfig.System do
   3.2 s inside one hour on that setting. A pin is a measurement that can be
   repeated: the eval tier times every endpoint under a model and the winner is
   written here, in the slug OpenRouter's own endpoint listing uses
-  (`deepinfra/fp4`, `z-ai/fp8`). With a pin in force the sort has nothing
+  (`together`, `io-net/fp8`). With a pin in force the sort has nothing
   left to choose, so the two are not expected together; both are still sent
   if both are written, because the file's words all travel.
 
@@ -65,7 +65,7 @@ defmodule Dobby.HomeConfig.System do
     provider: [
       type: :string,
       doc:
-        "The one OpenRouter endpoint that serves the model, with no fallback to another, as a slug from OpenRouter's endpoint listing such as `deepinfra/fp4`."
+        "The one OpenRouter endpoint that serves the model, with no fallback to another, as a slug from OpenRouter's endpoint listing such as `together`."
     ],
     port: [
       type: :pos_integer,
@@ -117,7 +117,7 @@ defmodule Dobby.HomeConfig.System do
 
   The file's words become the provider's here and nowhere else: `reasoning: low`
   is ReqLLM's `reasoning_effort`, `routing: latency` is OpenRouter's
-  `provider.sort`, and `provider: deepinfra/fp4` is `provider.order` with one
+  `provider.sort`, and `provider: together` is `provider.order` with one
   name in it and `allow_fallbacks` off — proven on the wire by the model
   settings eval, which pins a provider that does not exist and is refused
   before anything is generated. `Dobby.DobbyAgent` reads the result at the

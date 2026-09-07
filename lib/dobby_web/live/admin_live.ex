@@ -1070,6 +1070,10 @@ defmodule DobbyWeb.AdminLive do
       "#{count(usage["cached_tokens"])} cached · #{count(usage["reasoning_tokens"])} reasoning"
   end
 
+  # A request row from before the counters were recorded has no cost to say,
+  # and its action name shouted in capitals would read as an identifier.
+  defp what(%{kind: "request"}), do: "cost not recorded"
+
   defp what(%{device: nil, action: action}), do: action
   defp what(%{device: device, action: nil}), do: device
   defp what(%{device: device, action: action}), do: "#{device} · #{action}"

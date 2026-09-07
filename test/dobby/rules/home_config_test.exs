@@ -60,9 +60,10 @@ defmodule Dobby.Rules.HomeConfigTest do
         "window" => %{"start" => "22:00", "end" => "07:00", "days" => [5]}
       })
 
-    assert {:ok, authored} = HomeConfig.add_rule(config(), raw)
+    authored = %{config() | house: Keyword.put(house(), :rules, [raw])}
     assert {:ok, loaded} = authored |> HomeConfig.to_yaml() |> load_yaml()
-    assert loaded.house[:rules] == authored.house[:rules]
+    assert [loaded_rule] = loaded.house[:rules]
+    assert loaded_rule == Dobby.Rules.Rule.to_map(hd(Manifest.load!(authored.house).rules))
     assert {:ok, manifest} = Manifest.load(loaded.house)
     assert [rule] = manifest.rules
     assert rule.value == true
@@ -71,43 +72,24 @@ defmodule Dobby.Rules.HomeConfigTest do
     assert rule.window == raw["window"]
   end
 
-  test "file loading and mutation refuse the same unsupported observable" do
+  test "file loading and the manifest refuse the same unsupported observable" do
     raw = Map.put(definition(), "attribute", "intent")
-    assert {:error, reason} = HomeConfig.add_rule(config(), raw)
     invalid = %{config() | house: Keyword.put(house(), :rules, [raw])}
-    assert {:error, ^reason} = invalid |> HomeConfig.to_yaml() |> load_yaml()
+    assert {:error, reason} = invalid |> HomeConfig.to_yaml() |> load_yaml()
     assert {:error, ^reason} = Manifest.load(invalid.house)
+    assert reason =~ "intent"
   end
 
-  test "rule edits cannot orphan devices, collide ids, or silently rename a rule" do
-    assert {:ok, authored} = HomeConfig.add_rule(config(), definition())
-    assert {:error, _} = HomeConfig.add_rule(authored, definition())
+  # The key with nothing under it is the file a household is left with after
+  # deleting its last rule by hand, and it is a house with no rules.
+  test "a rules key with nothing under it is a house with no rules" do
+    yaml = HomeConfig.to_yaml(config()) <> "\n"
+    assert yaml =~ "house:"
 
-    assert {:error, _} =
-             HomeConfig.update_rule(
-               authored,
-               "door-open",
-               Map.put(definition(), "device", "missing")
-             )
+    assert {:ok, loaded} =
+             load_yaml(String.replace(yaml, "house:\n", "house:\n  rules:\n", global: false))
 
-    assert {:error, _} =
-             HomeConfig.update_rule(authored, "door-open", Map.put(definition(), "id", "renamed"))
-
-    assert {:error, _} = Manifest.load(Keyword.put(authored.house, :devices, []))
-
-    assert {:ok, paused} =
-             HomeConfig.update_rule(
-               authored,
-               "door-open",
-               Map.put(definition(), "enabled", false)
-             )
-
-    assert [raw] = paused.house[:rules]
-    assert raw["enabled"] == false
-    assert {:ok, removed} = HomeConfig.delete_rule(paused, "door-open")
-    assert removed.house[:rules] == []
-    assert {:error, _} = HomeConfig.delete_rule(removed, "door-open")
-    assert {:ok, manifest} = Manifest.load(removed.house)
+    assert {:ok, manifest} = Manifest.load(loaded.house)
     assert manifest.rules == []
   end
 

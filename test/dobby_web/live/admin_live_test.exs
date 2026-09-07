@@ -817,7 +817,8 @@ defmodule DobbyWeb.AdminLiveTest do
 
       {:ok, view, _html} = open(conn, :activity)
 
-      assert has_element?(view, ".feed .entry .what", "say")
+      assert has_element?(view, ".feed .entry .what", "cost not recorded")
+      refute has_element?(view, ".feed .entry .what.arg", "cost not recorded")
     end
 
     test "takes new entries as they land, newest first", %{conn: conn} do

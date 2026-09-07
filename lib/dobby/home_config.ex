@@ -209,50 +209,6 @@ defmodule Dobby.HomeConfig do
   def add_device(%__MODULE__{}, other),
     do: {:error, "a device must be a mapping, got: #{inspect(other)}"}
 
-  @doc "Adds a rule using the same whole-house validation as a file edit."
-  def add_rule(%__MODULE__{} = config, entry) do
-    replace_rules(config, Keyword.get(config.house, :rules, []) ++ [entry])
-  end
-
-  @doc "Replaces one rule without letting its identity change."
-  def update_rule(%__MODULE__{} = config, id, entry) when is_map(entry) do
-    rules = Keyword.get(config.house, :rules, [])
-
-    if Enum.any?(rules, &(&1["id"] == id)) and entry["id"] == id do
-      replace_rules(config, Enum.map(rules, &if(&1["id"] == id, do: entry, else: &1)))
-    else
-      {:error, "unknown rule or changed rule id #{inspect(id)}"}
-    end
-  end
-
-  def update_rule(%__MODULE__{}, _id, _entry), do: {:error, "rule must be a mapping"}
-
-  @doc "Removes one named rule; the writer applies the resulting configuration."
-  def delete_rule(%__MODULE__{} = config, id) do
-    rules = Keyword.get(config.house, :rules, [])
-
-    if Enum.any?(rules, &(&1["id"] == id)),
-      do: replace_rules(config, Enum.reject(rules, &(&1["id"] == id))),
-      else: {:error, "unknown rule #{inspect(id)}"}
-  end
-
-  defp replace_rules(config, rules) do
-    house = Keyword.put(config.house, :rules, rules)
-
-    case Dobby.Home.Manifest.load(house) do
-      {:ok, manifest} ->
-        {:ok,
-         %{
-           config
-           | house:
-               Keyword.put(house, :rules, Enum.map(manifest.rules, &Dobby.Rules.Rule.to_map/1))
-         }}
-
-      error ->
-        error
-    end
-  end
-
   @doc """
   The manifest this configuration describes, validated as a whole house.
 
@@ -388,7 +344,7 @@ defmodule Dobby.HomeConfig do
          {:ok, home_assistant} <- yaml_home_assistant(Map.get(raw, "home_assistant") || %{}),
          {:ok, networks} <- map_ok(Map.get(raw, "networks") || [], &yaml_network/1),
          {:ok, devices} <- map_ok(Map.get(raw, "devices") || [], &yaml_device/1),
-         {:ok, rules} <- Dobby.Rules.Rule.load_all(Map.get(raw, "rules", []), devices) do
+         {:ok, rules} <- Dobby.Rules.Rule.load_all(Map.get(raw, "rules") || [], devices) do
       {:ok,
        [
          id: id,

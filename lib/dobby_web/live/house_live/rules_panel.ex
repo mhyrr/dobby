@@ -53,7 +53,7 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
           </div>
         </article>
       </div>
-      <div :if={@undo} id="rule-undo" class="acts undo">
+      <div :if={@undo} id="rule-undo" class="undo">
         <button type="button" phx-click="rule_undo">undo</button>
         <span>put back “{@undo.entry.name}”</span>
       </div>

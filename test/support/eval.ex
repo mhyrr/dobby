@@ -256,10 +256,21 @@ defmodule Dobby.Eval do
     end
   end
 
+  # DOBBY_EVAL_PROVIDER pins one endpoint with no fallback, the shape the house
+  # file's `provider` setting sends (TK-051), so a run lands on the endpoint
+  # the sweep chose and its seconds are comparable with the sweep's. A pin
+  # outranks a sort for the reason the house file's does: with one endpoint
+  # named there is nothing left to sort.
   defp routing_opts do
-    case System.get_env("DOBBY_EVAL_PROVIDER_SORT") do
-      blank when blank in [nil, ""] -> []
-      sort -> [openrouter_provider: %{sort: sort}]
+    case {System.get_env("DOBBY_EVAL_PROVIDER"), System.get_env("DOBBY_EVAL_PROVIDER_SORT")} do
+      {pin, _sort} when pin not in [nil, ""] ->
+        [openrouter_provider: %{order: [pin], allow_fallbacks: false}]
+
+      {_pin, sort} when sort not in [nil, ""] ->
+        [openrouter_provider: %{sort: sort}]
+
+      _neither ->
+        []
     end
   end
 

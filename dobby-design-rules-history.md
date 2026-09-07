@@ -814,3 +814,66 @@ notice citing the last recorded event rather than the watch start is a
 change in `Dobby.Rules`' notice sentence, and this session's constraint
 kept every change out of `Dobby.Rules` and `Dobby.History`. Both are
 follow-ups on the ticket.
+
+## Measured after the trims — 2026-09-07, with Greg's word
+
+Seven paid runs, one file at a time, each on the endpoint the sweep chose:
+GLM 5.2 pinned to together, Luna to amazon-bedrock/us-east-1, GLM 5.3
+under latency routing since it has no sweep. Reasoning low throughout.
+`DOBBY_EVAL_PROVIDER` now pins the eval tier the way the house file's
+`provider` pins the house, so a run's seconds are the sweep's seconds.
+
+**The trims held, on both models, at the turn counts the design asked
+for.** The 15 rules scenarios: 15 of 15 on GLM 5.2 and 15 of 15 on Luna.
+A proposal is two model turns (`propose_rule`, then the answer) where it
+was three; a pause, a delete and an acknowledgment are two where they were
+three; "what are you watching for us" is two with one `list_rules`, which
+the doctrine allows; the environmental-unit scenario is three, two
+`propose_rule` calls with the first refused; the same-breath scenario is
+three, the later-turn guard refusing as before; a proposal and its later
+agreement are two and two, the floor the boundary sets. On GLM 5.2 the
+whole requests took 1.2 to 1.5 s for a pause, a delete or an
+acknowledgment and 2.8 to 4.7 s for a proposal, against 3.4 to 8 s under
+latency routing the day before.
+
+**The cache column answered its question on the first run.** GLM 5.2 on
+together reports about 8,200 of 8,300 input tokens per turn as cached; GLM
+5.3 under latency routing the same. The byte-identical system prompt is
+earning what it was placed to earn, and so is the block: the roster and
+the rules are the same bytes turn after turn, and the provider counts them
+cached too. Luna on Bedrock is the exception, cached 0 on most turns and
+the whole prompt on a few, which is Bedrock's caching and not Dobby's
+prompt. Reasoning at low effort is 10 to 300 tokens a turn on GLM 5.2 and
+under 100 on Luna; the thinking tail the survey worried about is not in
+these turns.
+
+**History on GLM 5.2 found a tool defect, and it is fixed here.** 5 of 7
+on the first run. The miss that mattered: asked what happened last night,
+with a door unlocked at 11:10 PM in the record, the reply said "3:10 AM".
+`Dobby.History` stamps rows in UTC, the block's clock is in the house's
+zone, and the model did the subtraction in its head and got the sign
+wrong. Converting a zone is arithmetic, and the model never does
+arithmetic: the tool now renders every row's `at` and the window's edges in
+the house's own offset before the model sees them, in the tool and not in
+`Dobby.History`, whose record stays in UTC for every other reader. Luna
+had converted correctly on the same rows, which is the kind of luck a
+design is not allowed to rely on. The rerun passed 7 of 7: "the front door
+unlocking at 11:10 PM". The other first-run miss was the judge holding a
+reply to "attributes it to the record": "The last time the robot vacuum
+started cleaning was Thursday, September 4th at 2:55 PM" is a fact said
+without the word recorded, which the same model said with it on the rerun
+and the day before; a voice variance, watched, not fixed.
+
+**GLM 5.3 is not yet a model in force, and the run says why.** Judgment
+7 of 7, on the same shape as its siblings: the ambiguous thermostat asks,
+the playlist is declined, the family room is not invented, the
+clarification lands. Streaming 2 of 3: on "turn the thermostat to 70" the
+first turn streamed "Setting it to 70, Greg." as content before the tool
+call, and the second "Done — the main thermostat is set to 70." — the
+shape GLM 5.2 showed with thinking off on 17 of 28 endpoints, and 5.3
+shows at low effort. Not a doctrine breach; a sentence the thread would
+paint before the step, and a stored reply that runs the two together. The
+fix is a doctrine sentence measured on 5.3, or the reply fold joining
+turns with a break, or both, and it is recorded on TK-056 for Greg's call.
+The model-settings check on ReqLLM 1.22 passed 2 of 2, which is the wire
+check the dependency bump needed.

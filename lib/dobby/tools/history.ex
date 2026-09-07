@@ -113,5 +113,34 @@ defmodule Dobby.Tools.History do
   end
 
   @impl true
-  def run(params, _context), do: Dobby.History.query(params)
+  def run(params, _context) do
+    with {:ok, result} <- Dobby.History.query(params), do: {:ok, on_the_house_clock(result)}
+  end
+
+  # The record stamps rows in UTC and the model reads them beside a house
+  # clock in the household's zone. Asked what happened last night, GLM 5.2 on
+  # 2026-09-07 read a row at 03:10Z as "3:10 AM last night" for a door that
+  # unlocked at 11:10 PM. Converting a zone is arithmetic, and the model never
+  # does arithmetic: the rows and the window leave here in the house's own
+  # offset, which is the clock the block shows. Transport, so it lives in the
+  # tool and not in `Dobby.History`, whose record stays in UTC for every
+  # other reader.
+  defp on_the_house_clock(result) when is_map(result) do
+    result
+    |> Map.update(:entries, [], fn entries ->
+      Enum.map(entries, &Map.update(&1, :at, nil, fn at -> on_the_house_clock(at) end))
+    end)
+    |> Map.update(:window, %{}, fn window ->
+      Map.new(window, fn {edge, at} -> {edge, on_the_house_clock(at)} end)
+    end)
+  end
+
+  defp on_the_house_clock(iso) when is_binary(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, at, _offset} -> at |> Dobby.Home.local() |> DateTime.to_iso8601()
+      _unreadable -> iso
+    end
+  end
+
+  defp on_the_house_clock(other), do: other
 end

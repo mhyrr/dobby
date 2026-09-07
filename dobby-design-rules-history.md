@@ -681,3 +681,39 @@ Not yet measured against a paid model. The 15 rules scenarios on Luna and
 GLM 5.2 are the run that says whether a proposal is now two turns and a
 pause two, and that run waits for Greg's word; the pause and list scenarios
 no longer assert a `list_rules` call, since the model has the list in hand.
+
+## Decision: every request records what it cost — TK-052
+
+Decided 2026-09-07. Option C.4 from the survey above.
+
+Production recorded no per-request usage, so the two costs the survey could
+not measure stayed unmeasured: what the forty-message window carries in a
+house that has been talking all day, and what the provider's cache returns
+for a system prompt kept byte-identical on purpose. The number was in hand
+all along. The runtime's `:llm_completed` event carries the provider's whole
+usage map per model turn, as ReqLLM normalises it, cached and reasoning
+tokens included; jido_ai's llm telemetry keeps input, output and total and
+drops the rest, which is why `Dobby.Trace` never saw them. `Turn` already
+folded every runtime event and wrote the request row; it now sums the four
+counters over the `:llm_completed` events, counts the turns, and writes
+them under `usage` on that row beside the end-to-end it already wrote.
+`Turn.cost/1` is the one definition of the sum, and the eval tier's report
+reads the same events through it — `say!/2` moved onto the streaming path
+to get them, which is also the thread's path — or reads the row back after
+`turn!/2`, the way `/admin` does. The feed's request line says the cost in
+the record voice: "2 turns · 15,613 in · 37 out · 12,800 cached · 96
+reasoning"; a row from before the counters still says what it said.
+
+The replay tier proves the sum with scripted turns that carry usage, and
+proves two claims this codebase had made about every request without ever
+asserting them: the probe in `HouseBlockTest` now reads the whole request,
+and the system prompt is the same bytes on the second model turn as on the
+first, the tools offered are this house's closed set by name and the same on
+both turns, and the block is the message before the utterance on both.
+Whether the provider's cache honours the identical prompt is the eval tier's
+to say, on the next paid run, in the new column.
+
+Not measured yet: the live-house week the ticket asks for, which is a
+number that accrues rather than one a run produces. The trim (TK-053) is the
+change that number was going to size; it is taken on the survey's reasoning
+instead, and the row will say afterwards what it was worth.

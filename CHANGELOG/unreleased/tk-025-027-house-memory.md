@@ -7,6 +7,7 @@
 - Dobby knows the house's date, time, and clock offset when it answers, so a question about a named day ("what happened on September 1st?") reaches the record as that day.
 - The house file can pin the one OpenRouter endpoint that serves the model (`system.provider`), with no fallback to another, so the first word arrives from the same place every time instead of wherever OpenRouter's routing lands that minute. Set it on `/admin` or in the file; it takes effect at the next reply, and a pin the model in force cannot take is refused and named, the way `routing` is.
 - A paid eval sweeps every endpoint under a model and times each one to its first token, so the pin is a measurement and not a guess.
+- Every request records what it cost: model turns, input, output, cached, and reasoning tokens, and the end to end, on its own row in the record. The activity feed on `/admin` shows them on the request's line, and the eval tier prints the cache read and the thinking beside the tokens it already printed.
 
 ##### Changed
 - Dobby is told, before every turn, what each device can be watched for and which standing rules and notices exist, so asking for a rule no longer costs a turn spent reading the list first: a proposal is two model turns, and a pause or an acknowledgment is two.

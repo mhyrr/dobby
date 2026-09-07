@@ -125,6 +125,57 @@ defmodule Dobby.Scenarios.HouseBlockTest do
     assert Trace.ha_calls() == []
   end
 
+  # TK-052. Two claims this codebase makes about every request and had never
+  # asserted: the system prompt is byte-identical from one model turn to the
+  # next, which is the whole reason the house block is not in it (§6.3 and
+  # this transformer's moduledoc), and the model is offered exactly this
+  # house's tools, not the library's.
+  test "the whole request: one system prompt across turns, this house's tools, the block last" do
+    eventually(fn -> agent_state(DobbyAgent.id()) |> Map.get(:world_model) end)
+
+    utterance = Utterance.new("greg", "is the thermostat still where I left it?")
+
+    script =
+      expect_react do
+        user(Utterance.to_message(utterance))
+        call("thermostat_get_status", %{"device" => @thermostat})
+        answer("Still 68°, set to 68°.")
+      end
+
+    assert {:ok, _reply} = DobbyAgent.say(utterance, probing(script))
+
+    assert_receive {:house_request_whole, first}, 5_000
+    assert_receive {:house_request_whole, second}, 5_000
+
+    # The system prompt is the first message, and it is the same bytes on the
+    # second turn as on the first: the soul, then the doctrine, and nothing
+    # per turn in it. Whether the provider's cache honours that is measured
+    # by the eval tier; that it could is asserted here.
+    [%{role: :system, content: prompt} | _] = first.messages
+    [%{role: :system, content: ^prompt} | _] = second.messages
+    assert prompt =~ "You act only through your tools"
+
+    # The tools are this house's closed set, by name, resolved once for the
+    # request and the same on every turn of it. The runner hands them over
+    # keyed by tool name.
+    assert Enum.sort(Map.keys(first.tools)) ==
+             Dobby.Home.tools() |> Enum.map(& &1.name()) |> Enum.sort()
+
+    assert first.tools == second.tools
+
+    # And on both turns the block is the message before the utterance. On the
+    # first the utterance is last; on the second the request's own tool call
+    # and its result follow it, which is the traffic the window keeps.
+    Enum.each([first, second], fn request ->
+      spoken = Enum.find_index(request.messages, &(text(&1) == Utterance.to_message(utterance)))
+      assert spoken, "the utterance is not in the request"
+      assert String.starts_with?(text(Enum.at(request.messages, spoken - 1)), "<house>")
+    end)
+
+    assert List.last(first.messages) |> text() == Utterance.to_message(utterance)
+    assert [%{role: :assistant}, %{role: :tool}] = Enum.take(second.messages, -2)
+  end
+
   # TK-054. The observables lived only in `list_rules`'s result, so the doctrine
   # asked for that call before every proposal and every rule request paid a
   # model turn to read a list that never changed. The block carries it now, in

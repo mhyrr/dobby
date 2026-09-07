@@ -778,6 +778,48 @@ defmodule DobbyWeb.AdminLiveTest do
       assert has_element?(view, ".feed .entry .what", "wifi:office_printer")
     end
 
+    # TK-052: the request row's substance is what the request cost, in the
+    # record voice, so the feed says where the tokens and the seconds went.
+    test "a request row says what it cost", %{conn: conn} do
+      {:ok, _entry} =
+        Activity.record(%{
+          kind: "request",
+          actor: "greg",
+          action: "say",
+          duration_ms: 4_123,
+          result: %{
+            "ok" => true,
+            "usage" => %{
+              "turns" => 2,
+              "input_tokens" => 15_613,
+              "output_tokens" => 37,
+              "cached_tokens" => 12_800,
+              "reasoning_tokens" => 96
+            }
+          }
+        })
+
+      {:ok, view, _html} = open(conn, :activity)
+
+      assert has_element?(
+               view,
+               ".feed .entry .what",
+               "2 turns · 15,613 in · 37 out · 12,800 cached · 96 reasoning"
+             )
+
+      # A cost is the record voice, not an identifier.
+      refute has_element?(view, ".feed .entry .what.arg", "2 turns")
+      assert has_element?(view, ".feed .entry .took", "4.1 s")
+    end
+
+    test "a request row from before the counters still says what it did", %{conn: conn} do
+      {:ok, _entry} = Activity.record(%{kind: "request", actor: "greg", action: "say"})
+
+      {:ok, view, _html} = open(conn, :activity)
+
+      assert has_element?(view, ".feed .entry .what", "say")
+    end
+
     test "takes new entries as they land, newest first", %{conn: conn} do
       {:ok, view, _html} = open(conn, :activity)
 

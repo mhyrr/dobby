@@ -215,6 +215,7 @@ defmodule Dobby.Conversation.Turn do
       text: %{},
       result: nil,
       usage: %{},
+      model_turns: [],
       error: nil
     }
   end
@@ -271,6 +272,15 @@ defmodule Dobby.Conversation.Turn do
       %{seq: known} = step when known > seq -> step
       step -> %{step | state: state, detail: detail, seq: seq}
     end)
+  end
+
+  # One model turn, with the provider's whole usage map (TK-052). This event
+  # is where the cache read and the reasoning tokens survive: jido_ai's
+  # `[:jido, :ai, :llm, :complete]` telemetry keeps input, output and total
+  # and drops the rest, which is why `Dobby.Trace` cannot see them and why the
+  # record reads them here rather than from a listener.
+  defp handle(%Event{kind: :llm_completed, data: data}, turn) do
+    %{turn | model_turns: [model_turn(data[:usage]) | turn.model_turns]}
   end
 
   defp handle(%Event{kind: :request_completed, data: data}, turn) do
@@ -513,17 +523,61 @@ defmodule Dobby.Conversation.Turn do
     })
   end
 
+  # What the request cost, on its own row: the four counters summed over the
+  # model turns, the turn count, and the end-to-end in `duration_ms`. This
+  # is the number production never recorded (TK-050, TK-052): the evals
+  # restart the house per scenario and never see what the window carries in
+  # a live house, and nothing said what the provider's cache actually
+  # returned. Now every request says both.
   defp record_request(turn, result) do
     Activity.record(%{
       kind: "request",
       actor: turn.speaker,
       action: "say",
       args: %{"steps" => length(turn.order)},
-      result: jsonable(Map.put(result, :usage, turn.usage)),
+      result: jsonable(Map.put(result, :usage, cost(Enum.reverse(turn.model_turns)))),
       duration_ms: elapsed(turn),
       request_id: turn.request_id
     })
   end
+
+  @counters [:input_tokens, :output_tokens, :cached_tokens, :reasoning_tokens]
+
+  @doc """
+  The four counters summed over a request's model turns, and how many turns
+  there were.
+
+  Takes the usage maps the runtime's `:llm_completed` events carry, one per
+  model turn, as ReqLLM normalises them: `input_tokens`, `output_tokens`,
+  `cached_tokens`, `reasoning_tokens`, atom or string keys, a missing counter
+  reading as zero. Public because the eval tier sums the same events for its
+  report, and two definitions of "what a request cost" would be two numbers.
+  """
+  @spec cost([map()]) :: %{
+          input_tokens: non_neg_integer(),
+          output_tokens: non_neg_integer(),
+          cached_tokens: non_neg_integer(),
+          reasoning_tokens: non_neg_integer(),
+          turns: non_neg_integer()
+        }
+  def cost(usages) when is_list(usages) do
+    turns = Enum.map(usages, &model_turn/1)
+
+    @counters
+    |> Map.new(fn counter -> {counter, turns |> Enum.map(& &1[counter]) |> Enum.sum()} end)
+    |> Map.put(:turns, length(turns))
+  end
+
+  # A provider's map arrives with whatever keys ReqLLM's normaliser gave it,
+  # and a scripted turn arrives with none at all.
+  defp model_turn(usage) when is_map(usage) do
+    Map.new(@counters, fn counter ->
+      value = Map.get(usage, counter) || Map.get(usage, Atom.to_string(counter)) || 0
+      {counter, if(is_integer(value) and value >= 0, do: value, else: 0)}
+    end)
+  end
+
+  defp model_turn(_usage), do: model_turn(%{})
 
   defp jsonable(value), do: Activity.jsonable(value)
 

@@ -28,6 +28,9 @@ defmodule DobbyWeb.RulesLiveTest do
     |> render_submit()
 
     [rule] = Rules.list()
+    # The name as a slug, the way Dobby writes one from the thread, and not a
+    # UUID nobody can read in the house file (TK-055).
+    assert rule.id == "warm-room"
     assert rule.rule["attribute"] == "current_temperature_f"
     assert rule.rule["value"] == 75.0
     assert rule.rule["duration_seconds"] == 1_200
@@ -87,6 +90,41 @@ defmodule DobbyWeb.RulesLiveTest do
 
     assert [%{rule: %{"attribute" => "hvac_mode", "value" => "heat", "operator" => "eq"}}] =
              Rules.list()
+  end
+
+  test "a second rule named like the first is refused, and the first stands", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/house")
+    view |> element("#rule-add") |> render_click()
+
+    view
+    |> form("#rule-form", rule: %{name: "Warm room", value: "75", minutes: "20"})
+    |> render_submit()
+
+    assert [%{id: "warm-room", rule: %{"value" => 75.0}}] = Rules.list()
+
+    # Same name, a different threshold: `Rules.save/2` would replace the
+    # first with the second under one id, which is not what a person adding
+    # a rule meant.
+    view |> element("#rule-add") |> render_click()
+
+    view
+    |> form("#rule-form", rule: %{name: "warm ROOM", value: "80", minutes: "5"})
+    |> render_submit()
+
+    assert has_element?(view, "#rule-error", "already a rule with the id warm-room")
+    assert [%{id: "warm-room", rule: %{"value" => 75.0}}] = Rules.list()
+  end
+
+  test "a name with nothing to slug is refused by name", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/house")
+    view |> element("#rule-add") |> render_click()
+
+    view
+    |> form("#rule-form", rule: %{name: "!!!", value: "75", minutes: "20"})
+    |> render_submit()
+
+    assert has_element?(view, "#rule-error", "Give the rule a name")
+    assert Rules.list() == []
   end
 
   test "a rejected form preserves what was typed and does not install a rule", %{conn: conn} do

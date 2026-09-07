@@ -791,3 +791,26 @@ OpenRouter beyond the catalog; the replay tier is green on the new pair.
 Not done, and it is what makes 5.3 a model in force: the billed
 tool-streaming and judgment evals on 5.3, once, which wait for Greg's word.
 GLM 5.2 stays the model in force until then.
+
+## Decision: a form-made rule's id is its name — TK-055, third item
+
+Done 2026-09-07. The form generated a UUID for every rule it saved, and the
+house file is the household's to read: `cold-room`, which Dobby already
+writes from the thread, says what a rule is where
+`3f2a…` says nothing. The form now slugs the name — lowercase, anything
+that is not a letter or a digit becomes a hyphen, trimmed — and refuses a
+name with nothing left in it. The collision is the form's to refuse, not
+the writer's: `Dobby.Rules.save/2` replaces a rule of the same id, which is
+what an edit is, and the form is the one path that makes ids from names,
+so a second "Warm room" would have silently become the first. It is refused
+before the writer sees it, naming the id and asking for another name. The
+first rule stands.
+
+The other two items stay open, on purpose. A notice phrased per device
+type from the type's own words is a voice decision on a line the household
+reads under the board, and the vocabulary that governs the board is closed
+at eight words by design; that is a design walk, not a commit. An absence
+notice citing the last recorded event rather than the watch start is a
+change in `Dobby.Rules`' notice sentence, and this session's constraint
+kept every change out of `Dobby.Rules` and `Dobby.History`. Both are
+follow-ups on the ticket.

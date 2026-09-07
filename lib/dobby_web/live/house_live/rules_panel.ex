@@ -248,11 +248,12 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
         if to_string(key) == params["attribute"], do: spec
       end)
 
-    with {minutes, ""} <- Float.parse(params["minutes"] || ""),
+    with {:ok, id} <- slug(params["name"]),
+         {minutes, ""} <- Float.parse(params["minutes"] || ""),
          true <- minutes >= 0 and trunc(minutes * 60) == minutes * 60,
          {:ok, value} <- typed_value(spec, params["value"], params["kind"]) do
       base = %{
-        "id" => Ecto.UUID.generate(),
+        "id" => id,
         "name" => params["name"],
         "device" => params["device"],
         "kind" => params["kind"],
@@ -291,6 +292,38 @@ defmodule DobbyWeb.HouseLive.RulesPanel do
       {:error, reason} -> {:error, reason}
       _ -> {:error, "Use a duration of zero or more minutes, in whole seconds."}
     end
+  end
+
+  # The id a form-made rule takes in the house file: the name, as a slug, the
+  # way Dobby already writes one from the thread (`cold-room`). A UUID read
+  # as nothing to the person who opens the file, and the file is theirs
+  # (TK-055).
+  defp slug(name) when is_binary(name) do
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+
+    if slug == "", do: {:error, "Give the rule a name."}, else: {:ok, slug}
+  end
+
+  defp slug(_name), do: {:error, "Give the rule a name."}
+
+  @doc """
+  Refuses an id a rule already holds.
+
+  `Dobby.Rules.save/2` replaces a rule of the same id, which is what an edit
+  is and what a second form named like the first must not be: two rules
+  called "Warm room" would be one rule, the second silently overwriting the
+  first. The form is the only path that makes ids from names, so the check is
+  the form's.
+  """
+  @spec unclaimed(String.t()) :: :ok | {:error, String.t()}
+  def unclaimed(id) do
+    if Enum.any?(Dobby.Rules.list(), &(&1.id == id)),
+      do: {:error, "There is already a rule with the id #{id}; give this one another name."},
+      else: :ok
   end
 
   defp observables(nil), do: []

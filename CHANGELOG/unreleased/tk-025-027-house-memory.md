@@ -11,6 +11,7 @@
 
 ##### Changed
 - Dobby is told, before every turn, what each device can be watched for and which standing rules and notices exist, so asking for a rule no longer costs a turn spent reading the list first: a proposal is two model turns, and a pause or an acknowledgment is two.
+- A rule added on The House page takes its id from its name, the way Dobby writes one from the thread: "Warm room" becomes `warm-room` in the house file, where it used to be a UUID. A second rule with a name that makes the same id is refused and says so, rather than replacing the first.
 - Dobby remembers what was said in the thread and forgets what it fetched to say it: earlier requests' tool calls and their results leave the conversation it carries to the model, while the words stay. The record still holds every row, and a rule or device proposal awaiting agreement is listed before every turn with the id its confirmation takes, so saying yes a message later still lands.
 
 ##### Fixed
@@ -21,7 +22,7 @@
 - Run the database migration for rule proposals and occurrences before starting this version. Rule definitions live under `house.rules` in the house file; the guide's house page shows the shape.
 
 ##### Verification
-- `mix precommit` on 2026-09-06: compile with warnings as errors, unused deps, format, and 634 tests with 0 failures (the paid eval tests excluded). The runtime tests drive the real watcher through the house writer and were each checked to fail on the regression they name.
+- `mix precommit` on 2026-09-07: compile with warnings as errors, unused deps, format, and 655 tests with 0 failures (the paid eval tests excluded). The runtime tests drive the real watcher through the house writer and were each checked to fail on the regression they name.
 - The eval tier ran against a real model (gpt-5.6-luna through OpenRouter) on 2026-09-06: 22 scenarios, 7 for the record and 15 for standing rules, all passing on the final run. The first run failed 6 of 9 on the shape of the tools rather than on judgment, and the tools were reshaped until the model's replies read as the house should: "The vacuum was last recorded starting cleaning Thursday, September 3, at 7:35 AM." and "I can't set that rule as stated: 10pm to 6am is an eight-hour window, so it can't watch for nine hours."
 - The same 22 scenarios ran against a second model (z-ai/glm-5.2 through OpenRouter) on 2026-09-06: 21 of 22 on the first run, and the one miss, a door in a house with two locks proposed for the front door, is a question after one doctrine sentence. The replies read the same way in both voices: "Which door, Greg — the front door lock or the side door lock?"
 - The provider sweep ran on 2026-09-07 with Greg's authorisation, one run per endpoint: 24 endpoints under GLM 5.3 Flash (15 passed), 31 under GLM 5.2 (29), 7 under Luna (4). Pinned to its fastest endpoint, "set the thermostat to 70" is done in 2.2 s on Flash, 1.1 s on GLM 5.2, and 1.3 s on Luna; on the slowest endpoint of the same model it took four to twelve. The design record carries every row, and the house guide the three pins.

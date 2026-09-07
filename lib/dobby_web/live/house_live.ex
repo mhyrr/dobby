@@ -294,6 +294,7 @@ defmodule DobbyWeb.HouseLive do
 
   def handle_event("rule_save", %{"rule" => params}, %{assigns: %{editable: true}} = socket) do
     with {:ok, entry} <- RulesPanel.entry(params, socket.assigns.rule_devices),
+         :ok <- RulesPanel.unclaimed(entry["id"]),
          {:ok, _} <- Rules.save(entry, actor: rule_actor(socket), expected: nil) do
       {:noreply, socket |> assign(rule_form: nil, rule_error: nil) |> refresh_rules()}
     else

@@ -1,4 +1,4 @@
-# Kitchen appliances and floor heat
+# Household appliances and floor heat
 
 Research and implementation decision, 2026-09-10; Bosch model confirmed
 2026-09-11. Greg's dishwasher is SHV78DM3N/46. Wolf, Sub-Zero, and NuHeat model
@@ -6,7 +6,7 @@ numbers and the Home Assistant entity inventory are still pending.
 
 ## Type decisions
 
-Add `dishwasher`, `oven`, and `refrigerator` as household types. Keep floor heat
+Add `dishwasher`, `oven`, `refrigerator`, `washer`, and `dryer` as household types. Keep floor heat
 under `thermostat`. A combined range contains an oven and a cooktop; oven support
 does not establish burner support. Refrigerator and freezer compartments belong
 to one refrigerator, with separate readings and setpoints.
@@ -16,6 +16,15 @@ status tools, snapshots, and availability through the existing device protocol.
 It does not start programs, set cooking temperatures, or change refrigeration
 settings. Each reading retains its unit. A reported setpoint is never substituted
 for an unreported temperature. Missing or unavailable readings become null.
+
+Laundry extension, 2026-09-11: Greg requested washer and dryer in this branch.
+Each is a separate read-only type with cycle/program state, door state,
+progress, remaining time, finish timestamp, and remote-readiness flags. Remaining
+time is a nonnegative numeric sensor with its reported seconds, minutes, or hours
+unit; no model arithmetic or guessed completion time. Use the shared scalar
+decoder and explicit bindings, with no new write commands. A stacked pair is
+two devices. An all-in-one washer/dryer needs an actual entity inventory before
+deciding how its shared cycle should be represented.
 
 Discovery is deliberately manual: HA's sensor domain does not identify an
 appliance type. Names are editable, and a temperature sensor is not evidence of
@@ -86,17 +95,17 @@ control was found in either inspected integration.
 
 | Integration | Appliance landscape | Dobby consequence |
 |---|---|---|
-| [LG ThinQ](https://www.home-assistant.io/integrations/lg_thinq/) | Built-in; washers, dryers, dishwashers, ovens, refrigerators, cooktops, hoods, microwaves, air and water appliances | Washer and dryer are the next distinct types; verify each entity surface before adding control |
+| [LG ThinQ](https://www.home-assistant.io/integrations/lg_thinq/) | Built-in; washers, dryers, dishwashers, ovens, refrigerators, cooktops, hoods, microwaves, air and water appliances | Washer and dryer now have read-only types; verify each entity surface before adding control |
 | [SmartThings](https://www.home-assistant.io/integrations/smartthings/) | Built-in; exposes supported Samsung capabilities, including oven and laundry status | Map capability data into household types; account visibility does not guarantee every appliance function |
-| [Miele](https://www.home-assistant.io/integrations/miele/) | Built-in cloud integration for appliances linked to a Miele account; functions vary by device | Reuse dishwasher/oven/refrigerator semantics; investigate laundry next |
+| [Miele](https://www.home-assistant.io/integrations/miele/) | Built-in cloud integration for appliances linked to a Miele account; functions vary by device | Reuse dishwasher/oven/refrigerator/washer/dryer semantics where matching entities exist |
 | [GE Appliances SmartHQ](https://github.com/geappliances/geappliances-smarthq-integration) | Manufacturer-hosted custom integration, installed separately; maps cloud services into cooking, laundry, temperature, door, and brewing entities | A concrete additional integration path; use exposed services to define capabilities |
 | [Whirlpool Appliances](https://www.home-assistant.io/integrations/whirlpool/) | Built-in; Whirlpool, Maytag, KitchenAid, Consul, with model-dependent laundry, oven, and refrigeration functions | Keep target writes separate from passive readings: its oven target write can start a bake cycle |
 
-Next type priority: `washer`, then `dryer`. A separate freezer can reuse the
+`washer` and `dryer` are included in this branch. A separate freezer can reuse the
 refrigerator compartment model. A range hood can use existing fan/light types
 when those are the HA entities it provides. Cooktop, coffee maker, and water
 heater need their own action contracts; they are not generic power switches.
-These are research priorities, not support claims or additions in this branch.
+The remaining candidates are research priorities, not support claims or additions in this branch.
 
 ## Binding the new types
 
@@ -131,6 +140,20 @@ IDs from HA. These are examples, not the discovered names of Greg's appliances:
   name: room floor heat
   bindings:
     climate: climate.example_nuheat
+- id: washer:laundry
+  type: washer
+  name: laundry washer
+  bindings:
+    operation_state: sensor.example_washer_operation_state
+    remaining_time: sensor.example_washer_remaining_time
+    door_open: binary_sensor.example_washer_door
+- id: dryer:laundry
+  type: dryer
+  name: laundry dryer
+  bindings:
+    operation_state: sensor.example_dryer_operation_state
+    remaining_time: sensor.example_dryer_remaining_time
+    remote_start_allowed: binary_sensor.example_dryer_remote_start
 ```
 
 Omit entities the integration does not expose. Every appliance requires at least
@@ -143,12 +166,18 @@ flow do not offer them yet. Restart Dobby after editing the file.
 | `dishwasher` | `operation_state`, `program`, `door_open`, `progress`, `finish_at`, `remote_start_allowed`, `remote_control_allowed` |
 | `oven` | `temperature`, `target_temperature`, `probe_temperature`, `probe_target_temperature`, `door_open`, `running`, `at_temperature`, `remote_start_allowed`, `operation_state` |
 | `refrigerator` | `refrigerator_display_temperature`, `refrigerator_target_temperature`, `freezer_display_temperature`, `freezer_target_temperature`, `crisper_target_temperature`, `refrigerator_door_open`, `freezer_door_open` |
+| `washer` | `operation_state`, `program`, `door_open`, `progress`, `remaining_time`, `finish_at`, `remote_start_allowed`, `remote_control_allowed` |
+| `dryer` | `operation_state`, `program`, `door_open`, `progress`, `remaining_time`, `finish_at`, `remote_start_allowed`, `remote_control_allowed` |
 
 Temperature bindings read `sensor` or `number` with a reported °F, °C, or K unit.
 Program/state text accepts `sensor` or `select`. Doors accept `binary_sensor`
 on/off or `sensor` open/closed/locked. Other flags require `binary_sensor`.
 Progress requires a sensor reporting 0–100 with unit `%`; `finish_at` requires
-a sensor with an ISO 8601 timestamp. No time remaining is computed by the model.
+a sensor with an ISO 8601 timestamp. Laundry `remaining_time` requires a numeric
+sensor reporting a nonnegative value with unit `s`, `min`, or `h`. A formatted
+clock string such as `01:30` is not a numeric duration. No remaining time or
+finish timestamp is computed by the model, and zero remaining time does not
+mean the cycle has finished. Only the reported cycle state can say that.
 Availability means at least one reading is known, not that every bound entity
 is healthy. Each missing reading is null, including on partial outages.
 
@@ -167,7 +196,12 @@ and appliance exclusion from thermostat discovery. Run `mix precommit`.
 
 Verified 2026-09-11: the 26 focused appliance/contract tests passed, followed by
 `mix precommit`: 566 tests, zero failures, 35 eval tests excluded. The example
-house includes all three new types. No physical appliance or browser check was
+house included the initial three types. After adding washer and dryer,
+`mix precommit` passed with 574 tests, zero failures, and 35 eval tests excluded.
+The example house and YAML round-trip test now cover all five appliance types.
+The full run also exposed an existing library-test race: its state-event wait
+did not identify the commanded device. The test now matches that device's
+snapshot before reading its state. No physical appliance or browser check was
 performed.
 
 The workspace's existing dependency checkout did not match `mix.lock`, and its

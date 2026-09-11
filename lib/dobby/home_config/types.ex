@@ -19,6 +19,8 @@ defmodule Dobby.HomeConfig.Types do
     Dobby.DeviceAgents.Dishwasher,
     Dobby.DeviceAgents.Oven,
     Dobby.DeviceAgents.Refrigerator,
+    Dobby.DeviceAgents.Washer,
+    Dobby.DeviceAgents.Dryer,
     Dobby.DeviceAgents.Light,
     Dobby.DeviceAgents.Speaker,
     Dobby.DeviceAgents.Camera,

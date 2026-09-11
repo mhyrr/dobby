@@ -1,7 +1,7 @@
 defmodule Dobby.DeviceAgents.ApplianceReadingsTest do
   use ExUnit.Case, async: true
 
-  alias Dobby.DeviceAgents.{Dishwasher, Oven, Refrigerator}
+  alias Dobby.DeviceAgents.{Dishwasher, Dryer, Oven, Refrigerator, Washer}
   alias Jido.Agent.Directive.Emit
 
   test "setpoints do not manufacture a refrigerator temperature" do
@@ -118,6 +118,42 @@ defmodule Dobby.DeviceAgents.ApplianceReadingsTest do
 
     assert {:error, "each appliance reading must bind a different entity"} =
              Oven.validate_device(device)
+  end
+
+  test "laundry remaining time preserves units and never decides that the cycle finished" do
+    for module <- [Washer, Dryer],
+        {value, unit, expected} <- [{"90", "s", 90.0}, {"1.5", "min", 1.5}, {"0", "h", 0.0}] do
+      state = boot(module, %{operation_state: "sensor.cycle", remaining_time: "sensor.remaining"})
+      {state, _event} = sync(module, state, "sensor.cycle", "running")
+      {state, event} = sync(module, state, "sensor.remaining", value, unit)
+      assert state.units.remaining_time == unit
+      assert state.readings.remaining_time == expected
+      assert state.readings.operation_state == "running"
+      assert event.data.moved == []
+      assert module.scheduled_actions() == %{}
+    end
+  end
+
+  test "unusable laundry duration readings clear the value and unit without losing cycle state" do
+    for module <- [Washer, Dryer],
+        {value, unit} <- [
+          {"-1", "min"},
+          {"01:30", "min"},
+          {"soon", "s"},
+          {"30", nil},
+          {"30", "%"},
+          {"unavailable", "min"}
+        ] do
+      state = boot(module, %{operation_state: "sensor.cycle", remaining_time: "sensor.remaining"})
+      {state, _event} = sync(module, state, "sensor.cycle", "running")
+      {state, _event} = sync(module, state, "sensor.remaining", "12", "min")
+      {state, event} = sync(module, state, "sensor.remaining", value, unit)
+      assert state.available
+      assert state.readings.remaining_time == nil
+      refute Map.has_key?(state.units, :remaining_time)
+      assert :readings in event.data.moved
+      assert state.readings.operation_state == "running"
+    end
   end
 
   defp boot(module, bindings) do

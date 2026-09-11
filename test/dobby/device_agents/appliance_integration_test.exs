@@ -9,13 +9,14 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
 
   use Dobby.RigCase, async: false
 
-  alias Dobby.DeviceAgents.{Dishwasher, Oven, Refrigerator, Thermostat}
+  alias Dobby.DeviceAgents.{Dishwasher, Dryer, Oven, Refrigerator, Thermostat, Washer}
   alias Dobby.HomeConfig
   alias Dobby.HomeConfig.Discovery
   alias Dobby.Tools.{DishwasherGetStatus, OvenGetStatus, RefrigeratorGetStatus}
   alias Dobby.Tools.{ThermostatGetStatus, ThermostatSetTemperature}
+  alias Dobby.Tools.{DryerGetStatus, WasherGetStatus}
 
-  test "three appliances boot from explicit bindings and report through their status tools" do
+  test "five appliance types boot from explicit bindings and report through their status tools" do
     boot_house!(appliances())
 
     seed_house(%{
@@ -26,7 +27,13 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
       "sensor.oven_setpoint" => reading("350", "°F"),
       "binary_sensor.oven_running" => reading("on"),
       "number.refrigerator_setpoint" => reading("37", "°F"),
-      "binary_sensor.refrigerator_door" => reading("off")
+      "binary_sensor.refrigerator_door" => reading("off"),
+      "sensor.washer_operation" => reading("rinsing"),
+      "sensor.washer_remaining" => reading("12", "min"),
+      "binary_sensor.washer_door" => reading("off"),
+      "select.dryer_operation" => reading("drying"),
+      "sensor.dryer_remaining" => reading("900", "s"),
+      "binary_sensor.dryer_remote_start" => reading("off")
     })
 
     assert {:ok, dishwasher} = Jido.Exec.run(DishwasherGetStatus, %{device: "dishwasher:kitchen"})
@@ -55,6 +62,20 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
     assert refrigerator.readings.refrigerator_door_open == false
     assert is_nil(refrigerator.readings.refrigerator_display_temperature)
     refute Map.has_key?(refrigerator.units, :refrigerator_display_temperature)
+
+    assert {:ok, washer} = Jido.Exec.run(WasherGetStatus, %{device: "washer:laundry"})
+    assert washer.type == :washer
+    assert washer.readings.operation_state == "rinsing"
+    assert washer.readings.remaining_time == 12.0
+    assert washer.units.remaining_time == "min"
+    assert washer.readings.door_open == false
+
+    assert {:ok, dryer} = Jido.Exec.run(DryerGetStatus, %{device: "dryer:laundry"})
+    assert dryer.type == :dryer
+    assert dryer.readings.operation_state == "drying"
+    assert dryer.readings.remaining_time == 900.0
+    assert dryer.units.remaining_time == "s"
+    assert dryer.readings.remote_start_allowed == false
     assert Fake.trace() == []
   end
 
@@ -64,7 +85,9 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
     for {tool, wrong_device} <- [
           {DishwasherGetStatus, "oven:kitchen"},
           {OvenGetStatus, "refrigerator:kitchen"},
-          {RefrigeratorGetStatus, "dishwasher:kitchen"}
+          {RefrigeratorGetStatus, "dishwasher:kitchen"},
+          {WasherGetStatus, "dryer:laundry"},
+          {DryerGetStatus, "washer:laundry"}
         ] do
       assert {:error, wrong_type} = tool.run(%{device: wrong_device}, %{})
       assert wrong_type =~ "is not a"
@@ -79,8 +102,10 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
     Fake.put_entity("sensor.unbound_dishwasher", reading("Run"))
     Fake.put_entity("sensor.unbound_oven", reading("350", "°F"))
     Fake.put_entity("number.unbound_refrigerator", reading("37", "°F"))
+    Fake.put_entity("sensor.unbound_washer", reading("rinsing"))
+    Fake.put_entity("select.unbound_dryer", reading("drying"))
 
-    for type <- ["dishwasher", "oven", "refrigerator"] do
+    for type <- ["dishwasher", "oven", "refrigerator", "washer", "dryer"] do
       assert {:ok, []} = Discovery.candidates(type: type)
     end
   end
@@ -159,7 +184,7 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
     end
   end
 
-  test "the three explicit appliance bindings survive a YAML round trip" do
+  test "all five explicit appliance types survive a YAML round trip" do
     path =
       Path.join(System.tmp_dir!(), "dobby-appliances-#{System.unique_integer([:positive])}.yaml")
 
@@ -199,6 +224,16 @@ defmodule Dobby.DeviceAgents.ApplianceIntegrationTest do
         refrigerator_target_temperature: "number.refrigerator_setpoint",
         refrigerator_display_temperature: "sensor.refrigerator_display",
         refrigerator_door_open: "binary_sensor.refrigerator_door"
+      }),
+      appliance(Washer, "washer:laundry", "Laundry washer", %{
+        operation_state: "sensor.washer_operation",
+        remaining_time: "sensor.washer_remaining",
+        door_open: "binary_sensor.washer_door"
+      }),
+      appliance(Dryer, "dryer:laundry", "Laundry dryer", %{
+        operation_state: "select.dryer_operation",
+        remaining_time: "sensor.dryer_remaining",
+        remote_start_allowed: "binary_sensor.dryer_remote_start"
       })
     ]
   end

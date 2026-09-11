@@ -205,6 +205,27 @@ house:
         freezer_target_temperature: sensor.freezer_setpoint
         refrigerator_door_open: binary_sensor.refrigerator_door
 
+    # A stacked washer and dryer have separate cycles and separate entries.
+    # Keep only readings your HA integration exposes. No start/stop commands
+    # are offered by these types yet.
+    - id: washer:laundry
+      type: washer
+      name: laundry washer
+      aliases: [the washer, washing machine]
+      bindings:
+        operation_state: sensor.washer_operation_state
+        remaining_time: sensor.washer_remaining_time
+        door_open: binary_sensor.washer_door
+
+    - id: dryer:laundry
+      type: dryer
+      name: laundry dryer
+      aliases: [the dryer]
+      bindings:
+        operation_state: sensor.dryer_operation_state
+        remaining_time: sensor.dryer_remaining_time
+        door_open: binary_sensor.dryer_door
+
     # A robot vacuum Dobby can start and send home.
     - id: vacuum:downstairs
       type: vacuum

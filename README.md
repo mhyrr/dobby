@@ -26,7 +26,7 @@ been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
 [Appliance research and setup](docs/appliance-research.md) covers Bosch,
 Wolf, Sub-Zero, and NuHeat, plus the wider integration landscape. Dishwasher,
-oven, and refrigerator status currently use explicit sensor bindings; floor
+oven, refrigerator, washer, and dryer status currently use explicit sensor bindings; floor
 heat uses the existing thermostat type.
 
 ## Running it

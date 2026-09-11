@@ -137,6 +137,8 @@ defmodule Dobby.DobbyAgent do
       Dobby.Tools.DishwasherGetStatus,
       Dobby.Tools.OvenGetStatus,
       Dobby.Tools.RefrigeratorGetStatus,
+      Dobby.Tools.WasherGetStatus,
+      Dobby.Tools.DryerGetStatus,
       Dobby.Tools.LightGetStatus,
       Dobby.Tools.LightTurnOn,
       Dobby.Tools.LightTurnOff,

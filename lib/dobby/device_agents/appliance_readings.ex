@@ -1,6 +1,6 @@
 defmodule Dobby.DeviceAgents.ApplianceReadings do
   @moduledoc """
-  The sensor transport shared by the three appliance types.
+  The sensor transport shared by the appliance types.
 
   Types declare which readings mean something to them. This module only
   validates bindings and decodes HA's scalar wire values. It has no device
@@ -129,6 +129,16 @@ defmodule Dobby.DeviceAgents.ApplianceReadings do
     case {number(state), attributes["unit_of_measurement"]} do
       {value, "%"} when is_number(value) and value >= 0 and value <= 100 -> {value, "%"}
       _unknown -> {nil, nil}
+    end
+  end
+
+  defp decode(:duration, %{state: state, attributes: attributes}) do
+    case {number(state), attributes["unit_of_measurement"]} do
+      {value, unit} when is_number(value) and value >= 0 and unit in ["s", "min", "h"] ->
+        {value, unit}
+
+      _unknown ->
+        {nil, nil}
     end
   end
 

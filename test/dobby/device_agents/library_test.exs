@@ -17,6 +17,8 @@ defmodule Dobby.DeviceAgents.LibraryTest do
              "dishwasher",
              "oven",
              "refrigerator",
+             "washer",
+             "dryer",
              "light",
              "speaker",
              "camera",
@@ -251,9 +253,11 @@ defmodule Dobby.DeviceAgents.LibraryTest do
 
     assert_receive {:ha_call, %HACall{domain: ^domain, service: ^service}}, 2_000
 
+    # Other devices can still have echoes in the mailbox. Only this device's
+    # event proves its asynchronous state update arrived before we read it.
     assert_receive %Jido.Signal{
                      type: "dobby.device.state_changed",
-                     data: %{commanded?: ^commanded?}
+                     data: %{commanded?: ^commanded?, snapshot: %{id: ^device}}
                    },
                    2_000
   end

@@ -1,7 +1,8 @@
 # Kitchen appliances and floor heat
 
-Research and implementation decision, 2026-09-10. Exact household model numbers
-and Home Assistant entity inventory are still pending.
+Research and implementation decision, 2026-09-10; Bosch model confirmed
+2026-09-11. Greg's dishwasher is SHV78DM3N/46. Wolf, Sub-Zero, and NuHeat model
+numbers and the Home Assistant entity inventory are still pending.
 
 ## Type decisions
 
@@ -30,13 +31,18 @@ tools. Real appliance behavior and browser presentation remain unverified.
 
 ## Integration findings
 
-- **Bosch 800 dishwasher:** use Home Assistant's built-in
+- **Bosch 800 dishwasher, SHV78DM3N/46:** Greg confirmed this E-Nr on
+  2026-09-11. Bosch's [exact-model support page](https://www.bosch-home.com/us/en/productservice/SHV78DM3N-46)
+  identifies it as the 24-inch custom-panel-ready 800 Series. The
+  [SHV78DM3N product page](https://www.bosch-home.com/us/en/product/dishwashers/top-controls/SHV78DM3N)
+  confirms Wi-Fi-enabled Home Connect. Use Home Assistant's built-in
   [Home Connect integration](https://www.home-assistant.io/integrations/home_connect/).
   It uses Bosch's cloud API and requires a developer application and account
   authorization in HA. Available entities depend on the appliance and API access.
   The integration can expose program state, progress, finish time, door state,
-  remote-start permission, program selection/start, and stop. Pair the actual
-  dishwasher in Home Connect first; “800 series” alone is not an exact model.
+  remote-start permission, program selection/start, and stop. The model's
+  connectivity is confirmed; the entities and programs exposed to Greg's HA
+  account still need inspection. Pair the dishwasher in Home Connect first.
 - **NuHeat floor thermostat:** the built-in
   [NuHeat integration](https://www.home-assistant.io/integrations/nuheat/)
   supports Signature Wi-Fi thermostats through cloud polling. It needs the
@@ -176,7 +182,8 @@ MIX_BUILD_PATH=/private/tmp/dobby-appliances-build mix precommit
 
 ## Next evidence
 
-Record the full Bosch E-Nr, Wolf model, Sub-Zero model, and NuHeat model. Pair
+The Bosch E-Nr is recorded: SHV78DM3N/46. Obtain the Wolf, Sub-Zero, and NuHeat
+models. Pair
 supported devices in their manufacturer apps, then add the chosen integrations
 in HA. Inspect entity IDs, units, available commands, program options, and remote
 readiness. Do not copy account credentials into Dobby. Remote controls need

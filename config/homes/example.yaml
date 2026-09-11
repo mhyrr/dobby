@@ -173,6 +173,38 @@ house:
       bindings:
         alarm: binary_sensor.basement_smoke
 
+    # Appliance status uses explicit HA sensor bindings. These are examples;
+    # replace them with the entities your integration actually exposes.
+    # See docs/appliance-research.md for Bosch, Wolf, and Sub-Zero setup.
+    - id: dishwasher:kitchen
+      type: dishwasher
+      name: kitchen dishwasher
+      aliases: [the dishwasher]
+      bindings:
+        operation_state: sensor.dishwasher_operation_state
+        door_open: sensor.dishwasher_door
+        progress: sensor.dishwasher_program_progress
+
+    - id: oven:kitchen
+      type: oven
+      name: kitchen oven
+      aliases: [the oven]
+      bindings:
+        temperature: sensor.oven_temperature
+        target_temperature: sensor.oven_setpoint
+
+    # Some refrigerators report only targets. A target is never presented as
+    # a measured temperature. Add display-temperature bindings only if HA
+    # actually exposes those readings.
+    - id: refrigerator:kitchen
+      type: refrigerator
+      name: kitchen refrigerator
+      aliases: [the fridge]
+      bindings:
+        refrigerator_target_temperature: sensor.refrigerator_setpoint
+        freezer_target_temperature: sensor.freezer_setpoint
+        refrigerator_door_open: binary_sensor.refrigerator_door
+
     # A robot vacuum Dobby can start and send home.
     - id: vacuum:downstairs
       type: vacuum

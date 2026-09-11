@@ -134,6 +134,9 @@ defmodule Dobby.DobbyAgent do
     tools: [
       Dobby.Tools.ThermostatGetStatus,
       Dobby.Tools.ThermostatSetTemperature,
+      Dobby.Tools.DishwasherGetStatus,
+      Dobby.Tools.OvenGetStatus,
+      Dobby.Tools.RefrigeratorGetStatus,
       Dobby.Tools.LightGetStatus,
       Dobby.Tools.LightTurnOn,
       Dobby.Tools.LightTurnOff,

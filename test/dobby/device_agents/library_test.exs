@@ -14,6 +14,9 @@ defmodule Dobby.DeviceAgents.LibraryTest do
   test "the registry names semantic types rather than vendors or raw HA buckets" do
     assert Types.names() == [
              "thermostat",
+             "dishwasher",
+             "oven",
+             "refrigerator",
              "light",
              "speaker",
              "camera",

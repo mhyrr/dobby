@@ -125,7 +125,7 @@ defmodule Dobby.HomeConfig.DiscoveryTest do
 
       assert {:error, reason} = Discovery.candidates(type: "media_player")
       assert reason =~ "unknown device type"
-      assert reason =~ "thermostat, light, speaker"
+      assert reason =~ Dobby.HomeConfig.Types.roll_call()
       assert reason =~ "safety_sensor, vacuum, wifi_endpoint"
     end
 

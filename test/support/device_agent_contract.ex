@@ -8,6 +8,11 @@ defmodule Dobby.DeviceAgentContract do
   validation, discovery, initial state, snapshot construction, closed tools,
   and schedulable actions.
 
+  `discovery: :manual` proves that an entity is refused by discovery. Some
+  semantic types have no reliable HA discriminator; requiring a match would
+  force those types to guess. Their explicit manifest still passes the full
+  state, tool, and schedule contract.
+
   This is deliberately test support, not a production DSL. The production
   extension point remains `Dobby.DeviceAgent`; this module proves an
   implementation honors it.
@@ -76,10 +81,15 @@ defmodule Dobby.DeviceAgentContract do
     related_options = Keyword.get(opts, :related, [entity_options])
     related = Enum.map(related_options, &struct!(Dobby.HomeAssistant.Entity, &1))
 
-    assert module.matches_entity?(entity)
+    if Keyword.get(opts, :discovery) == :manual do
+      refute module.matches_entity?(entity)
+      assert :ignore = Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+    else
+      assert module.matches_entity?(entity)
 
-    assert {:ok, ^bindings} =
-             Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+      assert {:ok, ^bindings} =
+               Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+    end
 
     state = module.initial_state(device)
     assert state.dobby_id == device.id

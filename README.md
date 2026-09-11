@@ -24,6 +24,11 @@ sending your own agent at it over MCP, how it works, and developing. Every
 page is written from a walk somebody took, and says so where one has not
 been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
+[Appliance research and setup](docs/appliance-research.md) covers Bosch,
+Wolf, Sub-Zero, and NuHeat, plus the wider integration landscape. Dishwasher,
+oven, and refrigerator status currently use explicit sensor bindings; floor
+heat uses the existing thermostat type.
+
 ## Running it
 
 You need a reachable Home Assistant, PostgreSQL, and an

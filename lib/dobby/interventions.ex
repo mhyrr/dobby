@@ -138,7 +138,10 @@ defmodule Dobby.Interventions do
            :shade_state,
            :power,
            :playback,
-           :last_event
+           :last_event,
+           :mode,
+           "mode",
+           "power"
          ]) do
       nil ->
         percent_reading(source)
@@ -152,9 +155,26 @@ defmodule Dobby.Interventions do
   end
 
   defp percent_reading(source) do
-    case first_of(source, [:position, :speed_percent, :volume_percent]) do
+    case first_of(source, [
+           :position,
+           :speed_percent,
+           :volume_percent,
+           :target_humidity_percent,
+           "position",
+           "speed_percent",
+           "volume_percent",
+           "target_humidity_percent"
+         ]) do
       value when is_number(value) -> "#{round(value)}%"
-      _absent -> nil
+      _absent -> away_reading(source)
+    end
+  end
+
+  defp away_reading(source) do
+    case Map.get(source, :away_mode, Map.get(source, "away_mode")) do
+      true -> "Away mode on"
+      false -> "Away mode off"
+      _ -> nil
     end
   end
 

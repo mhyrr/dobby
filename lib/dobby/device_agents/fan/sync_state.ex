@@ -27,12 +27,7 @@ defmodule Dobby.DeviceAgents.Fan.SyncState do
   def run(params, context) do
     previous = context.state
 
-    next = %{
-      available: available?(params.state),
-      power: power(params.state),
-      speed_percent: percent(params.attributes["percentage"]),
-      supports_speed: supports?(params.attributes["supported_features"], @set_speed)
-    }
+    next = decode(params)
 
     keys = [:available, :power, :speed_percent, :supports_speed]
 
@@ -50,6 +45,16 @@ defmodule Dobby.DeviceAgents.Fan.SyncState do
            )
          ]}
     end
+  end
+
+  @doc false
+  def decode(params) do
+    %{
+      available: available?(params.state),
+      power: power(params.state),
+      speed_percent: percent(params.attributes["percentage"]),
+      supports_speed: supports?(params.attributes["supported_features"], @set_speed)
+    }
   end
 
   @spec snapshot(map()) :: map()

@@ -94,6 +94,9 @@ defmodule Dobby.DeviceAgents.ApplianceReadings do
     end
   end
 
+  @doc false
+  def decode_reading(type, params), do: decode(type, params)
+
   defp validate_domains(bindings, reading_types) do
     Enum.reduce_while(bindings, :ok, fn {key, entity_id}, :ok ->
       [domain | _] = String.split(entity_id, ".", parts: 2)

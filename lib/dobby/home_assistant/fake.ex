@@ -294,9 +294,10 @@ defmodule Dobby.HomeAssistant.Fake do
     end
   end
 
-  defp apply_service(%HACall{domain: "climate", service: "set_temperature", data: data}, entity) do
+  defp apply_service(%HACall{domain: domain, service: "set_temperature", data: data}, entity)
+       when domain in ["climate", "water_heater"] do
     case fetch_any(data, [:temperature, "temperature"]) do
-      {:ok, temperature} -> put_in(entity.attributes[:temperature], temperature)
+      {:ok, temperature} -> put_attribute(entity, :temperature, temperature)
       :error -> entity
     end
   end
@@ -368,11 +369,11 @@ defmodule Dobby.HomeAssistant.Fake do
   end
 
   defp apply_service(%HACall{domain: domain, service: "turn_on"}, entity)
-       when domain in ["switch", "fan"],
+       when domain in ["switch", "fan", "humidifier", "water_heater"],
        do: %{entity | state: "on"}
 
   defp apply_service(%HACall{domain: domain, service: "turn_off"}, entity)
-       when domain in ["switch", "fan"],
+       when domain in ["switch", "fan", "humidifier", "water_heater"],
        do: %{entity | state: "off"}
 
   defp apply_service(%HACall{domain: "fan", service: "set_percentage", data: data}, entity) do
@@ -380,7 +381,7 @@ defmodule Dobby.HomeAssistant.Fake do
       {:ok, percentage} ->
         entity
         |> Map.put(:state, "on")
-        |> put_in([:attributes, :percentage], percentage)
+        |> put_attribute(:percentage, percentage)
 
       :error ->
         entity
@@ -396,7 +397,32 @@ defmodule Dobby.HomeAssistant.Fake do
   defp apply_service(%HACall{domain: "vacuum", service: "return_to_base"}, entity),
     do: %{entity | state: "returning"}
 
+  defp apply_service(
+         %HACall{domain: "water_heater", service: "set_operation_mode", data: data},
+         entity
+       ),
+       do: %{entity | state: data.operation_mode}
+
+  defp apply_service(
+         %HACall{domain: "water_heater", service: "set_away_mode", data: data},
+         entity
+       ),
+       do: put_attribute(entity, :away_mode, if(data.away_mode, do: "on", else: "off"))
+
+  defp apply_service(%HACall{domain: "humidifier", service: "set_humidity", data: data}, entity),
+    do: put_attribute(entity, :humidity, data.humidity)
+
+  defp apply_service(%HACall{domain: "humidifier", service: "set_mode", data: data}, entity),
+    do: put_attribute(entity, :mode, data.mode)
+
   defp apply_service(_call, entity), do: entity
+
+  # Fixtures may use atom keys; real HA state objects use strings. Replace
+  # both forms so normalization cannot restore a stale duplicate attribute.
+  defp put_attribute(entity, key, value) do
+    attributes = entity.attributes |> Map.delete(key) |> Map.put(Atom.to_string(key), value)
+    %{entity | attributes: attributes}
+  end
 
   defp dispatch_state_changed(state, entity_id, entity) do
     Dobby.HomeAssistant.dispatch_state_changed(

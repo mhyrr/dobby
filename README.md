@@ -26,8 +26,12 @@ been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
 [Appliance research and setup](docs/appliance-research.md) covers Bosch,
 Wolf, Sub-Zero, and NuHeat, plus the wider integration landscape. Dishwasher,
-oven, refrigerator, washer, and dryer status currently use explicit sensor bindings; floor
-heat uses the existing thermostat type.
+oven, refrigerator, washer, dryer, coffee maker, wine cooler, ice maker, cooktop,
+and microwave status use explicit sensor bindings. Water heater, humidifier,
+dehumidifier, air purifier, and range hood controls use standard HA interfaces.
+Floor heat uses `thermostat`; a standalone freezer uses `refrigerator`.
+[Appliance contracts](docs/appliance-contracts.md) lists the supported readings,
+controls, and refusal rules. Makes and models belong in Home Assistant.
 
 ## Running it
 

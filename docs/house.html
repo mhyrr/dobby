@@ -131,6 +131,22 @@
 
     <p>The action limit is part of each type. It does not depend on the model behaving well. Locks cannot be unlocked, access covers cannot be opened, and safety sensors cannot be actuated through the thread, a schedule, or MCP.</p>
 
+    <h3 id="appliances">Household appliances</h3>
+    <p>Home Assistant handles manufacturers, models, accounts, and connections. Dobby binds the resulting entities to household device types. Floor heating uses <code>thermostat</code>; a standalone freezer uses <code>refrigerator</code>.</p>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Type</th><th>Bindings</th><th>What Dobby offers</th></tr>
+      <tr><td><code>water_heater</code></td><td><code>water_heater</code></td><td>Temperature, mode, away mode, and power where HA reports the capability. Configure <code>settings.temperature_unit</code> to match HA's system unit when the entity omits it.</td></tr>
+      <tr><td><code>humidifier</code>, <code>dehumidifier</code></td><td><code>humidifier</code>, with the matching HA device class</td><td>Power, humidity target within the reported range, and advertised modes. Household bounds can narrow the range.</td></tr>
+      <tr><td><code>air_purifier</code>, <code>range_hood</code></td><td><code>fan</code>; optional <code>filter_remaining</code> and <code>filter_due</code></td><td>Power, supported speed, and filter readings. Bind a hood light as a separate light.</td></tr>
+      <tr><td><code>dishwasher</code>, <code>washer</code>, <code>dryer</code></td><td>Explicit cycle, door, progress, or remaining-time sensors</td><td>Status only. A remote-readiness flag does not start a cycle.</td></tr>
+      <tr><td><code>oven</code>, <code>refrigerator</code>, <code>wine_cooler</code></td><td>Explicit measured-temperature, setpoint, door, or activity sensors</td><td>Status only. A setpoint does not establish a measured temperature.</td></tr>
+      <tr><td><code>coffee_maker</code>, <code>ice_maker</code></td><td>Explicit activity, supply, or maintenance sensors</td><td>Status only. Missing readings remain unknown.</td></tr>
+      <tr><td><code>cooktop</code>, <code>microwave</code></td><td>Explicit activity, residual-heat, door, or cycle sensors as applicable</td><td>Status only. Use one cooktop entry per heating zone when HA reports separate zones.</td></tr>
+    </table>
+    </div>
+    <p>Use the bindings shown in the <a href="https://github.com/mhyrr/dobby/blob/main/config/homes/example.yaml">example house</a>. Purifiers, hoods, and sensor-based appliances need explicit entries because HA entity names do not establish their household role. Every sensor-based appliance needs at least one reading binding.</p>
+
     <h3 id="vacuum">vacuum</h3>
     <p>Dobby starts it and sends it home.</p>
 <pre><code>- <span class="k">id:</span> vacuum:downstairs

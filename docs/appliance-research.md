@@ -4,6 +4,10 @@ Research and implementation decision, 2026-09-10; Bosch model confirmed
 2026-09-11. Greg's dishwasher is SHV78DM3N/46. Wolf, Sub-Zero, and NuHeat model
 numbers and the Home Assistant entity inventory are still pending.
 
+The broader [appliance contracts](appliance-contracts.md) now cover the remaining
+surveyed types. The decisions and verification counts below record the earlier
+kitchen/laundry implementation; the contract document describes current scope.
+
 ## Type decisions
 
 Add `dishwasher`, `oven`, `refrigerator`, `washer`, and `dryer` as household types. Keep floor heat
@@ -101,11 +105,12 @@ control was found in either inspected integration.
 | [GE Appliances SmartHQ](https://github.com/geappliances/geappliances-smarthq-integration) | Manufacturer-hosted custom integration, installed separately; maps cloud services into cooking, laundry, temperature, door, and brewing entities | A concrete additional integration path; use exposed services to define capabilities |
 | [Whirlpool Appliances](https://www.home-assistant.io/integrations/whirlpool/) | Built-in; Whirlpool, Maytag, KitchenAid, Consul, with model-dependent laundry, oven, and refrigeration functions | Keep target writes separate from passive readings: its oven target write can start a bake cycle |
 
-`washer` and `dryer` are included in this branch. A separate freezer can reuse the
-refrigerator compartment model. A range hood can use existing fan/light types
-when those are the HA entities it provides. Cooktop, coffee maker, and water
-heater need their own action contracts; they are not generic power switches.
-The remaining candidates are research priorities, not support claims or additions in this branch.
+The [household appliance contracts](appliance-contracts.md) extend this branch
+with water heater, humidifier, dehumidifier, air purifier, range hood, coffee
+maker, wine cooler, ice maker, cooktop, and microwave. A separate freezer reuses
+`refrigerator`; floor heat reuses `thermostat`. Device contracts are independent
+of brand compatibility. HA owns pairing and the entities a particular product
+can expose.
 
 ## Binding the new types
 
@@ -214,12 +219,12 @@ MIX_DEPS_PATH=/private/tmp/dobby-appliances-deps \
 MIX_BUILD_PATH=/private/tmp/dobby-appliances-build mix precommit
 ```
 
-## Next evidence
+## Later: connect the personal house
 
-The Bosch E-Nr is recorded: SHV78DM3N/46. Obtain the Wolf, Sub-Zero, and NuHeat
-models. Pair
-supported devices in their manufacturer apps, then add the chosen integrations
-in HA. Inspect entity IDs, units, available commands, program options, and remote
-readiness. Do not copy account credentials into Dobby. Remote controls need
-device-level validation, refusal behavior, and command-arrival evidence before
-they can enter the language tool set.
+The Bosch E-Nr is recorded: SHV78DM3N/46. Pair the household's appliances in HA,
+then inspect entity IDs, units, capabilities, and any remote-readiness readings.
+Model identification belongs to selecting and configuring the HA integration;
+it does not gate Dobby's type library. Do not copy account credentials into Dobby.
+Bind the resulting entities to the semantic types in the example house. New
+control bindings still need a defined HA service contract, refusal behavior,
+and command-arrival rule before they enter Dobby's tool set.

@@ -1,0 +1,175 @@
+defmodule Dobby.DeviceAgents.WaterHeater do
+  @moduledoc """
+  The household's hot-water supply, governed by HA's water_heater contract.
+
+  Every control requires an advertised feature. Temperatures are presented in
+  Fahrenheit, but service calls use HA's configured temperature unit. Standard
+  HA water heaters omit unit_of_measurement, so the household must declare
+  `temperature_unit` to match HA's system setting when the entity omits it.
+  An explicit entity unit wins; missing or invalid units never become a guess.
+
+  Household bounds only narrow the reported hardware range. Commands change
+  last_command alone: warm water is an observation that only HA can report.
+  """
+
+  use Jido.Agent,
+    name: "water_heater",
+    description: "Reports and controls the household water heater",
+    signal_routes: [
+      {"ha.state_changed", Dobby.DeviceAgents.WaterHeater.SyncState},
+      {"water_heater.set_temperature", Dobby.DeviceAgents.WaterHeater.SetTemperature},
+      {"water_heater.set_mode", Dobby.DeviceAgents.WaterHeater.SetMode},
+      {"water_heater.set_away_mode", Dobby.DeviceAgents.WaterHeater.SetAwayMode},
+      {"water_heater.set_power", Dobby.DeviceAgents.WaterHeater.SetPower}
+    ],
+    schema: [
+      dobby_id: [type: :string, required: true],
+      name: [type: :string, required: true],
+      entity_id: [type: :string, required: true],
+      available: [type: {:or, [:boolean, nil]}, default: nil],
+      power: [type: {:or, [:atom, nil]}, default: nil],
+      mode: [type: {:or, [:string, nil]}, default: nil],
+      away_mode: [type: {:or, [:boolean, nil]}, default: nil],
+      temperature_unit: [type: {:or, [:string, nil]}, default: nil],
+      current_temperature: [type: {:or, [:integer, :float, nil]}, default: nil],
+      target_temperature: [type: {:or, [:integer, :float, nil]}, default: nil],
+      current_temperature_f: [type: {:or, [:integer, :float, nil]}, default: nil],
+      target_temperature_f: [type: {:or, [:integer, :float, nil]}, default: nil],
+      capabilities: [type: {:or, [:map, nil]}, default: nil],
+      settings: [type: :map, default: %{}],
+      last_command: [type: {:or, [:map, nil]}, default: nil]
+    ]
+
+  @behaviour Dobby.DeviceAgent
+  alias Dobby.Home.Device
+
+  @impl Dobby.DeviceAgent
+  def config_type, do: "water_heater"
+
+  @impl Dobby.DeviceAgent
+  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "water_heater"
+
+  @impl Dobby.DeviceAgent
+  def config_schema do
+    [
+      temperature_unit: [
+        type: {:in, ["°F", "°C", "K"]},
+        doc:
+          "Match HA's system temperature unit. Required for temperature control when HA omits the entity unit."
+      ],
+      min_temperature_f: [
+        type: {:or, [:integer, :float]},
+        doc: "Household minimum target in Fahrenheit; narrows HA's range."
+      ],
+      max_temperature_f: [
+        type: {:or, [:integer, :float]},
+        doc: "Household maximum target in Fahrenheit; narrows HA's range."
+      ]
+    ]
+  end
+
+  @impl Dobby.DeviceAgent
+  def validate_device(%Device{} = device) do
+    with :ok <- Dobby.DeviceAgents.Validation.device(device, [:water_heater]),
+         true <- Regex.match?(~r/^water_heater\.[a-z0-9_]+$/, device.bindings.water_heater),
+         {:ok, _} <- NimbleOptions.validate(Map.to_list(device.settings), config_schema()) do
+      min = device.settings[:min_temperature_f]
+      max = device.settings[:max_temperature_f]
+
+      if is_number(min) and is_number(max) and min > max,
+        do: {:error, "min_temperature_f exceeds max_temperature_f"},
+        else: :ok
+    else
+      false -> {:error, "bindings.water_heater must name a water_heater entity"}
+      {:error, %NimbleOptions.ValidationError{} = reason} -> {:error, Exception.message(reason)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl Dobby.DeviceAgent
+  def tools,
+    do: [
+      Dobby.Tools.WaterHeaterGetStatus,
+      Dobby.Tools.WaterHeaterSetTemperature,
+      Dobby.Tools.WaterHeaterSetMode,
+      Dobby.Tools.WaterHeaterSetAwayMode,
+      Dobby.Tools.WaterHeaterTurnOn,
+      Dobby.Tools.WaterHeaterTurnOff
+    ]
+
+  @impl Dobby.DeviceAgent
+  def subscribed_bindings, do: [:water_heater]
+
+  @impl Dobby.DeviceAgent
+  def scheduled_actions,
+    do: %{
+      set_temperature: {"water_heater.set_temperature", __MODULE__.SetTemperature},
+      set_mode: {"water_heater.set_mode", __MODULE__.SetMode},
+      set_away_mode: {"water_heater.set_away_mode", __MODULE__.SetAwayMode},
+      set_power: {"water_heater.set_power", __MODULE__.SetPower}
+    }
+
+  @impl Dobby.DeviceAgent
+  defdelegate snapshot(state), to: __MODULE__.SyncState
+
+  @impl Dobby.DeviceAgent
+  def initial_state(%Device{} = device),
+    do: Dobby.DeviceAgent.initial_state(device, :water_heater)
+
+  @impl Dobby.DeviceAgent
+  def intervention?(attribute),
+    do: attribute in [:target_temperature_f, :mode, :away_mode, :power]
+
+  @impl Dobby.DeviceAgent
+  def command_arrived?(
+        %{result: :accepted, action: :set_temperature, temperature_f: expected},
+        %{available: true, target_temperature_f: reported}
+      )
+      when is_number(expected) and is_number(reported),
+      do: abs(expected - reported) < 0.001
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_mode, mode: expected},
+        %{available: true, mode: reported}
+      )
+      when is_binary(expected), do: expected == reported
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_away_mode, away_mode: expected},
+        %{available: true, away_mode: reported}
+      )
+      when is_boolean(expected), do: expected == reported
+
+  def command_arrived?(
+        %{result: :accepted, action: :set_power, power: expected},
+        %{available: true, power: reported}
+      )
+      when expected in [:on, :off], do: expected == reported
+
+  def command_arrived?(_, _), do: false
+
+  @doc false
+  def to_f(value, "°F") when is_number(value), do: value
+  def to_f(value, "°C") when is_number(value), do: value * 9 / 5 + 32
+  def to_f(value, "K") when is_number(value), do: (value - 273.15) * 9 / 5 + 32
+  def to_f(_, _), do: nil
+
+  @doc false
+  def from_f(value, "°F"), do: value
+  def from_f(value, "°C"), do: (value - 32) * 5 / 9
+  def from_f(value, "K"), do: (value - 32) * 5 / 9 + 273.15
+
+  @doc false
+  def accepted_range(state) do
+    capabilities = state.capabilities || %{}
+    min = capabilities[:min_temperature_f]
+    max = capabilities[:max_temperature_f]
+
+    if is_number(min) and is_number(max) and min <= max do
+      {max(min, state.settings[:min_temperature_f] || min),
+       min(max, state.settings[:max_temperature_f] || max)}
+    else
+      {nil, nil}
+    end
+  end
+end

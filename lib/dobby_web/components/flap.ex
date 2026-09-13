@@ -28,6 +28,22 @@ defmodule DobbyWeb.Flap do
   the tool. A house that has just booted knows nothing about its devices for a
   second or two, and saying so is more honest than guessing.
 
+  ## The appliances
+
+  Fifteen types arrived at once, and they split on one question: can the house
+  write the thing this row is showing? Ten only read, so they take `AWAKE` the
+  way the sensors do — the endpoint answers, and the reading beside the word is
+  what it answered. Five can be commanded, so they take `SET`, the same word
+  the switch and the fan take.
+
+  **A read-only appliance never fills its column with a stored target.** Its
+  word is `AWAKE`, and a setpoint printed beside that word reads as what the
+  appliance *is* — exactly the confusion `Dobby.DeviceAgents.Refrigerator`
+  names in its own moduledoc when it says a setpoint must never stand in for a
+  missing measurement. A target belongs in this column only where the word
+  beside it is `SET`, which is why a water heater shows the temperature
+  somebody asked for and a refrigerator shows what its compartment reads.
+
   ## Palette law
 
   Five reserved colors, each meaning exactly one thing, used decoratively
@@ -37,6 +53,10 @@ defmodule DobbyWeb.Flap do
   """
 
   use Phoenix.Component
+
+  # Every cycle appliance's last resort, and it says what a contact sensor
+  # says, because it is one.
+  @door {:door_open, {"Open", "Closed"}}
 
   @doc """
   One flap card.
@@ -178,7 +198,11 @@ defmodule DobbyWeb.Flap do
     do: commanded(snapshot, percent_or_state(snapshot.speed_percent, snapshot.power))
 
   def read(%{type: :environment_monitor} = snapshot),
-    do: observed(snapshot, primary_reading(snapshot))
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [:temperature, :humidity, :carbon_dioxide, :air_quality, :pm25])
+      )
 
   def read(%{type: :contact_sensor} = snapshot),
     do: observed(snapshot, boolean_value(snapshot.open, "Open", "Closed"))
@@ -189,7 +213,100 @@ defmodule DobbyWeb.Flap do
   def read(%{type: :safety_sensor} = snapshot),
     do: observed(snapshot, boolean_value(snapshot.alarm, "Alarm", "Clear"))
 
-  def read(%{available: true}), do: %{word: "Awake", state: :acting, value: nil}
+  # ── the appliances that only read ──────────────────────────────────────────
+  #
+  # AWAKE, the same word the sensors above take, because that is all these
+  # types can honestly say: the endpoint answers, and this is what it answered.
+  # Not a word of their own — a cycle appliance mid-programme is doing
+  # something, and WORKING would be a ninth word, which is a DESIGN.md decision
+  # rather than a clause here.
+
+  def read(%{type: :dishwasher} = snapshot),
+    do: observed(snapshot, reading(snapshot, [:operation_state, :program, :progress, @door]))
+
+  def read(%{type: :oven} = snapshot),
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [:temperature, :operation_state, :probe_temperature, @door])
+      )
+
+  def read(%{type: :refrigerator} = snapshot),
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [
+          :refrigerator_display_temperature,
+          :freezer_display_temperature,
+          {:refrigerator_door_open, {"Open", "Closed"}},
+          {:freezer_door_open, {"Open", "Closed"}}
+        ])
+      )
+
+  # One row, twice: a washer and a dryer report the same laundry cycle and the
+  # board has no reason to draw them differently.
+  def read(%{type: type} = snapshot) when type in [:washer, :dryer],
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [:operation_state, :program, :progress, :remaining_time, @door])
+      )
+
+  def read(%{type: :coffee_maker} = snapshot),
+    do: observed(snapshot, reading(snapshot, [:operation_state, :program]))
+
+  def read(%{type: :wine_cooler} = snapshot),
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [:temperature, :upper_temperature, :lower_temperature, @door])
+      )
+
+  def read(%{type: :ice_maker} = snapshot),
+    do: observed(snapshot, reading(snapshot, [:operation_state]))
+
+  def read(%{type: :cooktop} = snapshot),
+    do:
+      observed(
+        snapshot,
+        reading(snapshot, [
+          :operation_state,
+          :power_level,
+          {:active, {"Running", "Idle"}},
+          {:hot_surface, {"Hot", "Cool"}}
+        ])
+      )
+
+  def read(%{type: :microwave} = snapshot),
+    do: observed(snapshot, reading(snapshot, [:operation_state, :remaining_time, @door]))
+
+  # ── the appliances that can be written ─────────────────────────────────────
+  #
+  # SET, the same word the switch, the shade and the fan take, and for the same
+  # reason: every value shown here is one somebody asked for. A water heater
+  # that has just been told 120° says SET and not AWAKE — reading it as an
+  # endpoint that answers would invert the Commanded-Not-Observed Rule on the
+  # one row in this group where the number matters most.
+
+  def read(%{type: :water_heater} = snapshot),
+    do: commanded(snapshot, water_value(snapshot))
+
+  def read(%{type: type} = snapshot) when type in [:humidifier, :dehumidifier],
+    do: commanded(snapshot, percent_or_state(snapshot.target_humidity_percent, snapshot.power))
+
+  def read(%{type: type} = snapshot) when type in [:air_purifier, :range_hood],
+    do: commanded(snapshot, percent_or_state(snapshot.speed_percent, snapshot.power))
+
+  # A type with no clause of its own gets availability alone, which is true of
+  # anything — but it gets it through the three-way helper every type uses. The
+  # old fallback said AWAKE for a device that answers and NOT KNOWN for
+  # everything else, which folded "stopped answering" into "nobody has told us
+  # yet": the one distinction this vocabulary was extended to keep. A
+  # registered type reaching here is a bug rather than a default, and this is
+  # what the board says while somebody fixes it.
+  def read(%{available: available} = snapshot) when available in [true, false, nil],
+    do: observed(snapshot, nil)
+
   def read(_snapshot), do: unknown(nil)
 
   defp unknown(value), do: %{word: "Not known", state: :silent, value: value}
@@ -206,8 +323,14 @@ defmodule DobbyWeb.Flap do
   defp speaker_value(%{volume_percent: percent}) when is_number(percent), do: "#{percent}%"
   defp speaker_value(%{playback: playback}), do: atom_value(playback)
 
-  defp percent_or_state(percent, _state) when is_number(percent), do: "#{percent}%"
+  defp percent_or_state(percent, _state) when is_number(percent),
+    do: number_value(percent) <> "%"
+
   defp percent_or_state(_percent, state), do: atom_value(state)
+
+  # `nil` is an atom, so without this clause an attribute nobody has reported
+  # yet reads "Nil" on the board — a word that is in no vocabulary at all.
+  defp atom_value(nil), do: nil
 
   defp atom_value(value) when is_atom(value),
     do: value |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
@@ -218,15 +341,67 @@ defmodule DobbyWeb.Flap do
   defp boolean_value(false, _yes, no), do: no
   defp boolean_value(nil, _yes, _no), do: nil
 
-  defp primary_reading(%{readings: readings, units: units}) do
-    [:temperature, :humidity, :carbon_dioxide, :air_quality, :pm25]
-    |> Enum.find_value(fn key ->
-      case Map.get(readings, key) do
-        value when is_number(value) -> "#{value}#{Map.get(units, key, "")}"
-        _missing -> nil
-      end
+  # The first of an ordered list of readings that is actually known. A bare key
+  # is a scalar and prints itself with its unit; a `{key, {yes, no}}` pair is a
+  # boolean and names both of its faces, the way a contact sensor does.
+  #
+  # A list stops at the last reading that can be said in the board's plain
+  # register. Where a boolean has no plain word for both faces — an ice bin
+  # that is not full is not the same as one that is empty, and the ice maker
+  # says so itself — the list ends there and the column stays blank. That is
+  # The Absent Word Rule, carried from the flap to the reading beside it: a
+  # phrase invented to fill a column is worse than a column with nothing in it.
+  defp reading(%{readings: readings, units: units}, candidates) do
+    Enum.find_value(candidates, fn
+      {key, {yes, no}} -> boolean_value(Map.get(readings, key), yes, no)
+      key -> scalar_value(Map.get(readings, key), Map.get(units, key))
     end)
   end
+
+  defp scalar_value(value, unit) when is_number(value),
+    do: number_value(value) <> unit_suffix(unit)
+
+  defp scalar_value(value, _unit) when is_binary(value) and value != "", do: text_value(value)
+  defp scalar_value(_value, _unit), do: nil
+
+  # Home Assistant sends every scalar over the wire as a string, and an
+  # integration that writes "38.0" for a whole temperature parses to a float
+  # however carefully the readings layer keeps whole numbers whole. The board
+  # writes the number, not the parse.
+  defp number_value(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp number_value(value) when is_float(value) do
+    if value == trunc(value),
+      do: Integer.to_string(trunc(value)),
+      else: Float.to_string(value)
+  end
+
+  # A degree sign and a percent belong to the number. Anything else is a word,
+  # and a word takes the space a word takes.
+  defp unit_suffix(unit) when unit in ["%", "°", "°F", "°C"], do: unit
+  defp unit_suffix(unit) when is_binary(unit) and unit != "", do: " " <> unit
+  defp unit_suffix(_unit), do: ""
+
+  # An appliance's own word for what it is doing. Underscores become spaces, and
+  # the first letter is raised if it needs raising — but the rest is left alone.
+  # `ApplianceReadings` keeps the integration's casing on purpose, because the
+  # cycle word is the only description of the cycle anybody has; capitalising the
+  # whole string turned "DelayedStart" into "Delayedstart" and threw that away.
+  defp text_value(value) do
+    case String.replace(value, "_", " ") do
+      <<first::utf8, rest::binary>> -> String.upcase(<<first::utf8>>) <> rest
+      empty -> empty
+    end
+  end
+
+  # Every value a water heater shows is one somebody asked for — the target,
+  # the mode, the switch. The tank's own temperature is an observation and has
+  # no business on a row whose word is SET.
+  defp water_value(%{target_temperature_f: target}) when is_number(target),
+    do: "#{round(target)}°"
+
+  defp water_value(%{mode: mode}) when is_binary(mode) and mode != "", do: text_value(mode)
+  defp water_value(%{power: power}), do: atom_value(power)
 
   # On or off is the reading; a dimmed light's percentage is the more exact
   # form of "on". Either way the word is SET — it is a commanded state, which

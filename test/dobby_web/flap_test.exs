@@ -107,6 +107,219 @@ defmodule DobbyWeb.FlapTest do
     end
   end
 
+  describe "an appliance that only reads" do
+    # AWAKE, the same word the sensors take, because that is the whole of what
+    # these types can say: the endpoint answers, and this is what it answered.
+
+    test "a dishwasher says which cycle it is in" do
+      assert %{word: "Awake", state: :acting, value: "Run"} =
+               read(appliance(:dishwasher, %{operation_state: "Run"}))
+    end
+
+    test "an oven says how hot it is" do
+      assert %{word: "Awake", value: "350°F"} =
+               read(
+                 appliance(:oven, %{temperature: 350.0, operation_state: "run"},
+                   units: %{temperature: "°F"}
+                 )
+               )
+    end
+
+    test "a refrigerator says what its fresh compartment reads" do
+      assert %{word: "Awake", value: "38°F"} =
+               read(
+                 appliance(
+                   :refrigerator,
+                   %{refrigerator_display_temperature: 38.0, freezer_display_temperature: 2.0},
+                   units: %{
+                     refrigerator_display_temperature: "°F",
+                     freezer_display_temperature: "°F"
+                   }
+                 )
+               )
+    end
+
+    test "a stored target never stands in for a missing measurement" do
+      # `Dobby.DeviceAgents.Refrigerator` says so about its own readings, and
+      # the board has the stronger reason: the word beside this column is
+      # AWAKE, so a setpoint printed here reads as what the fridge *is*. A
+      # target belongs in this column only where the word is SET.
+      assert %{word: "Awake", value: nil} =
+               read(
+                 appliance(
+                   :refrigerator,
+                   %{refrigerator_target_temperature: 37.0, freezer_target_temperature: 0.0},
+                   units: %{
+                     refrigerator_target_temperature: "°F",
+                     freezer_target_temperature: "°F"
+                   }
+                 )
+               )
+    end
+
+    test "a washer and a dryer say the same thing, because they are the same row" do
+      assert %{word: "Awake", value: "Rinsing"} =
+               read(appliance(:washer, %{operation_state: "rinsing"}))
+
+      assert %{word: "Awake", value: "Drying"} =
+               read(appliance(:dryer, %{operation_state: "drying"}))
+    end
+
+    test "a coffee maker says what it is doing" do
+      assert %{word: "Awake", value: "Ready"} =
+               read(appliance(:coffee_maker, %{operation_state: "ready"}))
+    end
+
+    test "a wine cooler says what it reads" do
+      assert %{word: "Awake", value: "55°F"} =
+               read(appliance(:wine_cooler, %{temperature: 55.0}, units: %{temperature: "°F"}))
+    end
+
+    test "an ice maker says what it is doing" do
+      assert %{word: "Awake", value: "Idle"} =
+               read(appliance(:ice_maker, %{operation_state: "idle"}))
+    end
+
+    test "a cooktop zone says what it is doing, then how hard" do
+      assert %{word: "Awake", value: "Run"} =
+               read(appliance(:cooktop, %{operation_state: "run", power_level: 60.0}))
+
+      assert %{word: "Awake", value: "60%"} =
+               read(appliance(:cooktop, %{power_level: 60.0}, units: %{power_level: "%"}))
+    end
+
+    test "a microwave says what it is doing, and how much of it is left" do
+      assert %{word: "Awake", value: "Cooking"} =
+               read(appliance(:microwave, %{operation_state: "cooking"}))
+
+      assert %{word: "Awake", value: "90 s"} =
+               read(appliance(:microwave, %{remaining_time: 90.0}, units: %{remaining_time: "s"}))
+    end
+
+    test "the door is the last thing a cycle appliance has to say" do
+      assert %{word: "Awake", value: "Open"} =
+               read(appliance(:dishwasher, %{door_open: true}))
+
+      assert %{word: "Awake", value: "Closed"} =
+               read(appliance(:washer, %{door_open: false}))
+    end
+
+    test "a reading somebody bound but nobody can say plainly leaves the column blank" do
+      # The Absent Word Rule, carried from the flap to the reading beside it.
+      # An ice bin that is not full is not the same as one that is empty — the
+      # ice maker's own moduledoc refuses to invent the quantity — so the
+      # column says nothing rather than inventing a phrase for it.
+      assert %{word: "Awake", value: nil} = read(appliance(:ice_maker, %{ice_full: true}))
+    end
+
+    test "one that has stopped answering is QUIET, and keeps what it last said" do
+      assert %{word: "Quiet", state: :silent, value: "Run"} =
+               read(appliance(:dishwasher, %{operation_state: "Run"}, available: false))
+    end
+
+    test "one nobody has heard from is NOT KNOWN, which is a different fact" do
+      # The defect this vocabulary exists to prevent: an appliance that has
+      # stopped answering and one that has never reported are not the same
+      # sentence, and neither of them is AWAKE.
+      assert %{word: "Not known", state: :silent, value: nil} =
+               read(appliance(:oven, %{temperature: nil}, available: nil))
+    end
+  end
+
+  describe "an appliance that can be commanded" do
+    test "a water heater somebody set to 120° is SET, not AWAKE" do
+      # The inversion this clause was written for. Reading a commanded value as
+      # an endpoint answering is the Commanded-Not-Observed Rule backwards, on
+      # the one appliance row where the number matters most.
+      assert %{word: "Set", state: :set, value: "120°"} =
+               read(water_heater(target: 120.0, current: 118.0))
+    end
+
+    test "a water heater never shows the tank's own temperature" do
+      # 118 is what the tank reads. Printing it beside SET would say somebody
+      # asked for 118, which nobody did.
+      assert %{word: "Set", value: "Eco"} =
+               read(water_heater(target: nil, current: 118.0, mode: "eco"))
+
+      assert %{word: "Set", value: "Off"} =
+               read(water_heater(target: nil, current: 118.0, power: :off))
+    end
+
+    test "a humidifier and a dehumidifier show the humidity somebody asked for" do
+      assert %{word: "Set", state: :set, value: "45%"} =
+               read(humidity(:humidifier, target: 45, current: 38))
+
+      assert %{word: "Set", state: :set, value: "50%"} =
+               read(humidity(:dehumidifier, target: 50, current: 61))
+    end
+
+    test "the room's own humidity never fills the column" do
+      assert %{word: "Set", value: "On"} =
+               read(humidity(:humidifier, target: nil, current: 38, power: :on))
+    end
+
+    test "a purifier and a hood show the speed they were set to" do
+      assert %{word: "Set", state: :set, value: "60%"} =
+               read(ventilation(:air_purifier, speed: 60))
+
+      assert %{word: "Set", state: :set, value: "40%"} =
+               read(ventilation(:range_hood, speed: 40))
+    end
+
+    test "one with no speed to report falls back to the switch, and stays SET" do
+      assert %{word: "Set", value: "On"} = read(ventilation(:range_hood, speed: nil, power: :on))
+    end
+
+    test "one that has stopped answering is QUIET, and one nobody has heard from is NOT KNOWN" do
+      assert %{word: "Quiet", state: :silent} =
+               read(water_heater(target: 120.0, available: false))
+
+      assert %{word: "Not known", state: :silent} =
+               read(water_heater(target: nil, available: nil))
+
+      assert %{word: "Quiet", state: :silent} =
+               read(humidity(:dehumidifier, target: 50, available: false))
+
+      assert %{word: "Not known", state: :silent} =
+               read(ventilation(:air_purifier, speed: nil, available: nil))
+    end
+  end
+
+  describe "the board's own floor" do
+    test "every registered device type has a word the moment it boots, and it is NOT KNOWN" do
+      # Built the way production builds it — each module's own `initial_state`
+      # and `snapshot`, through its own agent schema — because a fixture that
+      # seeds what production builds would not have caught either half of this.
+      #
+      # A booted device has reported nothing, so the word is NOT KNOWN and the
+      # column beside it is empty. Two things used to break that. Fifteen types
+      # were registered with no clause here, so the first report they did get
+      # said AWAKE with nothing beside it. And `nil` is an atom, so every type
+      # whose reading came from an atom wrote the literal word "Nil" on the
+      # board before Home Assistant had spoken.
+      for module <- Dobby.HomeConfig.Types.modules() do
+        assert %{word: "Not known", state: :silent, value: nil} = read(boot_snapshot(module)),
+               "#{module.config_type()} does not say NOT KNOWN before the house has spoken"
+      end
+    end
+
+    test "a type with no clause of its own still tells QUIET from NOT KNOWN" do
+      # A registered type reaching the fallback is a bug rather than a default.
+      # This is what the board says while somebody fixes it, and the one thing
+      # it must not do is fold "stopped answering" into "nobody has told us".
+      assert %{word: "Awake", state: :acting, value: nil} =
+               read(%{type: :something_new, available: true})
+
+      assert %{word: "Quiet", state: :silent, value: nil} =
+               read(%{type: :something_new, available: false})
+
+      assert %{word: "Not known", state: :silent, value: nil} =
+               read(%{type: :something_new, available: nil})
+
+      assert %{word: "Not known", state: :silent, value: nil} = read(%{type: :something_new})
+    end
+  end
+
   defp thermostat(opts) do
     %{
       id: "thermostat:main",
@@ -128,5 +341,77 @@ defmodule DobbyWeb.FlapTest do
       online: Keyword.get(opts, :online),
       last_changed_at: nil
     }
+  end
+
+  # The shape `Dobby.DeviceAgents.ApplianceReadings` builds: the bound readings
+  # and, beside them, the units Home Assistant sent with them.
+  defp appliance(type, readings, opts \\ []) do
+    %{
+      id: "#{type}:kitchen",
+      name: "kitchen #{type}",
+      type: type,
+      available: Keyword.get(opts, :available, true),
+      readings: readings,
+      units: Keyword.get(opts, :units, %{})
+    }
+  end
+
+  defp water_heater(opts) do
+    %{
+      id: "water_heater:tank",
+      name: "the tank",
+      type: :water_heater,
+      available: Keyword.get(opts, :available, true),
+      power: Keyword.get(opts, :power),
+      mode: Keyword.get(opts, :mode),
+      away_mode: nil,
+      current_temperature_f: Keyword.get(opts, :current),
+      target_temperature_f: Keyword.get(opts, :target)
+    }
+  end
+
+  defp humidity(type, opts) do
+    %{
+      id: "#{type}:nursery",
+      name: "nursery #{type}",
+      type: type,
+      available: Keyword.get(opts, :available, true),
+      power: Keyword.get(opts, :power, :on),
+      current_humidity_percent: Keyword.get(opts, :current),
+      target_humidity_percent: Keyword.get(opts, :target),
+      units: %{current_humidity_percent: "%", target_humidity_percent: "%"}
+    }
+  end
+
+  defp ventilation(type, opts) do
+    %{
+      id: "#{type}:kitchen",
+      name: "kitchen #{type}",
+      type: type,
+      available: Keyword.get(opts, :available, true),
+      power: Keyword.get(opts, :power, :on),
+      speed_percent: Keyword.get(opts, :speed),
+      supports_speed: true,
+      readings: %{},
+      units: %{}
+    }
+  end
+
+  # A device the moment it starts and before Home Assistant has said anything:
+  # the module's own initial state, through its own agent schema, read back
+  # through its own snapshot. Production does exactly this at boot.
+  defp boot_snapshot(module) do
+    bindings = Map.new(module.subscribed_bindings(), &{&1, "sensor.#{&1}"})
+
+    device = %Dobby.Home.Device{
+      id: "#{module.config_type()}:flap",
+      name: "a #{module.config_type()}",
+      agent_module: module,
+      bindings: bindings,
+      settings: %{}
+    }
+
+    agent = module.new(id: device.id, state: module.initial_state(device))
+    module.snapshot(agent.state)
   end
 end

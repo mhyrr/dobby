@@ -99,14 +99,15 @@ defmodule Dobby.DeviceAgents.Humidity do
         {:ok, next}
 
       %{changed: changed, moved: moved} ->
+        commanded = commanded(previous.last_command, changed, next)
+
         {:ok, next,
          [
            DeviceEvents.emit(previous.dobby_id, snapshot(Map.merge(previous, next)),
              changed: changed,
              moved: moved,
-             commanded?:
-               command_changed?(previous.last_command, changed) and
-                 command_arrived?(previous.last_command, next)
+             commanded: commanded,
+             commanded?: commanded != []
            )
          ]}
     end
@@ -114,13 +115,32 @@ defmodule Dobby.DeviceAgents.Humidity do
 
   def sync(_params, _previous), do: {:ok, %{}}
 
-  defp command_changed?(%{action: :set_power}, changed), do: :power in changed
+  # What this command accounts for in this report, so the watcher can judge
+  # whatever is left on its own.
+  #
+  # Target and mode move together on real integrations, in both directions.
+  # Xiaomi's humidifiers switch to Auto when asked for a humidity, and a generic
+  # hygrostat swaps its target when asked for away mode. Claiming only the
+  # attribute the command was named for told the household somebody had turned
+  # the other one by hand. The first attribute is the one the command is for,
+  # and it gates the rest, so a mode somebody changed on a device that left the
+  # target alone is still a hand.
+  defp commanded(command, changed, next) do
+    case command_attributes(command) do
+      [primary | _] = attributes ->
+        if primary in changed and command_arrived?(command, next),
+          do: Enum.filter(attributes, &(&1 in changed)),
+          else: []
 
-  defp command_changed?(%{action: :set_humidity}, changed),
-    do: :target_humidity_percent in changed
+      [] ->
+        []
+    end
+  end
 
-  defp command_changed?(%{action: :set_mode}, changed), do: :mode in changed
-  defp command_changed?(_, _), do: false
+  defp command_attributes(%{action: :set_power}), do: [:power]
+  defp command_attributes(%{action: :set_humidity}), do: [:target_humidity_percent, :mode]
+  defp command_attributes(%{action: :set_mode}), do: [:mode, :target_humidity_percent]
+  defp command_attributes(_), do: []
 
   def set_power(%{power: power, ref: ref}, state) do
     with :ok <- ready(state),
@@ -210,6 +230,13 @@ defmodule Dobby.DeviceAgents.Humidity do
 
       not is_number(low) or not is_number(high) or low > high ->
         {:error, "Home Assistant has not reported a valid humidity range"}
+
+      # Household bounds narrow HA's range and can miss it entirely, which left
+      # the refusal naming a range that reads backwards — "between 60 and 50
+      # percent". The command is refused either way; the reason has to be a
+      # sentence somebody can act on. The water heater already says this.
+      min > max ->
+        {:error, "household humidity bounds fall outside the range #{state.name} reports"}
 
       target < min or target > max ->
         {:error, "humidity target must be between #{min} and #{max} percent"}

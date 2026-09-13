@@ -20,6 +20,16 @@ defmodule Dobby.DeviceAgents.WaterHeaterTest do
     ]
   )
 
+  test "the power steps read as turning the heater on and off, not as setting it" do
+    # The board shows the step while Dobby works, and "setting the water
+    # heater" is the sentence a temperature change writes. Two steps that read
+    # alike for two different commands is the board lying quietly.
+    arguments = %{"device" => "water heater"}
+
+    assert Dobby.Tools.WaterHeaterTurnOn.label(arguments) == "turning on the water heater"
+    assert Dobby.Tools.WaterHeaterTurnOff.label(arguments) == "turning off the water heater"
+  end
+
   test "manifest validates native domain, unit and narrowing bounds" do
     assert :ok = WaterHeater.validate_device(device())
 
@@ -129,6 +139,42 @@ defmodule Dobby.DeviceAgents.WaterHeaterTest do
              WaterHeater.SyncState.run(%{entity_id: "water_heater.other"}, %{state: state})
   end
 
+  test "a Celsius house confirms its own command through Home Assistant's rounding" do
+    celsius = %{
+      "current_temperature" => 38.0,
+      "temperature" => 43.3,
+      "min_temp" => 32.0,
+      "max_temp" => 66.0,
+      "supported_features" => 15,
+      "operation_list" => ["eco", "gas", "off"],
+      "away_mode" => "off"
+    }
+
+    {state, _} = sync(boot(%{temperature_unit: "°C"}), "eco", celsius)
+
+    {:ok, command, [%HACall{data: %{temperature: sent}}]} =
+      WaterHeater.SetTemperature.run(%{temperature_f: 120, ref: "cmd"}, %{state: state})
+
+    # What leaves Dobby is 48.888…; what HA puts back on the wire is that value
+    # at the entity's precision, which is tenths on a Celsius house.
+    assert_in_delta sent, 48.8889, 0.001
+
+    {arrived, %Emit{signal: echo}} =
+      sync(Map.merge(state, command), "eco", Map.put(celsius, "temperature", 48.9))
+
+    assert_in_delta arrived.target_temperature_f, 120.02, 0.001
+    assert echo.data.commanded?
+    assert WaterHeater.command_arrived?(command.last_command, WaterHeater.snapshot(arrived))
+
+    # A hand on the dial is still a hand: the tolerance covers HA's rounding and
+    # nothing wider. 46.1°C is 115°F, which nobody here asked for.
+    {hand, %Emit{signal: manual}} =
+      sync(Map.merge(state, command), "eco", Map.put(celsius, "temperature", 46.1))
+
+    refute manual.data.commanded?
+    refute WaterHeater.command_arrived?(command.last_command, WaterHeater.snapshot(hand))
+  end
+
   test "live tools send the native services and match each reported command" do
     boot_house!([Map.from_struct(device())])
     seed_house(%{"water_heater.test" => %{state: "eco", attributes: attrs()}})
@@ -193,6 +239,14 @@ defmodule Dobby.DeviceAgents.WaterHeaterTest do
 
     assert {:error, _} =
              Jido.Exec.run(Dobby.Tools.HumidifierGetStatus, %{device: "water_heater:test"})
+
+    settle_watcher!()
+
+    # Four commands this house issued. Turning the heater off moves both the
+    # mode and the power, because the power is read from the mode — and a seam
+    # that accounted for only one of them told the household somebody had walked
+    # up to the water heater. Nothing anybody did here was anybody's but ours.
+    assert Enum.filter(Dobby.Conversation.list_messages(), &(&1.role == :system)) == []
   end
 
   defp reject(result), do: assert({:ok, %{last_command: %{result: {:rejected, _}}}} = result)

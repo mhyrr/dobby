@@ -70,12 +70,24 @@ defmodule Dobby.DeviceEvents do
 
       changed      everything that differs; what the log records
       moved        the subset that went from one known value to another
-      commanded?   whether this house asked for it
+      commanded?   whether this house asked for any of it
+      commanded    the attributes this house's own command explains
 
   `moved` and `changed` differ at boot, when a device reports for the first
   time: nothing moved, because there was nothing to move from. `commanded?` is
   what keeps Home Assistant's echo of our own command from reading as a second
   event — see `Dobby.DeviceAgents.Thermostat.SyncState.commanded?/2`.
+
+  `commanded` exists because `commanded?` answers the wrong question when a
+  report carries more than one moved attribute. Home Assistant sends whole
+  state objects, so the echo of a setpoint and a hand on the mode dial arrive
+  together; a single boolean made the watcher credit the house with both and
+  the thread never mentioned the hand. The list says which attributes the
+  command accounts for, and the watcher judges the rest on their own.
+
+  `nil` is not `[]` here. `nil` means the agent has not been taught to name its
+  attributes and the old whole-event suppression still applies to it; `[]` means
+  the agent looked and the command explains nothing in this report.
   """
   @spec emit(String.t(), map(), keyword()) :: Jido.Agent.Directive.Emit.t()
   def emit(dobby_id, snapshot, opts \\ []) do
@@ -85,7 +97,8 @@ defmodule Dobby.DeviceEvents do
         snapshot: snapshot,
         changed: Keyword.get(opts, :changed, []),
         moved: Keyword.get(opts, :moved, []),
-        commanded?: Keyword.get(opts, :commanded?, false)
+        commanded?: Keyword.get(opts, :commanded?, false),
+        commanded: Keyword.get(opts, :commanded)
       })
 
     %Jido.Agent.Directive.Emit{signal: signal, dispatch: dispatch()}

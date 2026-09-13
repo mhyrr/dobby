@@ -231,6 +231,52 @@ defmodule Dobby.DeviceAgents.HumidityTest do
       assert Humidity.sync(%{entity_id: "humidifier.other", state: "on", attributes: %{}}, hand) ==
                {:ok, %{}}
     end
+
+    # Xiaomi's humidifiers switch to Auto when asked for a humidity, so a mode
+    # that moves in the same report as our own echo is not somebody's hand. The
+    # seam must not claim more than it can see.
+    test "#{type} does not call a mode that moved with our own echo a hand" do
+      boot = state(@module, @device_type)
+      {first, _learned} = sync(boot, "on", attributes(@device_type))
+
+      {:ok, command, [_]} =
+        Humidity.set_humidity(%{target_humidity_percent: 50, ref: "cmd"}, first)
+
+      {arrived, %Emit{signal: report}} =
+        sync(
+          Map.merge(first, command),
+          "on",
+          attributes(@device_type) |> Map.put("humidity", 50) |> Map.put("mode", "sleep")
+        )
+
+      assert :target_humidity_percent in report.data.moved
+      assert :mode in report.data.moved
+      assert report.data.commanded == [:target_humidity_percent, :mode]
+
+      # Once the echo has landed, a mode nobody here asked for is a hand again.
+      {_later, %Emit{signal: hand}} =
+        sync(
+          arrived,
+          "on",
+          attributes(@device_type) |> Map.put("humidity", 50) |> Map.put("mode", "auto")
+        )
+
+      assert hand.data.commanded == []
+      assert :mode in hand.data.moved
+    end
+
+    test "#{type} refuses a target in a sentence when household bounds miss HA's range" do
+      # Home Assistant reports 30-70; the household asks for 80-90. Both are
+      # valid on their own and there is no percent that satisfies them together.
+      boot = state(@module, @device_type, %{min_humidity_percent: 80, max_humidity_percent: 90})
+      {narrowed, _} = sync(boot, "on", attributes(@device_type))
+
+      assert {:ok, %{last_command: %{result: {:rejected, reason}}}} =
+               Humidity.set_humidity(%{target_humidity_percent: 85, ref: "cmd"}, narrowed)
+
+      assert reason =~ "fall outside the range"
+      refute reason =~ "between 80 and 70"
+    end
   end
 
   defp assert_rejected(result, text) do

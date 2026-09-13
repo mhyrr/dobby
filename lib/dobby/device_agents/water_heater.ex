@@ -123,10 +123,10 @@ defmodule Dobby.DeviceAgents.WaterHeater do
   @impl Dobby.DeviceAgent
   def command_arrived?(
         %{result: :accepted, action: :set_temperature, temperature_f: expected},
-        %{available: true, target_temperature_f: reported}
+        %{available: true, target_temperature_f: reported} = snapshot
       )
       when is_number(expected) and is_number(reported),
-      do: abs(expected - reported) < 0.001
+      do: abs(expected - reported) <= arrival_tolerance_f(snapshot[:temperature_unit])
 
   def command_arrived?(
         %{result: :accepted, action: :set_mode, mode: expected},
@@ -147,6 +147,23 @@ defmodule Dobby.DeviceAgents.WaterHeater do
       when expected in [:on, :off], do: expected == reported
 
   def command_arrived?(_, _), do: false
+
+  # Home Assistant does not echo the number Dobby sent; it echoes that number at
+  # the entity's reporting precision, which `WaterHeaterEntity.precision` fixes
+  # from the system unit — tenths on a Celsius house, whole degrees on a
+  # Fahrenheit one. A Fahrenheit target crossing that rounding comes back
+  # changed: 120°F is 48.888…°C on the wire, HA reports 48.9, and Dobby reads
+  # 120.02 back. Comparing at float precision called that a command that never
+  # arrived, which on a Celsius house was true of 41 of the 46 targets between
+  # 100 and 145°F — and the cost was two false lines, a NOT KNOWN plus a
+  # thread line crediting a person with Dobby's own command.
+  #
+  # Half a reporting step is the most the wire can differ from what was asked
+  # for, so that is the tolerance. It stays far below a real disagreement: the
+  # smallest difference a Celsius house can express is 0.1°C, or 0.18°F, so a
+  # value somebody actually changed can never pass as ours.
+  defp arrival_tolerance_f("°F"), do: 0.5
+  defp arrival_tolerance_f(_tenths_of_a_degree), do: 0.1
 
   @doc false
   def to_f(value, "°F") when is_number(value), do: value

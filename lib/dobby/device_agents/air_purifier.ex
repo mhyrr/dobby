@@ -25,6 +25,7 @@ defmodule Dobby.DeviceAgents.AirPurifier do
       available: [type: {:or, [:boolean, nil]}, default: nil],
       power: [type: {:or, [:atom, nil]}, default: nil],
       speed_percent: [type: {:or, [:integer, nil]}, default: nil],
+      speed_step: [type: {:or, [:integer, :float, nil]}, default: nil],
       supports_speed: [type: {:or, [:boolean, nil]}, default: nil],
       settings: [type: :map, default: %{}],
       last_command: [type: {:or, [:map, nil]}, default: nil]
@@ -80,14 +81,11 @@ defmodule Dobby.DeviceAgents.AirPurifier do
   def intervention?(attribute), do: attribute in [:power, :speed_percent]
 
   @impl Dobby.DeviceAgent
-  def command_arrived?(%{result: :accepted, action: :set_power, power: expected}, snapshot),
-    do: snapshot.available == true and snapshot.power == expected
-
-  def command_arrived?(
-        %{result: :accepted, action: :set_speed, speed_percent: expected},
-        snapshot
-      ),
-      do: snapshot.available == true and snapshot.speed_percent == expected
+  # The fan interface owns what its own echo looks like, including how far a
+  # notched fan is allowed to land from the speed it was asked for. Repeating
+  # that rule here is how the two drifted apart the first time.
+  def command_arrived?(command, %{available: true} = snapshot),
+    do: Dobby.DeviceAgents.Fan.command_arrived?(command, snapshot)
 
   def command_arrived?(_command, _snapshot), do: false
 

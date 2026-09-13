@@ -328,8 +328,8 @@ defmodule Dobby.Interventions.Watcher do
     do: Enum.any?(state.unknown, fn {_ref, expectation} -> expectation.device == device end)
 
   defp arrived?(expectation, snapshot) when is_map(snapshot) do
-    case Home.fetch_device(expectation.device) do
-      {:ok, %{agent_module: module}} ->
+    case agent_module(expectation.device) do
+      {:ok, module} ->
         DeviceAgent.command_arrived?(module, expectation.command, snapshot)
 
       :error ->
@@ -415,16 +415,32 @@ defmodule Dobby.Interventions.Watcher do
     })
   end
 
-  defp maybe_intervention(%{commanded?: true}), do: :ok
+  # An agent that has not been taught to name the attributes its command
+  # explains still says only "this report is ours", so the whole report is
+  # still suppressed for those types. See `Dobby.DeviceEvents.emit/3`.
+  defp maybe_intervention(%{commanded?: true, commanded: nil}), do: :ok
 
   defp maybe_intervention(%{device: device, snapshot: snapshot} = data) do
+    # Home Assistant sends whole state objects, so our own echo and somebody's
+    # hand arrive in one report. Subtracting what the command accounts for
+    # leaves what nobody here asked for, which is the §10.3 case.
+    unexplained = (data[:moved] || []) -- (data[:commanded] || [])
+
     with {:ok, agent_module} <- agent_module(device),
          attribute when not is_nil(attribute) <-
-           Enum.find(data[:moved] || [], &agent_module.intervention?/1) do
+           Enum.find(unexplained, &agent_module.intervention?/1) do
       Interventions.record(%{
         device: device,
         name: snapshot[:name] || device,
-        value: Interventions.reading(snapshot),
+        # The line is about one attribute, so it reads that attribute. Handing
+        # the whole snapshot to `reading/1` let a fixed priority order answer a
+        # question nobody asked: a water heater whose mode somebody changed
+        # reported its target temperature instead. The fallback keeps the
+        # doorbell, whose moved attribute is `last_event_at` and whose value
+        # lives in `last_event`.
+        value:
+          Interventions.reading(Map.take(snapshot, [attribute])) ||
+            Interventions.reading(snapshot),
         action: to_string(attribute),
         # Nobody asked Dobby for this and no surface of ours did it. Somebody
         # walked up to the device, which is the case §10.3 calls the

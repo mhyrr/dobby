@@ -26,6 +26,7 @@ defmodule Dobby.InterventionsTest do
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
   @endpoint "binary_sensor.kitchen_tv"
+  @fan "fan.bedroom"
 
   setup do
     ThreadEvents.subscribe()
@@ -113,6 +114,58 @@ defmodule Dobby.InterventionsTest do
       assert_receive {:system_line, %Message{text: "main thermostat", meta: meta}}
       assert meta["via"] == "changed at the main thermostat"
       assert meta["value"] == "66°"
+    end
+
+    # The line names one attribute, so it has to read that attribute. Handing
+    # the whole snapshot to the reader let a fixed priority order answer a
+    # different question: a fan's power outranks its speed, so a hand on the
+    # speed dial reported "On" and never said what it had been moved to.
+    test "reads the attribute that moved, not whichever one the reader reaches first" do
+      Fake.inject_state_changed(@fan, fan_entity(20))
+      settle!()
+
+      Fake.inject_state_changed(@fan, fan_entity(55))
+
+      assert_receive {:system_line, %Message{text: "bedroom fan", meta: meta}}
+      assert meta["action"] == "speed_percent"
+      assert meta["value"] == "55%"
+    end
+
+    # Dobby's own command must never come back as a person. Home Assistant's
+    # turn-on moves the power and restores the speed in one report, and a seam
+    # that accounted for only one of them wrote "changed at the bedroom fan" for
+    # a command this house had just issued.
+    test "our own command never comes back as somebody's hand" do
+      Fake.inject_state_changed(@fan, fan_entity(20, "off"))
+      settle!()
+
+      {:ok, _result} = Jido.Exec.run(Dobby.Tools.FanTurnOn, %{device: "fan:bedroom"})
+      assert_receive {:ha_call, %HACall{entity_id: @fan}}, 2_000
+      Fake.inject_state_changed(@fan, fan_entity(55, "on"))
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert system_lines() == []
+    end
+
+    # Once the echo has landed, the next report is nobody's but the hand's.
+    # A standing command used to swallow every one of these.
+    test "a hand after the echo still reaches the thread" do
+      Fake.inject_state_changed(@fan, fan_entity(20, "off"))
+      settle!()
+
+      {:ok, _result} = Jido.Exec.run(Dobby.Tools.FanTurnOn, %{device: "fan:bedroom"})
+      assert_receive {:ha_call, %HACall{entity_id: @fan}}, 2_000
+      Fake.inject_state_changed(@fan, fan_entity(20, "on"))
+      settle!()
+
+      Fake.inject_state_changed(@fan, fan_entity(55, "on"))
+
+      assert_receive {:system_line, %Message{text: "bedroom fan", meta: meta}}
+      assert meta["action"] == "speed_percent"
+      assert meta["value"] == "55%"
+      assert meta["via"] == "changed at the bedroom fan"
     end
 
     test "the room getting colder is weather, and stays off the thread" do
@@ -446,6 +499,9 @@ defmodule Dobby.InterventionsTest do
   end
 
   # -- helpers ---------------------------------------------------------------
+
+  defp fan_entity(percent, state \\ "on"),
+    do: %{state: state, attributes: %{percentage: percent, supported_features: 1}}
 
   defp system_lines do
     Enum.filter(Conversation.list_messages(), &(&1.role == :system))

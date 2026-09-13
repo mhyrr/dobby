@@ -33,6 +33,7 @@ defmodule Dobby.DeviceAgents.Fan do
       available: [type: {:or, [:boolean, nil]}, default: nil],
       power: [type: {:or, [:atom, nil]}, default: nil],
       speed_percent: [type: {:or, [:integer, nil]}, default: nil],
+      speed_step: [type: {:or, [:integer, :float, nil]}, default: nil],
       supports_speed: [type: {:or, [:boolean, nil]}, default: nil],
       settings: [type: :map, default: %{}],
       last_command: [type: {:or, [:map, nil]}, default: nil]
@@ -86,11 +87,25 @@ defmodule Dobby.DeviceAgents.Fan do
   def command_arrived?(%{result: :accepted, action: :set_power, power: expected}, snapshot),
     do: snapshot.power == expected
 
+  # A fan with notches does not echo the number it was asked for. Home Assistant
+  # snaps a percentage to the nearest speed the hardware has, so a three-speed
+  # fan asked for 50 answers 66. Comparing exactly called that a command that
+  # never arrived, and the thread then said somebody had turned the dial by
+  # hand. The fan advertises how coarse it is; one notch is the tolerance.
   def command_arrived?(
         %{result: :accepted, action: :set_speed, speed_percent: expected},
         snapshot
-      ),
-      do: snapshot.speed_percent == expected
+      )
+      when is_integer(expected) do
+    case snapshot do
+      %{speed_percent: reported, speed_step: step}
+      when is_number(reported) and is_number(step) and step > 0 ->
+        abs(reported - expected) <= step
+
+      %{speed_percent: reported} ->
+        reported == expected
+    end
+  end
 
   def command_arrived?(_command, _snapshot), do: false
 

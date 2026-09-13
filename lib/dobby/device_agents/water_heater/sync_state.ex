@@ -73,27 +73,48 @@ defmodule Dobby.DeviceAgents.WaterHeater.SyncState do
 
       %{changed: changed, moved: moved} ->
         snapshot = snapshot(Map.merge(previous, next))
+        commanded = commanded(previous.last_command, changed, snapshot)
 
         {:ok, next,
          [
            Dobby.DeviceEvents.emit(previous.dobby_id, snapshot,
              changed: changed,
              moved: moved,
-             commanded?:
-               command_changed?(previous.last_command, changed) and
-                 WaterHeater.command_arrived?(previous.last_command, snapshot)
+             commanded: commanded,
+             commanded?: commanded != []
            )
          ]}
     end
   end
 
-  defp command_changed?(%{action: :set_temperature}, changed),
-    do: :target_temperature_f in changed
+  # What this command accounts for in this report, so the watcher can judge
+  # whatever is left on its own.
+  #
+  # The list matters as much as naming anything at all. One Home Assistant
+  # change moves more than one of Dobby's attributes: `power` is computed from
+  # `mode` below, so turning the heater off moves both, and claiming only one
+  # left the other looking like a hand on the dial. The first attribute is the
+  # one the command is actually for, and it gates the rest — a mode somebody
+  # changed from eco to gas leaves power alone, so nothing is claimed.
+  defp commanded(command, changed, snapshot) do
+    case command_attributes(command) do
+      [primary | _] = attributes ->
+        if primary in changed and WaterHeater.command_arrived?(command, snapshot),
+          do: Enum.filter(attributes, &(&1 in changed)),
+          else: []
 
-  defp command_changed?(%{action: :set_mode}, changed), do: :mode in changed
-  defp command_changed?(%{action: :set_away_mode}, changed), do: :away_mode in changed
-  defp command_changed?(%{action: :set_power}, changed), do: :power in changed
-  defp command_changed?(_, _), do: false
+      [] ->
+        []
+    end
+  end
+
+  defp command_attributes(%{action: :set_temperature}),
+    do: [:target_temperature_f, :target_temperature]
+
+  defp command_attributes(%{action: :set_mode}), do: [:mode, :power]
+  defp command_attributes(%{action: :set_away_mode}), do: [:away_mode]
+  defp command_attributes(%{action: :set_power}), do: [:power, :mode]
+  defp command_attributes(_), do: []
 
   def snapshot(state) do
     {min, max} = WaterHeater.accepted_range(state)

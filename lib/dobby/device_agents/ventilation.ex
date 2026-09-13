@@ -63,8 +63,9 @@ defmodule Dobby.DeviceAgents.Ventilation do
     observed = snapshot(Map.merge(previous, next), type)
 
     commanded =
-      available and command_changed?(previous.last_command, changed) and
-        Fan.command_arrived?(previous.last_command, observed)
+      if available,
+        do: commanded(previous.last_command, changed, observed),
+        else: []
 
     emit(previous, next, type, changed, moved, commanded)
   end
@@ -91,15 +92,31 @@ defmodule Dobby.DeviceAgents.Ventilation do
 
       changed = for {key, {old, new}} <- cells, old != new, do: key
       moved = for {key, {old, new}} <- cells, old != new and not is_nil(old), do: key
-      emit(previous, next, type, changed, moved, false)
+      emit(previous, next, type, changed, moved, [])
     else
       {:ok, %{}}
     end
   end
 
-  defp command_changed?(%{action: :set_power}, changed), do: :power in changed
-  defp command_changed?(%{action: :set_speed}, changed), do: :speed_percent in changed
-  defp command_changed?(_, _), do: false
+  # What this command accounts for in this report, so the watcher can judge
+  # whatever is left on its own. Power and speed move together in Home
+  # Assistant's fan contract, so both are named; the first gates the rest, which
+  # keeps a later speed-only report as somebody's doing.
+  defp commanded(command, changed, observed) do
+    case command_attributes(command) do
+      [primary | _] = attributes ->
+        if primary in changed and Fan.command_arrived?(command, observed),
+          do: Enum.filter(attributes, &(&1 in changed)),
+          else: []
+
+      [] ->
+        []
+    end
+  end
+
+  defp command_attributes(%{action: :set_power}), do: [:power, :speed_percent]
+  defp command_attributes(%{action: :set_speed}), do: [:speed_percent, :power]
+  defp command_attributes(_), do: []
 
   defp emit(_previous, next, _type, [], _moved, _commanded), do: {:ok, next}
 
@@ -109,7 +126,8 @@ defmodule Dobby.DeviceAgents.Ventilation do
        DeviceEvents.emit(previous.dobby_id, snapshot(Map.merge(previous, next), type),
          changed: changed,
          moved: moved,
-         commanded?: commanded
+         commanded: commanded,
+         commanded?: commanded != []
        )
      ]}
   end

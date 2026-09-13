@@ -4,7 +4,7 @@ defmodule Dobby.Tools.AirPurifierGetStatus do
   use Jido.Action,
     name: "air_purifier_get_status",
     description:
-      "Read a air purifier's power, speed, capabilities and bound filter readings; missing values are unknown.",
+      "Read an air purifier's power, speed, capabilities and bound filter readings; missing values are unknown.",
     schema: [device: [type: :string, required: true, doc: "Air purifier id from the roster."]]
 
   @behaviour Dobby.Tools
@@ -15,6 +15,10 @@ defmodule Dobby.Tools.AirPurifierGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    Dobby.Tools.Device.status(device_id, AirPurifier, &AirPurifier.snapshot/1)
+    Dobby.Tools.Device.status(device_id, AirPurifier, fn state ->
+      AirPurifier.snapshot(state)
+      |> Map.delete(:id)
+      |> Map.put(:device, state.dobby_id)
+    end)
   end
 end

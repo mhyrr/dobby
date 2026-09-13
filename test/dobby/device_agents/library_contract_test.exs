@@ -42,6 +42,29 @@ defmodule Dobby.DeviceAgents.LibraryContractTest do
     assert agent_tools == Dobby.Home.library()
   end
 
+  test "tool and action descriptions are written in the household's words" do
+    types = Enum.filter(Types.names(), &String.contains?(&1, "_"))
+
+    tools = Enum.flat_map(Types.modules(), & &1.tools())
+
+    actions =
+      Enum.flat_map(Types.modules(), fn module ->
+        Enum.map(module.signal_routes(), fn {_signal, action} -> action end)
+      end)
+
+    for module <- Enum.uniq(tools ++ actions), description = module.description() do
+      # The model reads these sentences, and a config type is our filing word,
+      # not a household's: nobody has a wine_cooler in the kitchen.
+      for type <- types do
+        refute String.contains?(description, type),
+               "#{inspect(module)} names a device as #{type}; use the words a person says"
+      end
+
+      refute Regex.match?(~r/\ba [aeio]/, description),
+             "#{inspect(module)} writes \"a\" before a vowel: #{description}"
+    end
+  end
+
   defp invokes_contract?(ast, expected_module) do
     {_ast, found?} =
       Macro.prewalk(ast, false, fn

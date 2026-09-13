@@ -3,7 +3,7 @@ defmodule Dobby.DeviceAgents.IceMaker.SyncState do
 
   use Jido.Action,
     name: "ice_maker_sync_state",
-    description: "Applies a Home Assistant state change to a ice_maker",
+    description: "Applies a Home Assistant state change to an ice maker",
     schema: [
       entity_id: [type: :string, required: true],
       state: [type: {:or, [:string, nil]}, default: nil],

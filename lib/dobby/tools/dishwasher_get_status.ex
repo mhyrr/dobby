@@ -4,7 +4,8 @@ defmodule Dobby.Tools.DishwasherGetStatus do
   use Jido.Action,
     name: "dishwasher_get_status",
     description:
-      "Reports the dishwasher cycle, door, and remote readiness. Read-only; null means unknown. Temperatures include units; targets are not measured temperatures.",
+      "Reports the dishwasher cycle, door, and remote readiness. Read-only; null means unknown. Temperatures include units; targets are not measured temperatures." <>
+        " finish_at is on the household's local clock.",
     schema: [device: [type: :string, required: true, doc: "Device id from the roster."]]
 
   @behaviour Dobby.Tools

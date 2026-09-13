@@ -15,6 +15,10 @@ defmodule Dobby.Tools.RangeHoodGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    Dobby.Tools.Device.status(device_id, RangeHood, &RangeHood.snapshot/1)
+    Dobby.Tools.Device.status(device_id, RangeHood, fn state ->
+      RangeHood.snapshot(state)
+      |> Map.delete(:id)
+      |> Map.put(:device, state.dobby_id)
+    end)
   end
 end

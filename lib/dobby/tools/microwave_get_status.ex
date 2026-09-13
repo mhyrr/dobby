@@ -4,7 +4,8 @@ defmodule Dobby.Tools.MicrowaveGetStatus do
   use Jido.Action,
     name: "microwave_get_status",
     description:
-      "Reports microwave activity, door, remaining time with units, reported finish timestamp, and remote readiness. Read-only; null means unknown. Zero remaining time does not prove completion or permission to start.",
+      "Reports microwave activity, door, remaining time with units, reported finish timestamp, and remote readiness. Read-only; null means unknown. Zero remaining time does not prove completion or permission to start." <>
+        " finish_at is on the household's local clock.",
     schema: [device: [type: :string, required: true, doc: "Device id from the roster."]]
 
   @behaviour Dobby.Tools

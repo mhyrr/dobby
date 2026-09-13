@@ -3,7 +3,7 @@ defmodule Dobby.DeviceAgents.WineCooler.SyncState do
 
   use Jido.Action,
     name: "wine_cooler_sync_state",
-    description: "Applies a Home Assistant state change to a wine_cooler",
+    description: "Applies a Home Assistant state change to a wine cooler",
     schema: [
       entity_id: [type: :string, required: true],
       state: [type: {:or, [:string, nil]}, default: nil],

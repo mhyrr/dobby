@@ -7,7 +7,7 @@ defmodule Dobby.Tools.WaterHeaterTurnOff do
 
   @behaviour Dobby.Tools
   @impl Dobby.Tools
-  def label(arguments), do: "setting the #{Dobby.Tools.device_name(arguments)}"
+  def label(arguments), do: "turning off the #{Dobby.Tools.device_name(arguments)}"
 
   @impl true
   def run(%{device: device}, context),

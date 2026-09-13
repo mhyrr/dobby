@@ -72,7 +72,7 @@ defmodule Dobby.DeviceAgents.ScalarApplianceTest do
     assert microwave.readings.operation_state == "cooking"
     assert microwave.readings.remaining_time == 0.0
     assert microwave.units.remaining_time == "s"
-    assert microwave.readings.finish_at == "2026-09-11T22:30:00Z"
+    assert microwave.readings.finish_at == "2026-09-11T18:30:00-04:00"
     assert microwave.readings.door_open == false
     assert microwave.readings.remote_start_allowed == false
     assert Fake.trace() == []

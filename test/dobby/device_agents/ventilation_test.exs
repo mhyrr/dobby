@@ -32,8 +32,13 @@ defmodule Dobby.DeviceAgents.VentilationTest do
 
       [status_tool, on_tool, speed_tool] = @tools
 
-      assert {:ok, %{type: kind, readings: %{filter_remaining: 75.0}, power: :off}} =
+      assert {:ok, %{type: kind, readings: %{filter_remaining: 75}, power: :off} = status} =
                Jido.Exec.run(status_tool, %{device: d.id})
+
+      # The library answers in `device`, and a status tool that handed its
+      # snapshot straight back would answer in `id`.
+      assert status.device == d.id
+      refute Map.has_key?(status, :id)
 
       assert kind == @kind
       id = d.id
@@ -80,7 +85,7 @@ defmodule Dobby.DeviceAgents.VentilationTest do
                 available: false,
                 power: nil,
                 speed_percent: nil,
-                readings: %{filter_remaining: 75.0}
+                readings: %{filter_remaining: 75}
               }} =
                Jido.Exec.run(status_tool, %{device: id})
 

@@ -14,6 +14,9 @@ defmodule Dobby.Tools.DehumidifierGetStatus do
   def run(%{device: device_id}, _context),
     do:
       Dobby.Tools.Device.status(device_id, Dobby.DeviceAgents.Dehumidifier, fn state ->
-        state |> Dobby.DeviceAgents.Dehumidifier.snapshot() |> Map.put(:device, state.dobby_id)
+        state
+        |> Dobby.DeviceAgents.Dehumidifier.snapshot()
+        |> Map.delete(:id)
+        |> Map.put(:device, state.dobby_id)
       end)
 end

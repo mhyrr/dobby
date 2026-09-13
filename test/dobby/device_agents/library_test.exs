@@ -248,6 +248,52 @@ defmodule Dobby.DeviceAgents.LibraryTest do
     assert Fake.trace() == []
   end
 
+  test "every status tool names the device under `device` and never repeats the snapshot's `id`" do
+    boot_house!(Enum.map(Types.modules(), &contract_device/1))
+
+    for module <- Types.modules(),
+        tool <- module.tools(),
+        String.ends_with?(tool.name(), "_get_status") do
+      id = contract_device_id(module)
+      assert {:ok, status} = Jido.Exec.run(tool, %{device: id})
+
+      # `device` is the word the whole tool library answers in, and the model
+      # reads a result key by key. A status tool that handed its snapshot
+      # straight back would say `id` instead, or say both — and a tool that
+      # names the same thing differently from its neighbours is a contract
+      # that lies to the model about what a device reference is called.
+      assert Map.get(status, :device) == id,
+             "#{tool.name()} must name the device under `device`"
+
+      refute Map.has_key?(status, :id),
+             "#{tool.name()} returns the snapshot's `id`; the library answers in `device`"
+    end
+  end
+
+  # One device per registered type, from the fixture that type's own contract
+  # test already declares, so a new type joins this check by existing rather
+  # than by being remembered here. Entity names are rewritten per type because
+  # every fixture says "contract" and one house cannot bind an entity twice.
+  defp contract_device(module) do
+    fixture = Dobby.DeviceAgentContract.fixture(module)
+    bindings = Keyword.fetch!(fixture, :bindings)
+
+    %{
+      id: contract_device_id(module),
+      name: "contract #{module.config_type()}",
+      aliases: [],
+      agent_module: module,
+      bindings:
+        Map.new(bindings, fn {key, entity} ->
+          [domain, _name] = String.split(entity, ".", parts: 2)
+          {key, "#{domain}.#{module.config_type()}_#{key}"}
+        end),
+      settings: Keyword.get(fixture, :settings, %{})
+    }
+  end
+
+  defp contract_device_id(module), do: "#{module.config_type()}:contract"
+
   defp assert_accepted(tool, args, domain, service, reading, commanded? \\ true) do
     assert {:ok, %{accepted: true, device: device, name: name} = result} =
              Jido.Exec.run(tool, args)

@@ -10,6 +10,11 @@ defmodule Dobby.DeviceAgents.ApplianceReadings do
   retains its own null, so a working door sensor cannot make a missing freezer
   temperature look known. Movement is judged per cell, as for environment
   monitors; a second sensor's first report must not announce the boot sequence.
+
+  A finish time comes out on the household's clock, not in UTC. The appliance
+  states an offset and Dobby knows the house's timezone, so the conversion is
+  arithmetic code can do once — and handing the model "22:30Z" for a dryer
+  that finishes at half past six is asking it to do the one thing it must not.
   """
 
   alias Dobby.DeviceEvents
@@ -147,27 +152,52 @@ defmodule Dobby.DeviceAgents.ApplianceReadings do
 
   defp decode(:door, %{state: state}),
     do:
-      {Map.get(
-         %{"on" => true, "open" => true, "off" => false, "closed" => false, "locked" => false},
-         state
+      {word(
+         state,
+         %{
+           "on" => true,
+           "open" => true,
+           "unlocked" => true,
+           "off" => false,
+           "closed" => false,
+           "locked" => false
+         }
        ), nil}
 
   defp decode(:boolean, %{state: state}),
-    do: {Map.get(%{"on" => true, "off" => false}, state), nil}
+    do: {word(state, %{"on" => true, "off" => false}), nil}
 
   defp decode(:timestamp, %{state: state}) do
     case DateTime.from_iso8601(state) do
-      {:ok, at, _offset} -> {DateTime.to_iso8601(at), nil}
+      {:ok, at, _offset} -> {at |> Dobby.Home.local() |> DateTime.to_iso8601(), nil}
       _invalid -> {nil, nil}
     end
   end
 
+  # The one reading whose case survives. A closed vocabulary is ours to
+  # normalize; an appliance's own word for what it is doing ("Run",
+  # "DelayedStart") is the manufacturer's, and flattening it would throw away
+  # the only description of the cycle anyone has.
   defp decode(:text, %{state: state}), do: {state, nil}
 
+  # Home Connect and its neighbours send their enums capitalized, HA's own
+  # binary sensors send them lowercase, and the same reading can arrive either
+  # way depending on which integration is bridging the appliance.
+  defp word(state, vocabulary), do: Map.get(vocabulary, String.downcase(state))
+
+  # Whole numbers stay whole. The model is shown these readings verbatim, and
+  # a setpoint reported as 38.0 invites it to treat a degree as a measurement
+  # with a tenth's worth of precision the appliance never claimed.
   defp number(state) do
-    case Float.parse(state) do
-      {value, ""} -> value
-      _invalid -> nil
+    case Integer.parse(state) do
+      {value, ""} ->
+        value
+
+      _not_whole ->
+        case Float.parse(state) do
+          {value, ""} -> value
+          _invalid -> nil
+        end
     end
   end
 end

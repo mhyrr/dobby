@@ -4,7 +4,8 @@ defmodule Dobby.Tools.DryerGetStatus do
   use Jido.Action,
     name: "dryer_get_status",
     description:
-      "Reports the dryer cycle, door, and remote readiness. Read-only; null means unknown. Remaining time includes its reported unit; do not infer completion from zero remaining time.",
+      "Reports the dryer cycle, door, and remote readiness. Read-only; null means unknown. Remaining time includes its reported unit; do not infer completion from zero remaining time." <>
+        " finish_at is on the household's local clock.",
     schema: [device: [type: :string, required: true, doc: "Device id from the roster."]]
 
   @behaviour Dobby.Tools

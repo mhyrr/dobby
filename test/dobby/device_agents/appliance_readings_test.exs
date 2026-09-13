@@ -72,7 +72,7 @@ defmodule Dobby.DeviceAgents.ApplianceReadingsTest do
     assert state.readings == %{
              operation_state: "run",
              progress: 42.5,
-             finish_at: "2026-09-10T22:30:00Z",
+             finish_at: "2026-09-10T18:30:00-04:00",
              door_open: false,
              remote_start_allowed: false
            }
@@ -84,6 +84,85 @@ defmodule Dobby.DeviceAgents.ApplianceReadingsTest do
     {state, event} = sync(Dishwasher, state, "sensor.cycle", "finished")
     assert event.data.moved == [:readings]
     assert state.readings.operation_state == "finished"
+  end
+
+  test "a finish time is stated on the household's clock whatever offset it arrives on" do
+    # The rig house is in America/New_York. A UTC stamp handed to the model is
+    # a timezone subtraction handed to the model, and the model does not do
+    # arithmetic; the house already knows its own clock.
+    for sent <- [
+          "2026-09-10T18:30:00-04:00",
+          "2026-09-10T22:30:00Z",
+          "2026-09-11T07:30:00+09:00"
+        ] do
+      state = boot(Dishwasher, %{finish_at: "sensor.finish"})
+      {state, _event} = sync(Dishwasher, state, "sensor.finish", sent)
+      assert state.readings.finish_at == "2026-09-10T18:30:00-04:00"
+    end
+  end
+
+  test "a whole reading stays a whole number" do
+    state = boot(Refrigerator, %{refrigerator_target_temperature: "sensor.fridge_target"})
+    {state, _event} = sync(Refrigerator, state, "sensor.fridge_target", "38", "°F")
+
+    # `38 == 38.0`, so only the term's own type catches this. The reading goes
+    # to the model verbatim, and 38.0 claims a tenth of a degree the appliance
+    # never reported.
+    assert is_integer(state.readings.refrigerator_target_temperature)
+
+    {state, _event} = sync(Refrigerator, state, "sensor.fridge_target", "37.5", "°F")
+    assert is_float(state.readings.refrigerator_target_temperature)
+
+    state = boot(Dishwasher, %{progress: "sensor.progress"})
+    {state, _event} = sync(Dishwasher, state, "sensor.progress", "42", "%")
+    assert is_integer(state.readings.progress)
+
+    state = boot(Dryer, %{remaining_time: "sensor.remaining"})
+    {state, _event} = sync(Dryer, state, "sensor.remaining", "900", "s")
+    assert is_integer(state.readings.remaining_time)
+
+    # Still the whole string or nothing: a leading whole number does not make
+    # the rest of the value disappear.
+    for value <- ["900s", "12:30", "38 °F"] do
+      state = boot(Dryer, %{remaining_time: "sensor.remaining"})
+      {state, _event} = sync(Dryer, state, "sensor.remaining", value, "s")
+      assert state.readings.remaining_time == nil
+    end
+  end
+
+  test "door and boolean words are read in whatever case the integration sends them" do
+    for {sent, expected} <- [
+          {"closed", false},
+          {"Closed", false},
+          {"CLOSED", false},
+          {"open", true},
+          {"Open", true},
+          {"locked", false},
+          {"Locked", false},
+          {"unlocked", true},
+          {"Unlocked", true},
+          {"on", true},
+          {"Off", false},
+          {"ajar", nil}
+        ] do
+      state = boot(Dishwasher, %{door_open: "sensor.door"})
+      {state, _event} = sync(Dishwasher, state, "sensor.door", sent)
+
+      assert state.readings.door_open == expected,
+             "#{sent} read as #{inspect(state.readings.door_open)}"
+    end
+
+    for {sent, expected} <- [{"on", true}, {"On", true}, {"off", false}, {"OFF", false}] do
+      state = boot(Dishwasher, %{remote_start_allowed: "binary_sensor.remote"})
+      {state, _event} = sync(Dishwasher, state, "binary_sensor.remote", sent)
+      assert state.readings.remote_start_allowed == expected
+    end
+
+    # The cycle word is the manufacturer's, not a vocabulary of ours, so it is
+    # the one reading that keeps the case it arrived in.
+    state = boot(Dishwasher, %{operation_state: "sensor.cycle"})
+    {state, _event} = sync(Dishwasher, state, "sensor.cycle", "DelayedStart")
+    assert state.readings.operation_state == "DelayedStart"
   end
 
   test "unrelated entities and duplicate readings produce no event" do

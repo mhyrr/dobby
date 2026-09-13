@@ -3,7 +3,7 @@ defmodule Dobby.DeviceAgents.Oven.SyncState do
 
   use Jido.Action,
     name: "oven_sync_state",
-    description: "Applies a Home Assistant state change to a oven",
+    description: "Applies a Home Assistant state change to an oven",
     schema: [
       entity_id: [type: :string, required: true],
       state: [type: {:or, [:string, nil]}, default: nil],

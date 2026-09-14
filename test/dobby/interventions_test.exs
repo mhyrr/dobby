@@ -259,6 +259,43 @@ defmodule Dobby.InterventionsTest do
       assert meta["value"] == "Ring"
       assert meta["via"] == "changed at the front doorbell"
     end
+
+    # Home Assistant writes "unavailable" into the event entity's state on a
+    # restart, and the reconnection writes the old timestamp back. Neither is
+    # a press. The sync used to take any non-empty string as the time of the
+    # last ring, so an outage rang the bell twice in the thread and the status
+    # tool handed the model "unavailable" as a time (TK-070, case 3).
+    test "a Home Assistant restart is not a ring, on the way out or the way back" do
+      seed_house(%{
+        "event.front_door" => %{
+          state: "2026-08-23T12:00:00+00:00",
+          attributes: %{event_type: "ring", device_class: "doorbell"}
+        }
+      })
+
+      settle!()
+      assert system_lines() == []
+
+      Fake.inject_state_changed("event.front_door", %{state: "unavailable", attributes: %{}})
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert %{available: false, last_event_at: nil} = Home.snapshots()["doorbell:front"]
+      assert system_lines() == []
+
+      Fake.inject_state_changed("event.front_door", %{
+        state: "2026-08-23T12:00:00+00:00",
+        attributes: %{event_type: "ring", device_class: "doorbell"}
+      })
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert %{available: true, last_event_at: "2026-08-23T12:00:00+00:00"} =
+               Home.snapshots()["doorbell:front"]
+
+      assert system_lines() == []
+    end
   end
 
   describe "a hand on the deadbolt" do

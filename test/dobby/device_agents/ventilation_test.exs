@@ -91,6 +91,13 @@ defmodule Dobby.DeviceAgents.VentilationTest do
 
       assert length(Fake.trace()) == 2
       settle_watcher!()
+
+      # Two commands this house issued, plus the fan going quiet. Home
+      # Assistant's turn-on moves the power and restores the speed in one
+      # report, and a seam that accounted for only one of them told the
+      # household somebody had walked up to the fan. Nothing here was anybody's
+      # but ours, so the thread has nothing to say.
+      assert Enum.filter(Dobby.Conversation.list_messages(), &(&1.role == :system)) == []
     end
 
     test "#{kind} sensor changes cannot authorize fan control or become command echoes" do

@@ -132,6 +132,12 @@ defmodule Dobby.DeviceAgents.HumidityTest do
       assert missing =~ "unknown device"
       assert length(Fake.trace()) == 3
       settle_watcher!()
+
+      # Three commands this house issued. A Xiaomi humidifier switches its mode
+      # when it is asked for a humidity, so an echo can move two attributes at
+      # once; claiming one and judging the rest put a person's name on Dobby's
+      # own work. The thread stays silent for what we did.
+      assert Enum.filter(Dobby.Conversation.list_messages(), &(&1.role == :system)) == []
     end
 
     test "#{type} refuses commands before sync, on unavailable reports, and on an incompatible class" do

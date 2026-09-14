@@ -12,11 +12,30 @@ defmodule Dobby.Controls do
   so household policy applies identically. A card cannot set a temperature a
   sentence could not, and the thermostat's refusal reads the same either way.
 
+  ## No device type is named here
+
+  The first version of this module was one function that set a thermostat,
+  and it was welded to the thermostat five times over: the module it resolved,
+  the signal it sent, the argument it posted, the snapshot key the undo read,
+  and the degree sign on the undo line. Copying that per type is the central
+  `case` over device types the design forbids, spread across five files.
+
+  So a control is what the device's own module says it is
+  (`Dobby.DeviceAgent.controls/2`): the type declares the action, the argument
+  it takes, the attribute it moves, and the bounds it will accept, and this
+  module carries the value to the action the same way a schedule firing does —
+  looked up in `scheduled_actions/0`, typed by `Dobby.DeviceAgent.Args`. What
+  the type has not offered cannot be posted, and what the device refuses is
+  refused in the device's own words.
+
   ## What a caller gets back
 
-      {:ok, %{name: ..., temperature_f: ...}}   the device took it
-      {:held, reason}                            the device said no
-      {:error, reason}                           we could not ask
+      {:ok, %{name: ..., target_temperature_f: 72.0}}   the device took it
+      {:held, reason}                                    the device said no
+      {:error, reason}                                   we could not ask
+
+  The map carries the attribute the command moves, as the type names it and
+  as the action typed it.
 
   `:held` is a fact about the device and not a failure. It stays on the card
   with its reason, and it is deliberately *not* written into the thread: the
@@ -28,35 +47,45 @@ defmodule Dobby.Controls do
 
   alias Dobby.Activity
   alias Dobby.DeviceAgent
+  alias Dobby.DeviceAgent.Args
   alias Dobby.DeviceAgents.Lock
-  alias Dobby.DeviceAgents.Thermostat
   alias Dobby.Home
   alias Dobby.Interventions
 
   @type result :: {:ok, map()} | {:held, String.t()} | {:error, String.t()}
 
   @doc """
-  Sets a thermostat's setpoint from a control somebody touched.
+  Fires one of a device's controls from a card somebody touched.
 
-  `:via` names the path for the thread's system line — "greg, card". Identity
-  personalizes and never permits (design §10.4), so a browser that has not been
-  named still gets to turn the heat up; the line just says less about who.
+  `action` is the name a schedule row would store; `value` is what the hand
+  chose, as the browser sent it — the action's own schema types it. `:via`
+  names the path for the thread's system line — "greg, card". Identity
+  personalizes and never permits (design §10.4), so a browser that has not
+  been named still gets to turn the heat up; the line just says less about
+  who.
+
+  The thread line is written in the attribute the command moves, read the
+  way the watcher would read its echo: `Interventions.reading/1` over
+  `%{field => value}`, so a released fader says `72°` and a chosen mode says
+  `Eco`, and an action with no argument at all (a lock's secure) still has a
+  word for what it did.
   """
-  @spec set_temperature(String.t(), number(), keyword()) :: result()
-  def set_temperature(device_id, temperature_f, opts \\ [])
-      when is_binary(device_id) and is_number(temperature_f) do
+  @spec command(String.t(), String.t() | atom(), term(), keyword()) :: result()
+  def command(device_id, action, value, opts \\ []) when is_binary(device_id) do
     via = Keyword.get(opts, :via, "card")
+    action = to_string(action)
 
-    with {:ok, device, pid} <- Home.resolve(device_id, Thermostat) do
+    with {:ok, device, pid} <- Home.resolve(device_id),
+         {:ok, control} <- offered(device, pid, action),
+         {:ok, {signal_type, module}} <- lookup(device, action),
+         {:ok, args} <- Args.coerce(module, arguments(control, value)) do
+      chosen = Map.get(args, control.arg, value)
+
       pid
-      |> DeviceAgent.command(
-        "thermostat.set_temperature",
-        %{temperature_f: temperature_f / 1},
-        %{via: :card}
-      )
-      |> interpret(device, temperature_f, via)
+      |> DeviceAgent.command(signal_type, args, %{via: :card})
+      |> interpret(device, action, args, %{control.field => chosen}, via)
     else
-      {:error, reason} -> fail(device_id, temperature_f, via, reason)
+      {:error, reason} -> fail(device_id, action, value, via, reason)
     end
   end
 
@@ -74,128 +103,101 @@ defmodule Dobby.Controls do
     with {:ok, device, pid} <- Home.resolve(device_id, Lock) do
       pid
       |> DeviceAgent.command("lock.secure", %{}, %{via: :card})
-      |> interpret_lock(device, via)
+      |> interpret(device, "secure", %{}, %{lock_state: :locked}, via)
     else
-      {:error, reason} ->
-        Activity.record(%{
-          kind: "control",
-          actor: via,
-          device: device_id,
-          action: "secure",
-          args: %{},
-          result: %{"state" => "error", "reason" => describe(reason)}
-        })
-
-        {:error, describe(reason)}
+      {:error, reason} -> fail(device_id, "secure", nil, via, reason)
     end
   end
 
-  defp interpret_lock(:accepted, device, via) do
-    Activity.record(%{
-      kind: "control",
-      actor: via,
-      device: device.id,
-      action: "secure",
-      args: %{},
-      result: %{"state" => "accepted"}
-    })
+  # -- the lookup ------------------------------------------------------------
+
+  # A control the type has not offered for the device as it is now cannot be
+  # fired. This is not a second opinion on the value — the device agent has
+  # the only opinion on that — it is the same rule the card draws by: a
+  # device that has not reported has not said what it will accept.
+  defp offered(device, pid, action) do
+    with {:ok, server_state} <- Jido.AgentServer.state(pid) do
+      snapshot = device.agent_module.snapshot(server_state.agent.state)
+
+      device.agent_module
+      |> DeviceAgent.controls(snapshot)
+      |> Enum.find(&(Atom.to_string(&1.action) == action))
+      |> case do
+        nil -> {:error, "#{device.name} offers no control to #{action} right now"}
+        control -> {:ok, control}
+      end
+    end
+  end
+
+  defp lookup(device, action) do
+    available = device.agent_module.scheduled_actions()
+
+    case Enum.find(available, fn {name, _spec} -> Atom.to_string(name) == action end) do
+      {_name, spec} -> {:ok, spec}
+      nil -> {:error, "#{device.name} cannot be asked to #{action}"}
+    end
+  end
+
+  defp arguments(%{arg: nil}, _value), do: %{}
+  defp arguments(%{arg: arg}, value), do: %{Atom.to_string(arg) => value}
+
+  # -- the outcome -----------------------------------------------------------
+
+  defp interpret(:accepted, device, action, args, moved, via) do
+    record(device.id, action, args, via, %{"state" => "accepted"})
 
     Interventions.record(%{
       device: device.id,
       name: device.name,
-      value: "Locked",
-      action: "secure",
+      value: Interventions.reading(moved),
+      action: action,
       via: via
     })
 
-    {:ok, %{device: device.id, name: device.name, lock_state: :locked}}
+    {:ok, Map.merge(%{device: device.id, name: device.name, action: action}, moved)}
   end
 
-  defp interpret_lock({:rejected, reason}, device, via) do
-    Activity.record(%{
-      kind: "control",
-      actor: via,
-      device: device.id,
-      action: "secure",
-      args: %{},
-      result: %{"state" => "held", "reason" => reason}
-    })
-
-    {:held, reason}
-  end
-
-  defp interpret_lock(:unknown, device, via) do
-    Activity.record(%{
-      kind: "control",
-      actor: via,
-      device: device.id,
-      action: "secure",
-      args: %{},
-      result: %{"state" => "unknown"}
-    })
-
-    {:error, "could not confirm the command to #{device.name}"}
-  end
-
-  defp interpret_lock({:error, reason}, device, via) do
-    Activity.record(%{
-      kind: "control",
-      actor: via,
-      device: device.id,
-      action: "secure",
-      args: %{},
-      result: %{"state" => "error", "reason" => describe(reason)}
-    })
-
-    {:error, describe(reason)}
-  end
-
-  defp interpret(:accepted, device, temperature_f, via) do
-    record(device.id, temperature_f, via, %{"state" => "accepted"})
-
-    Interventions.record(%{
-      device: device.id,
-      name: device.name,
-      value: Interventions.reading(%{temperature_f: temperature_f}),
-      action: "set_temperature",
-      via: via
-    })
-
-    {:ok, %{device: device.id, name: device.name, temperature_f: temperature_f}}
-  end
-
-  defp interpret({:rejected, reason}, device, temperature_f, via) do
-    record(device.id, temperature_f, via, %{"state" => "held", "reason" => reason})
+  defp interpret({:rejected, reason}, device, action, args, _moved, via) do
+    record(device.id, action, args, via, %{"state" => "held", "reason" => reason})
     {:held, reason}
   end
 
   # The command went out and its outcome could not be confirmed — it may have
   # been superseded by another one. Saying so is the only honest answer; a card
   # that showed SET here would be claiming something nobody checked.
-  defp interpret(:unknown, device, temperature_f, via) do
-    record(device.id, temperature_f, via, %{"state" => "unknown"})
+  defp interpret(:unknown, device, action, args, _moved, via) do
+    record(device.id, action, args, via, %{"state" => "unknown"})
     {:error, "could not confirm the command to #{device.name}"}
   end
 
-  defp interpret({:error, reason}, device, temperature_f, via) do
-    fail(device.id, temperature_f, via, reason)
+  defp interpret({:error, reason}, device, action, args, _moved, via) do
+    fail(device.id, action, args, via, reason)
   end
 
-  defp fail(device_id, temperature_f, via, reason) do
-    record(device_id, temperature_f, via, %{"state" => "error", "reason" => describe(reason)})
+  defp fail(device_id, action, value, via, reason) do
+    record(device_id, action, value, via, %{"state" => "error", "reason" => describe(reason)})
     {:error, describe(reason)}
   end
 
-  defp record(device_id, temperature_f, via, result) do
+  # The log records the arguments as they were sent when they were typed, and
+  # what the hand posted when they never got that far — the latter is the
+  # evidence when a card posts something its type does not take.
+  defp record(device_id, action, args, via, result) do
     Activity.record(%{
       kind: "control",
       actor: via,
       device: device_id,
-      action: "set_temperature",
-      args: %{"temperature_f" => temperature_f},
+      action: action,
+      args: loggable(args),
       result: result
     })
   end
+
+  defp loggable(args) when is_map(args),
+    do: Map.new(args, fn {key, value} -> {to_string(key), value} end)
+
+  defp loggable(nil), do: %{}
+  defp loggable(value), do: %{"value" => value}
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(reason), do: inspect(reason)

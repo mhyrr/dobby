@@ -95,6 +95,34 @@ defmodule Dobby.DeviceAgents.Thermostat do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Thermostat.SyncState
 
+  # The setpoint, between the ends the snapshot already carries. Offered only
+  # once the device has reported a setpoint and a range that is a range: a
+  # thermostat that has said nothing has not told us what it will accept,
+  # which is a different fact from one that said no.
+  @impl Dobby.DeviceAgent
+  def controls(%{
+        available: true,
+        target_temperature_f: target,
+        min_temperature_f: min,
+        max_temperature_f: max
+      })
+      when is_number(target) and is_number(min) and is_number(max) and min < max do
+    [
+      %{
+        kind: :fader,
+        action: :set_temperature,
+        arg: :temperature_f,
+        field: :target_temperature_f,
+        min: min,
+        max: max,
+        step: 1,
+        unit: "°"
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   # The setpoint is the only thing about a thermostat somebody can *do*. The
   # room's temperature changing is the house being a house, and a thread that
   # announced every degree would bury the sentences people came to read.

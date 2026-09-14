@@ -121,6 +121,55 @@ defmodule Dobby.DeviceAgent do
   """
   @callback scheduled_actions() :: %{atom() => {signal_type :: String.t(), module()}}
 
+  @typedoc """
+  What a hand may do to a device from its card, and the bounds it will accept.
+
+  A fader is a number between the two ends the device reported; a choice is a
+  row of the words the device advertised. Both name the scheduled action they
+  fire (`action`), the argument that action takes (`arg`, `nil` for an action
+  with none), and the snapshot attribute the command moves (`field`), which is
+  what the undo reads its way back from and what the thread line is written in.
+  """
+  @type control ::
+          %{
+            kind: :fader,
+            action: atom(),
+            arg: atom(),
+            field: atom(),
+            min: number(),
+            max: number(),
+            step: number(),
+            unit: String.t()
+          }
+          | %{
+              kind: :choice,
+              action: atom(),
+              arg: atom() | nil,
+              field: atom(),
+              options: [term()],
+              label: String.t() | nil
+            }
+
+  @doc """
+  The controls a card may draw for this device right now, from its snapshot.
+
+  The direct control path is first-class: a card somebody tapped reaches the
+  device with no model involved, and it is what the house does when the model
+  is down. This callback is how a type puts its actions on that path without
+  the card or `Dobby.Controls` naming a single device type. Every `action` is
+  a key of `scheduled_actions/0`, so a card fires exactly the actions a
+  schedule can, by the same lookup.
+
+  The bounds are the device's own, read from what it already computes — the
+  water heater's accepted range, the humidity range Home Assistant reported,
+  the fan's speed support — and never invented here. A device that has not
+  reported returns `[]`: a control is drawn only once the device has said what
+  it will accept, because a fader that reaches 85° in a house capped at 76 is
+  a control that exists to be refused. A type with nothing a hand may do
+  leaves the callback out.
+  """
+  @callback controls(snapshot :: map()) :: [control()]
+
   @doc """
   The device's public state, read from live agent state.
 
@@ -175,7 +224,10 @@ defmodule Dobby.DeviceAgent do
   """
   @callback confirmation_timeout() :: pos_integer()
 
-  @optional_callbacks discovery_bindings: 2, command_arrived?: 2, confirmation_timeout: 0
+  @optional_callbacks discovery_bindings: 2,
+                      command_arrived?: 2,
+                      confirmation_timeout: 0,
+                      controls: 1
 
   @default_confirmation_timeout 30_000
 
@@ -211,6 +263,19 @@ defmodule Dobby.DeviceAgent do
     if function_exported?(module, :command_arrived?, 2),
       do: module.command_arrived?(command, snapshot),
       else: false
+  end
+
+  @doc """
+  The controls a type offers for a snapshot, `[]` for a type that offers none.
+
+  Asked through here rather than directly, for the reason `command_arrived?/3`
+  is: the read-only default lives in one place, and a type that quietly
+  stopped exporting the callback looks like a type with nothing to offer
+  rather than a crash on the card.
+  """
+  @spec controls(module(), map()) :: [control()]
+  def controls(module, snapshot) do
+    if function_exported?(module, :controls, 1), do: module.controls(snapshot), else: []
   end
 
   @doc "Returns the type's confirmation deadline in milliseconds."

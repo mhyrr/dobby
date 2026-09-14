@@ -40,6 +40,7 @@ defmodule Dobby.Schedules do
 
   import Ecto.Query
 
+  alias Dobby.DeviceAgent.Args
   alias Dobby.Repo
   alias Dobby.Schedules.{Cron, Schedule}
 
@@ -47,8 +48,6 @@ defmodule Dobby.Schedules do
 
   # Supplied by the dispatcher at fire time, exactly as the tool layer supplies
   # it — a correlation ref is not something a schedule stores.
-  @runtime_keys [:ref]
-
   # -- reads -----------------------------------------------------------------
 
   @doc """
@@ -367,96 +366,16 @@ defmodule Dobby.Schedules do
   model can act on rather than a NimbleOptions complaint about map keys.
   """
   @spec atomize_args(term(), term(), term()) :: {:ok, map()} | {:error, String.t()}
-  def atomize_args(target, action, args) when is_map(args) do
+  def atomize_args(target, action, args) do
     with {:ok, _device, {_signal_type, module}} <- resolve_action(target, action) do
-      schema = Keyword.drop(module.schema(), @runtime_keys)
-
-      with {:ok, pairs} <- pair_up(module, schema, args), do: {:ok, Map.new(pairs)}
+      Args.atomize(module, args)
     end
   end
 
-  def atomize_args(_target, _action, other),
-    do: {:error, "arguments must be an object, got #{inspect(other)}"}
-
-  defp coerce_args(module, args) when is_map(args) do
-    schema = Keyword.drop(module.schema(), @runtime_keys)
-
-    with {:ok, pairs} <- pair_up(module, schema, args) do
-      case NimbleOptions.validate(pairs, schema) do
-        {:ok, validated} -> {:ok, Map.new(validated)}
-        {:error, %NimbleOptions.ValidationError{message: message}} -> {:error, message}
-      end
-    end
-  end
-
-  defp coerce_args(_module, other),
-    do: {:error, "arguments must be an object, got #{inspect(other)}"}
-
-  # Keys arrive as strings — from JSON in the database, and from a model before
-  # that. They are matched against the action's declared keys rather than
-  # converted, because `String.to_atom/1` on anything a model wrote is a way to
-  # exhaust the atom table from the outside.
-  defp pair_up(module, schema, args) do
-    known = Keyword.keys(schema)
-
-    Enum.reduce_while(args, {:ok, []}, fn {key, value}, {:ok, acc} ->
-      case Enum.find(known, &(Atom.to_string(&1) == to_string(key))) do
-        nil ->
-          accepted = Enum.map_join(known, ", ", &Atom.to_string/1)
-
-          {:halt,
-           {:error,
-            "#{module.name()} takes no argument #{inspect(to_string(key))}; it takes: #{accepted}"}}
-
-        name ->
-          {:cont, {:ok, [{name, coerce(schema[name][:type], value)} | acc]}}
-      end
-    end)
-  end
-
-  # JSON has one number type and Elixir has two, and a model will occasionally
-  # send a number as a string regardless of what the schema told it. The same
-  # coercion the model-facing tools do (§6.2), applied where a schedule's
-  # arguments enter.
-  defp coerce(type, value) when is_binary(value) do
-    cond do
-      numeric?(type) ->
-        case Float.parse(value) do
-          {number, ""} -> as_number(type, number)
-          _other -> value
-        end
-
-      accepts?(type, :boolean) and value in ["true", "false"] ->
-        value == "true"
-
-      true ->
-        value
-    end
-  end
-
-  defp coerce(type, value) when is_integer(value), do: as_number(type, value)
-  defp coerce(_type, value), do: value
-
-  # Land on whichever of the two number types the action declared, preferring
-  # float wherever it is allowed. JSON has one number type and Elixir has two
-  # (§6.2), and the tie has to break the same way here as it does in the
-  # model-facing tool — otherwise "set the thermostat to 70" and a schedule
-  # that sets it to 70 would put different payloads on the wire for the same
-  # command, and the difference would show up first as a puzzling test.
-  defp as_number(type, number) do
-    cond do
-      accepts?(type, :float) -> number / 1
-      accepts?(type, :integer) and trunc(number) == number -> trunc(number)
-      true -> number
-    end
-  end
-
-  defp numeric?(type),
-    do:
-      Enum.any?([:integer, :float, :number, :pos_integer, :non_neg_integer], &accepts?(type, &1))
-
-  defp accepts?({:or, types}, wanted), do: Enum.any?(types, &accepts?(&1, wanted))
-  defp accepts?(type, wanted), do: type == wanted
+  # The coercion itself lives in `Dobby.DeviceAgent.Args`, because a card's
+  # release enters by the same door a schedule's row does and must land on the
+  # same payload.
+  defp coerce_args(module, args), do: Args.coerce(module, args)
 
   defp stringify(args), do: Map.new(args, fn {key, value} -> {Atom.to_string(key), value} end)
 
@@ -475,8 +394,8 @@ defmodule Dobby.Schedules do
   def action_arguments(target, action) do
     with {:ok, _device, {_signal_type, module}} <- resolve_action(target, action) do
       arguments =
-        module.schema()
-        |> Keyword.drop(@runtime_keys)
+        module
+        |> Args.arguments()
         |> Enum.map(fn {name, spec} ->
           %{
             name: Atom.to_string(name),

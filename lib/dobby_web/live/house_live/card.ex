@@ -3,10 +3,22 @@ defmodule DobbyWeb.HouseLive.Card do
   A card is a board row that grew a control (`DESIGN.md`).
 
   Same three columns, same vocabulary, same flap. What a card adds is the room
-  underneath the row: a second reading the band has no space for, and — for the
-  one device type that can be commanded — a way to command it.
+  underneath the row: a second reading the band has no space for, and — for
+  a device that can be commanded — a way to command it.
 
-  ## The setpoint control
+  ## The controls are the device's, not the card's
+
+  What a card offers is whatever the device's own module declares in
+  `Dobby.DeviceAgent.controls/1`, drawn by kind: a fader for a number between
+  two ends the device reported, a choice row for a word the device advertised.
+  The card dispatches on the *kind of control* and never on the type of
+  device. The first version dispatched on `snapshot.type`, drew a fader for
+  the thermostat and nothing for anybody else, and when five writable
+  appliance types arrived not one of them could be touched — the direct
+  control path, which is first-class rather than a fallback, had one device
+  on it (TK-069).
+
+  ## The fader
 
   The one place in this house where a fat finger actuates something. Given
   kids, it commits **on release** rather than on every drag tick, and offers an
@@ -14,16 +26,12 @@ defmodule DobbyWeb.HouseLive.Card do
   people to dismiss dialogs, and a household that has learned to dismiss them
   is worse off than one that never had them.
 
-  The control is drawn only when the device has told us what it will accept.
-  A fader that lets you reach 85° in a house capped at 76 is a control that
-  exists to be refused, and a thermostat that has not reported yet has not told
-  us anything — which is a different fact from a thermostat that said no, and
+  A control is drawn only when the device has told us what it will accept —
+  the type decides that, because the knowledge is the type's. A fader that
+  lets you reach 85° in a house capped at 76 is a control that exists to be
+  refused, and a thermostat that has not reported yet has not told us
+  anything — which is a different fact from a thermostat that said no, and
   the board has a different word for each.
-
-  The dispatch on `snapshot.type` is deliberate and mirrors
-  `DobbyWeb.Flap.read/1`: what a device *looks like* is per-device knowledge,
-  and a type that reaches here without a clause gets the row alone, which is
-  true of anything.
 
   ## Editing is the fifth part of a card (TK-018)
 
@@ -40,11 +48,14 @@ defmodule DobbyWeb.HouseLive.Card do
 
   import DobbyWeb.Flap
 
+  alias Dobby.DeviceAgent
+  alias Dobby.HomeConfig.Types
+
   @doc """
   One device.
   """
   attr :snapshot, :map, required: true
-  attr :undo, :map, default: nil, doc: "the setpoint to go back to, if there is a way back"
+  attr :undo, :map, default: nil, doc: "the value to go back to, if there is a way back"
   attr :held, :string, default: nil, doc: "why the device said no, if it did"
   attr :editable, :boolean, default: false, doc: "whether this house can be written at all"
   attr :editing, :boolean, default: false, doc: "whether this card's form is open"
@@ -52,27 +63,50 @@ defmodule DobbyWeb.HouseLive.Card do
   attr :trouble, :string, default: nil, doc: "why the last removal was refused"
   slot :inner_block, doc: "the form, when this is the card being edited"
 
-  def card(%{snapshot: %{type: :thermostat}} = assigns) do
+  def card(assigns) do
+    assigns = assign(assigns, :controls, controls(assigns.snapshot))
+
     ~H"""
     <article class="card" id={"card-" <> @snapshot.id}>
       <.reading snapshot={@snapshot} />
-      <div :if={room(@snapshot)} class="detail">Room {room(@snapshot)}</div>
-      <.fader :if={settable?(@snapshot)} snapshot={@snapshot} />
+      <div :if={detail(@snapshot)} class="detail">{detail(@snapshot)}</div>
+      <%= for control <- @controls do %>
+        <.fader :if={control.kind == :fader} snapshot={@snapshot} control={control} />
+      <% end %>
       <.aftermath snapshot={@snapshot} undo={@undo} held={@held} />
       <.editing {assigns} />
     </article>
     """
   end
 
-  def card(assigns) do
-    ~H"""
-    <article class="card" id={"card-" <> @snapshot.id}>
-      <.reading snapshot={@snapshot} />
-      <div :if={since(@snapshot)} class="detail">Since {since(@snapshot)}</div>
-      <.editing {assigns} />
-    </article>
-    """
+  @doc """
+  The controls a device offers right now, asked of its own type.
+
+  The type is found by the word the snapshot carries rather than by the
+  manifest, so a snapshot answers for itself and a card never has to know
+  which house it is on.
+  """
+  @spec controls(map()) :: [DeviceAgent.control()]
+  def controls(%{type: type} = snapshot) when is_atom(type) do
+    case Types.fetch(Atom.to_string(type)) do
+      {:ok, module} -> DeviceAgent.controls(module, snapshot)
+      :error -> []
+    end
   end
+
+  def controls(_snapshot), do: []
+
+  @doc """
+  A control's value as the undo line says it: `70°` for a fader, `eco` for a
+  choice.
+  """
+  @spec word(DeviceAgent.control(), term()) :: String.t()
+  def word(%{kind: :fader, unit: unit}, value) when is_number(value),
+    do: "#{round(value)}#{unit}"
+
+  def word(_control, true), do: "on"
+  def word(_control, false), do: "off"
+  def word(_control, value), do: value |> to_string() |> String.replace("_", " ")
 
   # What can be done to the device rather than with it. Removal asks first —
   # not as a dialog, which this surface has already decided against, but as the
@@ -139,28 +173,40 @@ defmodule DobbyWeb.HouseLive.Card do
   # "make it warmer" into six taps. The pending readout is written by the hook
   # while a finger is down, so the number under the thumb is the number that
   # will be sent — and nothing is sent until the finger comes up.
+  #
+  # Keyed on the attribute it moves rather than on the device, so a card can
+  # hold more than one; the ends and the unit are the control's own.
   attr :snapshot, :map, required: true
+  attr :control, :map, required: true
 
   defp fader(assigns) do
+    assigns =
+      assigns
+      |> assign(:min, round(assigns.control.min))
+      |> assign(:max, round(assigns.control.max))
+      |> assign(:value, at(assigns.snapshot, assigns.control))
+
     ~H"""
     <div class="fader">
       <div class="asking" data-pending aria-hidden="true"></div>
       <input
         type="range"
-        id={"set-" <> @snapshot.id}
-        name="temperature_f"
-        min={round(@snapshot.min_temperature_f)}
-        max={round(@snapshot.max_temperature_f)}
-        step="1"
-        value={round(@snapshot.target_temperature_f)}
-        style={"--at: #{travelled(@snapshot)}%"}
+        id={"set-" <> @snapshot.id <> "-" <> Atom.to_string(@control.field)}
+        name={Atom.to_string(@control.arg)}
+        min={@min}
+        max={@max}
+        step={@control.step}
+        value={@value}
+        style={"--at: #{travelled(@value, @min, @max)}%"}
         data-device={@snapshot.id}
+        data-action={@control.action}
+        data-unit={@control.unit}
         aria-label={"Set the #{@snapshot.name}"}
         phx-hook=".Fader"
       />
       <div class="ends">
-        <span>{round(@snapshot.min_temperature_f)}°</span>
-        <span>{round(@snapshot.max_temperature_f)}°</span>
+        <span>{@min}{@control.unit}</span>
+        <span>{@max}{@control.unit}</span>
       </div>
     </div>
 
@@ -183,7 +229,7 @@ defmodule DobbyWeb.HouseLive.Card do
             const min = Number(this.el.min), max = Number(this.el.max)
             const at = (Number(this.el.value) - min) / (max - min)
 
-            asking.textContent = this.el.value + "°"
+            asking.textContent = this.el.value + this.el.dataset.unit
             // A fraction and not a percentage of the width: the label sits on
             // the slug, and a range input slides the slug's centre across a
             // track shortened by one slug. CSS does that arithmetic, because
@@ -201,7 +247,8 @@ defmodule DobbyWeb.HouseLive.Card do
 
             this.pushEvent("set", {
               device: this.el.dataset.device,
-              temperature_f: this.el.value
+              action: this.el.dataset.action,
+              value: this.el.value
             })
           })
         }
@@ -225,7 +272,7 @@ defmodule DobbyWeb.HouseLive.Card do
     ~H"""
     <div :if={@undo} class="undo">
       <button type="button" phx-click="undo" phx-value-device={@snapshot.id}>undo</button>
-      <span>back to {round(@undo.to)}°</span>
+      <span>back to {@undo.word}</span>
     </div>
 
     <div :if={@held} class="held">
@@ -235,42 +282,36 @@ defmodule DobbyWeb.HouseLive.Card do
     """
   end
 
+  # Where the slug sits: the attribute the control moves, held inside the
+  # ends. A browser clamps a range input's value to its ends anyway; doing it
+  # here keeps the server-rendered brass right in the first paint.
+  defp at(snapshot, control) do
+    case snapshot[control.field] do
+      value when is_number(value) ->
+        value |> round() |> max(round(control.min)) |> min(round(control.max))
+
+      _absent ->
+        round(control.min)
+    end
+  end
+
   # How far along the groove the slug sits, as a percentage. Rendered by the
   # server so the brass is right in the first paint rather than snapping into
   # place when the hook mounts; the hook takes over during a drag.
-  defp travelled(snapshot) do
-    span = snapshot.max_temperature_f - snapshot.min_temperature_f
+  defp travelled(value, min, max), do: Float.round((value - min) / (max - min) * 100, 1)
 
-    ((snapshot.target_temperature_f - snapshot.min_temperature_f) / span * 100)
-    |> Float.round(1)
-  end
-
-  @doc """
-  Whether this device has told us enough to offer a control.
-  """
-  @spec settable?(map()) :: boolean()
-  def settable?(%{type: :thermostat} = snapshot) do
-    snapshot.available == true and
-      is_number(snapshot.target_temperature_f) and
-      is_number(snapshot[:min_temperature_f]) and
-      is_number(snapshot[:max_temperature_f]) and
-      snapshot.min_temperature_f < snapshot.max_temperature_f
-  end
-
-  def settable?(_snapshot), do: false
-
-  # The band shows the setpoint, because the setpoint is the thing somebody
-  # asked for. The card has room for the other number, which is a different
-  # fact and not the same one said twice.
-  defp room(%{current_temperature_f: current}) when is_number(current), do: "#{round(current)}°"
-  defp room(_snapshot), do: nil
+  # The second number is a different fact. The row carries the setpoint,
+  # because the setpoint is the thing somebody asked for; the card has room
+  # for the other number, which is not the same one said twice.
+  defp detail(%{current_temperature_f: current}) when is_number(current),
+    do: "Room #{round(current)}°"
 
   # Only when the flip was actually watched. `last_changed_at` is left unset on
   # a device's first report, so this cannot put the boot time on a printer that
   # has been off since Tuesday.
-  defp since(%{last_changed_at: %DateTime{} = at}) do
-    at |> Dobby.Home.local() |> Calendar.strftime("%-I:%M %p")
+  defp detail(%{last_changed_at: %DateTime{} = at}) do
+    "Since " <> (at |> Dobby.Home.local() |> Calendar.strftime("%-I:%M %p"))
   end
 
-  defp since(_snapshot), do: nil
+  defp detail(_snapshot), do: nil
 end

@@ -298,26 +298,28 @@ defmodule DobbyWeb.ThreadLive do
   # -- the house -------------------------------------------------------------
 
   # One sentence of the kind that works here, built from a device that has
-  # actually reported. `settable?/1` is the same question the card asks before
-  # it draws a fader — has this device told us what it will accept — and it is
-  # the right one twice over: a specimen naming a device this house does not
-  # have would be an invented device, and one naming a temperature outside its
-  # range would be a sentence the house is going to refuse.
+  # actually reported. A fader the card would draw is the same question — has
+  # this device told us what it will accept — and it is the right one twice
+  # over: a specimen naming a device this house does not have would be an
+  # invented device, and one naming a value outside its range would be a
+  # sentence the house is going to refuse.
   #
   # Nothing settable means no specimen, and that is the honest answer rather
   # than a gap to be filled: before Home Assistant has said anything, the board
   # does not yet know what this house takes.
   defp example(snapshots) do
-    case Enum.find(snapshots, &Card.settable?/1) do
-      %{name: name} = snapshot -> "put the #{name} to #{comfortable(snapshot)}"
-      nil -> nil
-    end
+    Enum.find_value(snapshots, fn snapshot ->
+      case Enum.find(Card.controls(snapshot), &(&1.kind == :fader)) do
+        %{} = fader -> "put the #{snapshot.name} to #{comfortable(fader)}"
+        nil -> nil
+      end
+    end)
   end
 
   # Inside the device's own range and off both ends of it, so the example is
   # neither a value the house would decline nor the setpoint it is already on —
   # a specimen that asks for what is already true teaches nothing.
-  defp comfortable(%{min_temperature_f: min, max_temperature_f: max}) do
+  defp comfortable(%{min: min, max: max}) do
     round(min + (max - min) * 0.6)
   end
 

@@ -55,8 +55,8 @@ defmodule Dobby.InterventionsTest do
 
   describe "a card someone tapped" do
     test "moves the house and says who did it" do
-      assert {:ok, %{temperature_f: 72}} =
-               Controls.set_temperature(@thermostat, 72, via: "greg, card")
+      assert {:ok, %{target_temperature_f: 72.0}} =
+               Controls.command(@thermostat, "set_temperature", 72, via: "greg, card")
 
       assert_receive {:system_line, %Message{role: :system, text: "main thermostat", meta: meta}}
       assert meta["via"] == "greg, card"
@@ -70,7 +70,7 @@ defmodule Dobby.InterventionsTest do
     # must not say it twice — once as "greg, card" and once as though somebody
     # had walked over and turned the dial.
     test "is said once, not twice when Home Assistant echoes it back" do
-      {:ok, _result} = Controls.set_temperature(@thermostat, 72, via: "greg, card")
+      {:ok, _result} = Controls.command(@thermostat, "set_temperature", "72", via: "greg, card")
 
       assert eventually(fn -> agent_state(@thermostat).target_temperature_f == 72.0 end)
       settle!()
@@ -80,7 +80,9 @@ defmodule Dobby.InterventionsTest do
 
     test "a refusal stays on the card and out of the thread" do
       # Above the household maximum of 76 the rig configures.
-      assert {:held, reason} = Controls.set_temperature(@thermostat, 85, via: "greg, card")
+      assert {:held, reason} =
+               Controls.command(@thermostat, "set_temperature", "85", via: "greg, card")
+
       assert reason =~ "maximum"
 
       settle!()
@@ -94,7 +96,7 @@ defmodule Dobby.InterventionsTest do
     end
 
     test "reaches the device by the same path a sentence does" do
-      {:ok, _result} = Controls.set_temperature(@thermostat, 72, via: "greg, card")
+      {:ok, _result} = Controls.command(@thermostat, "set_temperature", "72", via: "greg, card")
 
       assert_receive {:ha_call, %HACall{entity_id: @entity, data: %{temperature: 72.0}}}, 2_000
     end
@@ -102,7 +104,7 @@ defmodule Dobby.InterventionsTest do
     # Identity personalizes and never permits (§10.4). A browser nobody has
     # named still gets to turn the heat up; the line just says less about who.
     test "still works from a browser nobody has named" do
-      assert {:ok, _result} = Controls.set_temperature(@thermostat, 72)
+      assert {:ok, _result} = Controls.command(@thermostat, "set_temperature", "72")
       assert_receive {:system_line, %Message{meta: %{"via" => "card"}}}
     end
   end

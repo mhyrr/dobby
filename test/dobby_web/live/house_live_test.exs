@@ -84,10 +84,13 @@ defmodule DobbyWeb.HouseLiveTest do
 
       # The rig's household policy caps at 76 and the hardware reports 50-90.
       # A control that let you reach 85 would exist to be refused.
-      assert has_element?(view, "#set-thermostat\\:main[min='60'][max='76'][value='70']")
+      assert has_element?(
+               view,
+               "#set-thermostat\\:main-target_temperature_f[min='60'][max='76'][value='70']"
+             )
 
       # A read-only device grows nothing.
-      refute has_element?(view, "#set-wifi\\:kitchen_tv")
+      refute has_element?(view, "#card-wifi\\:kitchen_tv .fader")
     end
 
     test "a device that has not reported has nothing to offer", %{conn: conn} do
@@ -98,7 +101,7 @@ defmodule DobbyWeb.HouseLiveTest do
       # NOT KNOWN, not QUIET: nobody has told us, which is a different fact
       # from a device that stopped answering.
       assert has_element?(view, "#card-thermostat\\:main .flap[data-st=silent]", "Not known")
-      refute has_element?(view, "#set-thermostat\\:main")
+      refute has_element?(view, "#card-thermostat\\:main .fader")
     end
 
     test "follow the house as it changes", %{conn: conn} do
@@ -694,7 +697,11 @@ defmodule DobbyWeb.HouseLiveTest do
 
   # What the fader's hook pushes when a finger comes up — never on a drag tick.
   defp release(view, device, temperature) do
-    render_hook(view, "set", %{"device" => device, "temperature_f" => temperature})
+    render_hook(view, "set", %{
+      "device" => device,
+      "action" => "set_temperature",
+      "value" => temperature
+    })
   end
 
   defp named(conn, name) do

@@ -350,11 +350,29 @@ defmodule DobbyWeb.HouseLive.Card do
   # place when the hook mounts; the hook takes over during a drag.
   defp travelled(value, min, max), do: Float.round((value - min) / (max - min) * 100, 1)
 
-  # The second number is a different fact. The row carries the setpoint,
-  # because the setpoint is the thing somebody asked for; the card has room
-  # for the other number, which is not the same one said twice.
-  defp detail(%{current_temperature_f: current}) when is_number(current),
+  # The second number is a different fact. The row carries what somebody
+  # asked for — the setpoint, the target, the speed — and the card has room
+  # for the other number, which is never the same one said twice: the room a
+  # thermostat reads, the water a heater holds, the air a humidifier is in,
+  # the target under an oven's temperature.
+  #
+  # Per type, in the web layer, the way `DobbyWeb.Flap.read/1` is: what a
+  # device's second fact *is* is per-device knowledge, and a type without a
+  # clause gets the moment its row last flipped, which is true of anything.
+  defp detail(%{type: :thermostat, current_temperature_f: current}) when is_number(current),
     do: "Room #{round(current)}°"
+
+  defp detail(%{type: :water_heater, current_temperature_f: current}) when is_number(current),
+    do: "Water #{round(current)}°"
+
+  defp detail(%{type: type, current_humidity_percent: current})
+       when type in [:humidifier, :dehumidifier] and is_number(current),
+       do: "Room #{round(current)}%"
+
+  defp detail(%{type: :oven, readings: %{target_temperature: target}} = snapshot)
+       when is_number(target) do
+    "Target " <> DobbyWeb.Flap.reading(snapshot, [:target_temperature])
+  end
 
   # Only when the flip was actually watched. `last_changed_at` is left unset on
   # a device's first report, so this cannot put the boot time on a printer that

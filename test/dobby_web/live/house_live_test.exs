@@ -303,6 +303,8 @@ defmodule DobbyWeb.HouseLiveTest do
                "#set-humidifier\\:office-target_humidity_percent[min='30'][max='60'][step='5'][value='45']"
              )
 
+      assert has_element?(view, "#card-humidifier\\:office .detail", "Room 41%")
+
       dial(view, "humidifier:office", "set_humidity", "50")
 
       assert_receive {:ha_call, %HACall{entity_id: "humidifier.office", data: %{humidity: 50}}},
@@ -310,6 +312,14 @@ defmodule DobbyWeb.HouseLiveTest do
 
       assert_receive {:system_line, %{text: "office humidifier", meta: %{"value" => "50%"}}}
       assert has_element?(view, "#card-humidifier\\:office .undo", "back to 45%")
+    end
+
+    # The second number is a different fact: the tank's water under the
+    # heater's setpoint, the room's air under a humidifier's target.
+    test "an appliance's detail line is its other number, not the time", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+      assert has_element?(view, "#card-water_heater\\:tank .detail", "Water 118°")
+      refute has_element?(view, "#card-water_heater\\:tank .detail", "Since")
     end
 
     # A read-only device grows nothing, whatever it reports.

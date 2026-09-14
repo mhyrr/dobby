@@ -91,6 +91,28 @@ config :dobby, Dobby.Home,
         state: "off",
         attributes: %{device_class: "smoke"}
       },
+      # The two appliances the roster keeps for the eval tier. A device the
+      # roster names but the fake never reports is a device that never gets a
+      # snapshot, and the library eval waits on every device having one before
+      # it spends a model call — so the roster and this map must agree.
+      # HomeConfigTest holds that tripwire.
+      "water_heater.tank" => %{
+        state: "eco",
+        attributes: %{
+          current_temperature: 118,
+          temperature: 120,
+          min_temp: 90,
+          max_temp: 150,
+          supported_features: 15,
+          operation_list: ["eco", "gas", "off"],
+          away_mode: "off"
+        }
+      },
+      "sensor.dishwasher_operation_state" => %{state: "ready", attributes: %{}},
+      "binary_sensor.dishwasher_door" => %{
+        state: "off",
+        attributes: %{device_class: "door"}
+      },
       "sensor.garage_opener_temperature" => %{
         # Diagnostic on purpose, and permanently. This is the one rig entity a
         # type recognizes (a temperature is an environment monitor's word) that

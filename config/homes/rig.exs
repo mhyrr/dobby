@@ -209,6 +209,30 @@ config :dobby, Dobby.Home,
       bindings: %{fan: "fan.bedroom"},
       settings: %{}
     },
+    # Two appliances so the eval tier can reach the appliance half of the
+    # library at all. `Dobby.Home.tools/0` is roster-derived, so a house with no
+    # appliance never offers the model an appliance tool, and a real-inference
+    # run says nothing about fifteen device types. One writable and one
+    # read-only, because they are different contracts.
+    %{
+      id: "water_heater:tank",
+      name: "hot water",
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.WaterHeater,
+      bindings: %{water_heater: "water_heater.tank"},
+      settings: %{temperature_unit: "°F"}
+    },
+    %{
+      id: "dishwasher:kitchen",
+      name: "kitchen dishwasher",
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.Dishwasher,
+      bindings: %{
+        operation_state: "sensor.dishwasher_operation_state",
+        door_open: "binary_sensor.dishwasher_door"
+      },
+      settings: %{}
+    },
     %{
       id: "monitor:office",
       name: "office air",

@@ -181,8 +181,15 @@ further down this file. The short version:
 
 ```sh
 mix test                      # the replay tier: no HA, no network, no model calls
-mix test --include eval       # the eval tier: real inference, real money
+DOBBY_EVAL=1 mix test --only eval    # the eval tier: real inference, real money
 ```
+
+`--only`, and the env var, both matter. `config/test.exs` gates the provider on
+`DOBBY_EVAL`, not on the ExUnit tag, so `--include eval` without it points every
+provider at a dead loopback address and the whole tier fails on connection
+refused. Setting the variable *and* using `--include` is worse: it lifts the
+loopback guard over all 670 replay tests, which is the billable accident the
+guard exists to prevent.
 
 **Replay** runs on every `mix test` and in CI, and is *incapable* of reaching a
 provider — `config/test.exs` guards it. `Dobby.RigCase` runs the whole

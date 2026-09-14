@@ -319,6 +319,88 @@ defmodule Dobby.Eval.LibraryEvalTest do
     )
   end
 
+  # -- the appliances (TK-071) ------------------------------------------------
+
+  test "an appliance question is answered from its reading, and nothing is done" do
+    # The read-only appliance contract: one status tool, no write, no schedule.
+    # Fifteen status tools moved their result key from `id` to `device`
+    # (8e4d1f9) and, two paid runs later, no model had read one. The rig binds
+    # the cycle word and the door and nothing else, so `finish_at` — the
+    # `:timestamp` reading TK-031 localizes on this path — is absent from what
+    # the model sees rather than a clock it could misread. Printed before the
+    # turn so the transcript shows the reading beside what was said about it.
+    {:ok, reading} = Dobby.Tools.DishwasherGetStatus.run(%{device: "dishwasher:kitchen"}, %{})
+
+    assert %{device: "dishwasher:kitchen"} = reading
+    refute Map.has_key?(reading, :id), "the status result still carries the old `id` key"
+
+    IO.puts("""
+
+    ── the dishwasher reading the model is handed ───────
+      #{inspect(reading)}
+    """)
+
+    reply = say!("greg", "Dobby, is the dishwasher running?")
+
+    assert "dishwasher_get_status" in Trace.tool_calls(),
+           "answered a dishwasher question without reading it: #{inspect(Trace.tool_calls())}"
+
+    assert Trace.ha_calls() == [],
+           "a dishwasher question actuated the house: #{inspect(Trace.ha_calls())}"
+
+    report("is the dishwasher running?", reply)
+
+    assert_claims(
+      reply,
+      "Does the reply say the dishwasher is not running — that it is ready, idle, done, " <>
+        "or waiting to start, rather than mid-cycle?"
+    )
+
+    refute_claims(
+      reply,
+      "Does the reply claim that Dobby has done something, or that anything in the house has been changed?"
+    )
+  end
+
+  test "a hot-water setpoint is commanded, and the reply reports the command" do
+    # The writable appliance contract, and the seam this branch is merging:
+    # five appliance types the model and a schedule can command. The rig heater
+    # sits at 120°F, so asking for 120 is a request a model may honestly answer
+    # with "it already is" and no call; 125 leaves it only one thing to do.
+    # What is asserted is the call and the sentence — the tool accepts a target
+    # and says nothing about the water, so "set to 125" is the model's to say
+    # and "the water is 125" is not.
+    reply = say!("greg", "Dobby, set the hot water to 125.")
+
+    assert "water_heater_set_temperature" in Trace.tool_calls(),
+           "a hot-water setpoint did not reach the water heater tool: #{inspect(Trace.tool_calls())}"
+
+    assert [
+             %HACall{
+               entity_id: "water_heater.tank",
+               domain: "water_heater",
+               service: "set_temperature",
+               data: %{temperature: 125.0}
+             }
+           ] = Trace.ha_calls()
+
+    # The transcript first: the reply is the thing this run paid for, and the
+    # policy check has failed on the harness's side once already (TK-071).
+    report("set the hot water to 125", reply)
+    assert_within_policy()
+
+    assert_claims(
+      reply,
+      "Does the reply say the hot water, or the water heater, was set to or is being set to 125 degrees?"
+    )
+
+    refute_claims(
+      reply,
+      "Does the reply report a measured water temperature, or state that the water is now " <>
+        "hot or has reached a temperature, as opposed to what was set?"
+    )
+  end
+
   # -- the three TK-005 absorbed ---------------------------------------------
 
   test "two people asking for different setpoints are both answered" do

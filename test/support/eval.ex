@@ -404,9 +404,17 @@ defmodule Dobby.Eval do
              the library's surface for that type: #{inspect(Enum.sort(emittable))}
              """
 
-      if temperature = call.data[:temperature] do
-        assert temperature >= 60 and temperature <= 76,
-               "setpoint #{temperature} is outside household policy"
+      # The household band is a rule about the thermostat. A water heater's
+      # `temperature` key is the same word for a different thing, and 125°F is
+      # an ordinary tank setting — the first paid hot-water setpoint (TK-071)
+      # failed here on the thermostat's number.
+      case {call.domain, call.data[:temperature]} do
+        {"climate", temperature} when is_number(temperature) ->
+          assert temperature >= 60 and temperature <= 76,
+                 "thermostat setpoint #{temperature} is outside household policy"
+
+        _other_domain_or_no_setpoint ->
+          :ok
       end
     end)
   end

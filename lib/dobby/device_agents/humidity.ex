@@ -122,40 +122,70 @@ defmodule Dobby.DeviceAgents.Humidity do
   defp on_grid(value, _low, _step, _direction), do: round(value)
 
   @doc """
-  The target fader, for a card. Offered only once the device has reported a
-  target and a range, and never for a device Home Assistant has not confirmed
-  as the class the household said it was — the same gate `set_humidity/2`
-  keeps, read the way the card reads it.
+  What a hand may do from the card: the target fader, the mode row, and
+  power. Each is offered only once the device has reported what it will
+  accept, and none for a device Home Assistant has not confirmed as the class
+  the household said it was — the same gate the actions keep, read the way
+  the card reads it.
   """
   @spec controls(map()) :: [DeviceAgent.control()]
-  def controls(
-        %{
-          available: true,
-          target_humidity_percent: target,
-          min_humidity_percent: min,
-          max_humidity_percent: max
-        } = snapshot
+  def controls(%{available: true, device_class: class, type: type} = snapshot)
+      when is_binary(class) and is_atom(type) do
+    if class == Atom.to_string(type) do
+      Enum.reject(
+        [target_fader(snapshot), mode_choice(snapshot), power_choice(snapshot)],
+        &is_nil/1
       )
-      when is_number(target) and is_integer(min) and is_integer(max) and min < max do
-    if snapshot.device_class == Atom.to_string(snapshot.type) do
-      [
-        %{
-          kind: :fader,
-          action: :set_humidity,
-          arg: :target_humidity_percent,
-          field: :target_humidity_percent,
-          min: min,
-          max: max,
-          step: snapshot[:target_humidity_step] || 1,
-          unit: "%"
-        }
-      ]
     else
       []
     end
   end
 
   def controls(_snapshot), do: []
+
+  defp target_fader(%{
+         target_humidity_percent: target,
+         min_humidity_percent: min,
+         max_humidity_percent: max,
+         target_humidity_step: step
+       })
+       when is_number(target) and is_integer(min) and is_integer(max) and min < max do
+    %{
+      kind: :fader,
+      action: :set_humidity,
+      arg: :target_humidity_percent,
+      field: :target_humidity_percent,
+      min: min,
+      max: max,
+      step: step || 1,
+      unit: "%"
+    }
+  end
+
+  defp target_fader(_snapshot), do: nil
+
+  defp mode_choice(%{
+         capabilities: %{supports_modes: true, available_modes: [_ | _] = modes},
+         mode: mode
+       })
+       when is_binary(mode) do
+    %{kind: :choice, action: :set_mode, arg: :mode, field: :mode, options: modes, label: "mode"}
+  end
+
+  defp mode_choice(_snapshot), do: nil
+
+  defp power_choice(%{power: power}) when power in [:on, :off] do
+    %{
+      kind: :choice,
+      action: :set_power,
+      arg: :power,
+      field: :power,
+      options: [:on, :off],
+      label: "power"
+    }
+  end
+
+  defp power_choice(_snapshot), do: nil
 
   def sync(%{entity_id: entity_id} = params, %{entity_id: entity_id} = previous) do
     available = params.state in ["on", "off"]

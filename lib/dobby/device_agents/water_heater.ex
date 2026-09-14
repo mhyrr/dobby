@@ -117,12 +117,60 @@ defmodule Dobby.DeviceAgents.WaterHeater do
   # once the heater has reported a target and a range; a heater whose
   # integration reports no temperature support gets no fader rather than one
   # that exists to be refused.
+  #
+  # Mode, away mode, and power are rows of the words the entity advertised,
+  # each gated on the feature Home Assistant reported. "Off" can appear twice
+  # on one card — as a mode and as power — because the entity really does
+  # hold both, and power is derived from mode on the wire.
   @impl Dobby.DeviceAgent
   def controls(%{available: true} = snapshot) do
-    Enum.reject([temperature_fader(snapshot)], &is_nil/1)
+    Enum.reject(
+      [
+        temperature_fader(snapshot),
+        mode_choice(snapshot),
+        away_choice(snapshot),
+        power_choice(snapshot)
+      ],
+      &is_nil/1
+    )
   end
 
   def controls(_snapshot), do: []
+
+  defp mode_choice(%{capabilities: %{supports_mode: true, modes: [_ | _] = modes}, mode: mode})
+       when is_binary(mode) do
+    %{kind: :choice, action: :set_mode, arg: :mode, field: :mode, options: modes, label: "mode"}
+  end
+
+  defp mode_choice(_snapshot), do: nil
+
+  defp away_choice(%{capabilities: %{supports_away_mode: true}, away_mode: away})
+       when is_boolean(away) do
+    %{
+      kind: :choice,
+      action: :set_away_mode,
+      arg: :away_mode,
+      field: :away_mode,
+      options: [true, false],
+      label: "away"
+    }
+  end
+
+  defp away_choice(_snapshot), do: nil
+
+  defp power_choice(%{capabilities: %{supports_power: true}, power: power})
+       when power in [:on, :off] do
+    %{
+      kind: :choice,
+      action: :set_power,
+      arg: :power,
+      field: :power,
+      options: [:on, :off],
+      label: "power"
+    }
+  end
+
+  defp power_choice(_snapshot), do: nil
 
   defp temperature_fader(%{
          capabilities: %{supports_temperature: true},

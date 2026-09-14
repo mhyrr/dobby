@@ -61,6 +61,23 @@ defmodule Dobby.DeviceAgents.PowerSwitch do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.PowerSwitch.SyncState
 
+  # On and off, once the switch has said which it is.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true, power: power}) when power in [:on, :off] do
+    [
+      %{
+        kind: :choice,
+        action: :set_power,
+        arg: :power,
+        field: :power,
+        options: [:on, :off],
+        label: "power"
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   @impl Dobby.DeviceAgent
   def intervention?(attribute), do: attribute == :power
 

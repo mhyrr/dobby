@@ -17,7 +17,23 @@ defmodule Dobby.DeviceAgents.WaterHeaterTest do
        %{available: true, away_mode: false}, %{available: true, away_mode: true}},
       {%{result: :accepted, action: :set_power, power: :off}, %{available: true, power: :off},
        %{available: true, power: :on}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      capabilities: %{
+        supports_temperature: true,
+        supports_mode: true,
+        supports_away_mode: true,
+        supports_power: true,
+        modes: ["eco", "gas", "off"]
+      },
+      target_temperature_f: 120,
+      min_temperature_f: 90,
+      max_temperature_f: 150,
+      mode: "eco",
+      away_mode: false,
+      power: :on
+    }
   )
 
   test "the power steps read as turning the heater on and off, not as setting it" do

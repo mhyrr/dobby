@@ -21,7 +21,8 @@ defmodule Dobby.DeviceAgents.AccessCoverTest do
     entity: [entity_id: "cover.contract", device_class: "garage"],
     arrivals: [
       {%{result: :accepted, action: :close}, %{cover_state: :closing}, %{cover_state: :open}}
-    ]
+    ],
+    controls: %{available: true, cover_state: :open}
   )
 
   # `available` is nil between agent start and the first sync — a command in

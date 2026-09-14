@@ -77,13 +77,12 @@ defmodule Dobby.Controls do
 
     with {:ok, device, pid} <- Home.resolve(device_id),
          {:ok, control} <- offered(device, pid, action),
+         {:ok, chosen} <- choose(device, control, value),
          {:ok, {signal_type, module}} <- lookup(device, action),
-         {:ok, args} <- Args.coerce(module, arguments(control, value)) do
-      chosen = Map.get(args, control.arg, value)
-
+         {:ok, args} <- Args.coerce(module, arguments(control, chosen)) do
       pid
       |> DeviceAgent.command(signal_type, args, %{via: :card})
-      |> interpret(device, action, args, %{control.field => chosen}, via)
+      |> interpret(device, action, args, %{control.field => moved(control, chosen, args)}, via)
     else
       {:error, reason} -> fail(device_id, action, value, via, reason)
     end
@@ -138,8 +137,32 @@ defmodule Dobby.Controls do
     end
   end
 
-  defp arguments(%{arg: nil}, _value), do: %{}
-  defp arguments(%{arg: arg}, value), do: %{Atom.to_string(arg) => value}
+  # A fader's value goes to the action as the browser sent it and the action
+  # types it. A choice's value is one of the words the device advertised,
+  # matched by name — a browser posts "on", an undo posts the term itself —
+  # and a word the device did not offer is refused here rather than typed into
+  # something the action might take.
+  defp choose(_device, %{kind: :fader}, value), do: {:ok, value}
+
+  defp choose(device, %{kind: :choice, options: options} = control, value) do
+    case Enum.find(options, &(to_string(&1) == to_string(value))) do
+      nil -> {:error, "#{device.name} offers no #{control[:label] || control.action} #{value}"}
+      option -> {:ok, option}
+    end
+  end
+
+  defp arguments(%{arg: nil}, _chosen), do: %{}
+
+  defp arguments(%{arg: arg} = control, chosen) do
+    to_arg = Map.get(control, :arg_value, &Function.identity/1)
+    %{Atom.to_string(arg) => to_arg.(chosen)}
+  end
+
+  # What the command moves the attribute to: for a fader, the value as the
+  # action typed it; for a choice, the word itself, which is the attribute's
+  # own value even where the action spells it differently.
+  defp moved(%{kind: :fader, arg: arg}, _chosen, args), do: Map.fetch!(args, arg)
+  defp moved(%{kind: :choice}, chosen, _args), do: chosen
 
   # -- the outcome -----------------------------------------------------------
 

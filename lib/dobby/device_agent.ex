@@ -129,6 +129,11 @@ defmodule Dobby.DeviceAgent do
   fire (`action`), the argument that action takes (`arg`, `nil` for an action
   with none), and the snapshot attribute the command moves (`field`), which is
   what the undo reads its way back from and what the thread line is written in.
+
+  A choice's `options` are the attribute's own values, so the current one is
+  the one the snapshot holds. Where the action spells a value differently from
+  the attribute — a light is `power: :on` and its action takes `on: true` —
+  `arg_value` says how, and nothing outside the type has to know.
   """
   @type control ::
           %{
@@ -142,12 +147,13 @@ defmodule Dobby.DeviceAgent do
             unit: String.t()
           }
           | %{
-              kind: :choice,
-              action: atom(),
-              arg: atom() | nil,
-              field: atom(),
-              options: [term()],
-              label: String.t() | nil
+              required(:kind) => :choice,
+              required(:action) => atom(),
+              required(:arg) => atom() | nil,
+              required(:field) => atom(),
+              required(:options) => [term()],
+              required(:label) => String.t() | nil,
+              optional(:arg_value) => (term() -> term())
             }
 
   @doc """

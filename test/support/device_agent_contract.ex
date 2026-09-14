@@ -36,7 +36,9 @@ defmodule Dobby.DeviceAgentContract do
   the contract asserts that the type offers every scheduled action from its
   card and nothing else, and that each control names an argument its action
   takes and an attribute the snapshot carries. Every type is also held to
-  offering nothing before the device has reported.
+  offering nothing before the device has reported. A writable type must
+  supply it; `:none` records that its actions have no card shape yet, with
+  the reason beside it in the test file.
   """
 
   import ExUnit.Assertions
@@ -201,6 +203,13 @@ defmodule Dobby.DeviceAgentContract do
 
     case controls do
       nil ->
+        assert module.scheduled_actions() == %{},
+               "#{inspect(module)} has actions to offer and must supply :controls — a reported " <>
+                 "snapshot, or :none where the card cannot yet draw its actions (say why)"
+
+      # The type's actions are not on a card yet. This is a documented gap,
+      # not a pass: the test file says which shape the card lacks.
+      :none ->
         :ok
 
       %{} = reported ->

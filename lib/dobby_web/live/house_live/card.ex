@@ -72,6 +72,7 @@ defmodule DobbyWeb.HouseLive.Card do
       <div :if={detail(@snapshot)} class="detail">{detail(@snapshot)}</div>
       <%= for control <- @controls do %>
         <.fader :if={control.kind == :fader} snapshot={@snapshot} control={control} />
+        <.choice :if={control.kind == :choice} snapshot={@snapshot} control={control} />
       <% end %>
       <.aftermath snapshot={@snapshot} undo={@undo} held={@held} />
       <.editing {assigns} />
@@ -254,6 +255,55 @@ defmodule DobbyWeb.HouseLive.Card do
         }
       }
     </script>
+    """
+  end
+
+  # A row of the words the device advertised, the one it holds now written in
+  # the record voice and the rest drawn as the quiet verbs `edit` and `undo`
+  # are. Not a dropdown and not a dialog: a dropdown hides the other words and
+  # a dialog trains people to dismiss dialogs. Tapping a word commits it and
+  # offers the way back, the same as a release does.
+  #
+  # The current word is not a button. It is where the device is, and the one
+  # thing this board never does is offer to set something to what it already
+  # says — a control that changes nothing is a control that exists to lie.
+  # A row with nothing left to offer — a lock that is locked, whose one word
+  # is the one it holds — is not drawn at all: the reading already says it,
+  # and the second line is meant to be a different fact.
+  attr :snapshot, :map, required: true
+  attr :control, :map, required: true
+
+  defp choice(assigns) do
+    now = assigns.snapshot[assigns.control.field]
+
+    assigns =
+      assigns
+      |> assign(:now, now)
+      |> assign(:offering, Enum.any?(assigns.control.options, &(&1 != now)))
+
+    ~H"""
+    <div
+      :if={@offering}
+      class="choice"
+      id={"choose-" <> @snapshot.id <> "-" <> Atom.to_string(@control.field)}
+      role="group"
+      aria-label={"#{@control[:label] || @control.field} of the #{@snapshot.name}"}
+    >
+      <span :if={@control[:label]} class="of">{@control.label}</span>
+      <%= for option <- @control.options do %>
+        <span :if={option == @now} class="now" aria-current="true">{word(@control, option)}</span>
+        <button
+          :if={option != @now}
+          type="button"
+          phx-click="set"
+          phx-value-device={@snapshot.id}
+          phx-value-action={@control.action}
+          phx-value-value={to_string(option)}
+        >
+          {word(@control, option)}
+        </button>
+      <% end %>
+    </div>
     """
   end
 

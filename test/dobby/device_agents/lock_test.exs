@@ -22,7 +22,8 @@ defmodule Dobby.DeviceAgents.LockTest do
     # accept the one on the way as well as the one that landed.
     arrivals: [
       {%{result: :accepted, action: :secure}, %{lock_state: :locking}, %{lock_state: :unlocked}}
-    ]
+    ],
+    controls: %{available: true, lock_state: :unlocked}
   )
 
   # `available` is nil between agent start and the first sync — a command in

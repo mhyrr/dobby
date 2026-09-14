@@ -21,7 +21,13 @@ defmodule Dobby.DeviceAgents.LightTest do
       {%{result: :accepted, action: :set_power, on: true}, %{power: :on}, %{power: :off}},
       {%{result: :accepted, action: :set_brightness, brightness_percent: 40},
        %{power: :on, brightness_percent: 40}, %{power: :off, brightness_percent: 40}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      dimmable: true,
+      power: :on,
+      brightness_percent: 50
+    }
   )
 
   alias Dobby.Tools.{LightGetStatus, LightSetBrightness, LightTurnOff, LightTurnOn}

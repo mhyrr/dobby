@@ -296,7 +296,7 @@ defmodule DobbyWeb.HouseLive do
   defp offer_undo(socket, device, action, %{} = previous) do
     control = Enum.find(controls(previous), &(Atom.to_string(&1.action) == action))
 
-    case control && previous[control.field] do
+    case control && way_back(control, previous[control.field]) do
       nil ->
         clear_undo(socket, device)
 
@@ -310,6 +310,14 @@ defmodule DobbyWeb.HouseLive do
   end
 
   defp offer_undo(socket, device, _action, _previous), do: clear_undo(socket, device)
+
+  # A choice can only go back to a word it offers. A lock that was unlocked
+  # has no way back from locked, because unlock is on no surface; a fader can
+  # always return to the number it left.
+  defp way_back(%{kind: :choice, options: options}, value),
+    do: if(value in options, do: value)
+
+  defp way_back(_control, value), do: value
 
   defp clear_undo(socket, device),
     do: assign(socket, :undo, Map.delete(socket.assigns.undo, device))

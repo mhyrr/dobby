@@ -319,6 +319,141 @@ defmodule DobbyWeb.HouseLiveTest do
     end
   end
 
+  # The choice row: the device's own words, the current one marked, the rest
+  # a tap away. Every case commands the house through the rig and reads the
+  # thread.
+  describe "choosing a word" do
+    setup do
+      seed_house(%{
+        "water_heater.tank" => water_heater_entity(),
+        "switch.coffee_station" => %{state: "off", attributes: %{}},
+        "lock.side_door" => %{state: "unlocked", attributes: %{}},
+        "lock.front_door" => %{state: "locked", attributes: %{}},
+        "light.living_room" => light_entity(),
+        "cover.garage_door" => %{state: "open", attributes: %{current_position: 100}}
+      })
+
+      :ok
+    end
+
+    test "the hot water's mode is one of the words the heater advertised", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The current word is written, not offered.
+      assert has_element?(view, "#choose-water_heater\\:tank-mode .now", "eco")
+      refute has_element?(view, "#choose-water_heater\\:tank-mode button", "eco")
+
+      view |> element("#choose-water_heater\\:tank-mode button", "gas") |> render_click()
+
+      assert_receive {:ha_call,
+                      %HACall{
+                        entity_id: "water_heater.tank",
+                        service: "set_operation_mode",
+                        data: %{operation_mode: "gas"}
+                      }},
+                     2_000
+
+      assert_receive {:system_line, %{text: "hot water", meta: meta}}
+      assert meta["via"] == "greg, card"
+      assert meta["value"] == "Gas"
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to eco")
+    end
+
+    test "away mode and power are the same part with two words", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-water_heater\\:tank-away_mode button", "on") |> render_click()
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "water_heater.tank", service: "set_away_mode"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Away mode on"}}}
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to off")
+
+      view |> element("#choose-water_heater\\:tank-power button", "off") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "water_heater.tank", service: "turn_off"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Off"}}}
+    end
+
+    test "a switch takes on and off", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-switch\\:coffee-power button", "on") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "switch.coffee_station", service: "turn_on"}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "coffee station", meta: %{"value" => "On"}}}
+      assert has_element?(view, "#card-switch\\:coffee .undo", "back to off")
+    end
+
+    # The light's own action spells power as `on: true`; the card never learns
+    # that, and the wire gets the call the tool would have sent.
+    test "a light's power reaches its own action's spelling", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-light\\:living_room-power button", "off") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "light.living_room", service: "turn_off"}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "living room light", meta: %{"value" => "Off"}}}
+    end
+
+    # The hands-only proof on the card: unlock is on no surface, and a locked
+    # door offers nothing, because the board never offers to set a thing to
+    # what it already says.
+    test "a door can be locked from its card, and never unlocked", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # A locked door's row already says LOCKED; a second line saying it
+      # again would be the same fact twice, so the card draws no row at all.
+      refute has_element?(view, "#choose-lock\\:front-lock_state")
+      refute has_element?(view, "#card-lock\\:side button", "unlocked")
+
+      view |> element("#choose-lock\\:side-lock_state button", "locked") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.side_door", service: "lock"}}, 2_000
+      assert_receive {:system_line, %{text: "side door lock", meta: meta}}
+      assert meta["value"] == "Locked"
+      assert meta["via"] == "greg, card"
+
+      # Nothing to go back to: the way back from locked is a way this surface
+      # does not have.
+      refute has_element?(view, "#card-lock\\:side .undo")
+    end
+
+    test "the garage can be closed from its card", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-cover\\:garage-cover_state button", "closed") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "cover.garage_door", service: "close_cover"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Closed", "via" => "greg, card"}}}
+    end
+
+    test "a word the device did not offer is refused on the card", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      dial(view, "water_heater:tank", "set_mode", "turbo")
+
+      assert has_element?(view, "#card-water_heater\\:tank .held .why", "turbo")
+      assert Fake.trace() == []
+    end
+  end
+
   describe "a house with nothing in it" do
     # The record voice, not Barlow. The board saying what it has is the board
     # speaking about itself, and the only person who ever opens an unconfigured

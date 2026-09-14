@@ -150,14 +150,14 @@ IDs from HA. These are examples, not the discovered names of Greg's appliances:
   name: laundry washer
   bindings:
     operation_state: sensor.example_washer_operation_state
-    remaining_time: sensor.example_washer_remaining_time
+    finish_at: sensor.example_washer_finish_at
     door_open: binary_sensor.example_washer_door
 - id: dryer:laundry
   type: dryer
   name: laundry dryer
   bindings:
     operation_state: sensor.example_dryer_operation_state
-    remaining_time: sensor.example_dryer_remaining_time
+    finish_at: sensor.example_dryer_finish_at
     remote_start_allowed: binary_sensor.example_dryer_remote_start
 ```
 
@@ -180,9 +180,11 @@ on/off or `sensor` open/closed/locked. Other flags require `binary_sensor`.
 Progress requires a sensor reporting 0–100 with unit `%`; `finish_at` requires
 a sensor with an ISO 8601 timestamp. Laundry `remaining_time` requires a numeric
 sensor reporting a nonnegative value with unit `s`, `min`, or `h`. A formatted
-clock string such as `01:30` is not a numeric duration. No remaining time or
-finish timestamp is computed by the model, and zero remaining time does not
-mean the cycle has finished. Only the reported cycle state can say that.
+clock string such as `01:30` is not a numeric duration. Home Connect reports
+remaining time as a finish timestamp, so a Home Connect washer or dryer binds
+`finish_at`, not `remaining_time`. No remaining time or finish timestamp is
+computed by the model, and zero remaining time does not mean the cycle has
+finished. Only the reported cycle state can say that.
 Availability means at least one reading is known, not that every bound entity
 is healthy. Each missing reading is null, including on partial outages.
 

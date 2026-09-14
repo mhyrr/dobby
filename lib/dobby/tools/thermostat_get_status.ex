@@ -31,23 +31,15 @@ defmodule Dobby.Tools.ThermostatGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, Thermostat),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      {:ok, status(server_state.agent.state)}
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp status(state) do
-    %{
-      device: state.dobby_id,
-      name: state.name,
-      available: state.available,
-      current_temperature_f: state.current_temperature_f,
-      target_temperature_f: state.target_temperature_f,
-      hvac_mode: state.hvac_mode
-    }
+    Dobby.Tools.Device.status(device_id, Thermostat, fn state ->
+      %{
+        device: state.dobby_id,
+        name: state.name,
+        available: state.available,
+        current_temperature_f: state.current_temperature_f,
+        target_temperature_f: state.target_temperature_f,
+        hvac_mode: state.hvac_mode
+      }
+    end)
   end
 end

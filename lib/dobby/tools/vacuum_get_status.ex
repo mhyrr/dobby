@@ -30,22 +30,14 @@ defmodule Dobby.Tools.VacuumGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, Vacuum),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      {:ok, status(server_state.agent.state)}
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp status(state) do
-    %{
-      device: state.dobby_id,
-      name: state.name,
-      available: state.available,
-      activity: state.activity,
-      battery_percent: state.battery_percent
-    }
+    Dobby.Tools.Device.status(device_id, Vacuum, fn state ->
+      %{
+        device: state.dobby_id,
+        name: state.name,
+        available: state.available,
+        activity: state.activity,
+        battery_percent: state.battery_percent
+      }
+    end)
   end
 end

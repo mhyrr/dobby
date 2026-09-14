@@ -11,6 +11,14 @@ defmodule Dobby.Tools.Device do
   `%{accepted: true, device: _, name: _}` to write the thread's record line,
   and `Dobby.Interventions.reading/1` renders the commanded value on it. A
   result without those keys is a command the thread never mentions.
+
+  `status/3` is the second of the two paths a timestamp takes to reach the
+  model (TK-031) — the first is the world model rendered into the `<house>`
+  block. A device agent's own state holds Home Assistant's wire value
+  verbatim (a UTC string, or a `DateTime.utc_now/0` stamp), so every reading
+  goes through `Dobby.Home.localize/1` here, once, rather than trusting each
+  status tool's `render` function to remember to convert whichever field
+  happens to be a clock.
   """
 
   @spec status(String.t(), module(), (map() -> map())) ::
@@ -18,7 +26,7 @@ defmodule Dobby.Tools.Device do
   def status(device_id, module, render) when is_function(render, 1) do
     with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, module),
          {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      {:ok, render.(server_state.agent.state)}
+      {:ok, server_state.agent.state |> render.() |> Dobby.Home.localize()}
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}

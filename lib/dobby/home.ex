@@ -197,6 +197,66 @@ defmodule Dobby.Home do
   end
 
   @doc """
+  A timestamp on the household's own clock, in the shape Home Assistant's own
+  wire format already uses (TK-031).
+
+  Everything that reaches the model — the world model rendered into the
+  `<house>` block and every tool result — is "the house rendered for the
+  model", and both take a timestamp from the same place: whatever Home
+  Assistant last said, in UTC or some other fixed offset. Converting it here
+  rather than in each device agent keeps that single fact — what timezone this
+  household is in — in one place. The alternative was doing this arithmetic in
+  sixteen `SyncState` actions, once per device type, and losing the value HA
+  actually sent in the process; instead every agent still holds the wire value
+  verbatim (design's "the model never does arithmetic" extends to Dobby's own
+  code: convert once, at the boundary, not scattered through the library).
+
+  Accepts a `%DateTime{}` or an ISO-8601 string carrying its own offset — the
+  two shapes a device agent's state actually holds (`Doorbell` keeps HA's
+  string verbatim; `WifiEndpoint` stamps a `DateTime.utc_now/0`). Anything else
+  — `nil`, a word like `"ring"`, a number, an atom, a boolean — is not a
+  timestamp and is returned unchanged, because a tool result and a world-model
+  snapshot both carry plenty of fields that only happen to be strings.
+
+  Idempotent on a string already in the household's zone: parsing it and
+  shifting to the same zone again returns the same wall-clock reading.
+  """
+  @spec local_iso8601(DateTime.t() | String.t() | term()) :: String.t() | term()
+  def local_iso8601(%DateTime{} = at), do: at |> local() |> DateTime.to_iso8601()
+
+  def local_iso8601(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, at, _offset} -> at |> local() |> DateTime.to_iso8601()
+      {:error, _reason} -> value
+    end
+  end
+
+  def local_iso8601(value), do: value
+
+  @doc """
+  Runs every value in a map through `local_iso8601/1`, recursing into nested
+  maps.
+
+  Device snapshots are flat except for appliances, which carry a `readings:`
+  map of their own (`Dobby.DeviceAgents.ApplianceReadings`) — this is what lets
+  one call localize a whole snapshot without either type having to know about
+  the other. Non-map input is returned unchanged: this is a snapshot-shaped
+  transform, not a general datetime walker, and the two callers (the world
+  model renderer, the tool transport) only ever hand it maps.
+  """
+  @spec localize(map()) :: map()
+  def localize(map) when is_map(map) and not is_struct(map) do
+    Map.new(map, fn {key, value} -> {key, localize_value(value)} end)
+  end
+
+  def localize(other), do: other
+
+  defp localize_value(value) when is_map(value) and not is_struct(value),
+    do: localize(value)
+
+  defp localize_value(value), do: local_iso8601(value)
+
+  @doc """
   The current public state of every managed device, keyed by device ID.
 
   What a surface reads when it opens. `dobby.device.state_changed` keeps it

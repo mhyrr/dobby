@@ -312,7 +312,10 @@ defmodule Dobby.Eval.LibraryEvalTest do
 
     assert_claims(
       reply,
-      "Does the reply say that the doorbell was rung, or that someone rang it?"
+      "Does the reply say that the doorbell was rung, or that someone rang it? If it " <>
+        "states a time, is it 3:41 PM (the rig house is America/New_York and the event " <>
+        "arrived as 19:41 UTC) — the reply would be wrong if it said 7:41 PM, which is " <>
+        "the UTC digits read as if they were already local."
     )
   end
 

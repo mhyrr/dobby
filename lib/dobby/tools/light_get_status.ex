@@ -30,23 +30,15 @@ defmodule Dobby.Tools.LightGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, Light),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      {:ok, status(server_state.agent.state)}
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp status(state) do
-    %{
-      device: state.dobby_id,
-      name: state.name,
-      available: state.available,
-      power: state.power,
-      brightness_percent: state.brightness_percent,
-      dimmable: Light.dimmable?(state)
-    }
+    Dobby.Tools.Device.status(device_id, Light, fn state ->
+      %{
+        device: state.dobby_id,
+        name: state.name,
+        available: state.available,
+        power: state.power,
+        brightness_percent: state.brightness_percent,
+        dimmable: Light.dimmable?(state)
+      }
+    end)
   end
 end

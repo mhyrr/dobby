@@ -94,6 +94,7 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     #{@tag}
     These are the only devices in the house. Use the id when calling a tool.
     A hands-only device may be read, but language callers may not command or schedule it.
+    Every time in this block and in tool results is already the household's local time (#{Dobby.Home.manifest().timezone}); never convert it.
 
     #{devices}
     </house>
@@ -104,8 +105,14 @@ defmodule Dobby.DobbyAgent.RequestTransformer do
     "- #{device.id} — #{naming(device)}; state not yet known#{access(device)}"
   end
 
+  # `Dobby.Home.localize/1` runs before either `state_phrase` clause sees the
+  # snapshot (TK-031), so a typed clause like the thermostat's and the
+  # `inspect/1` fallback both get the household's local time rather than the
+  # raw UTC string or `%DateTime{}` Home Assistant sent. The agent's own state
+  # is untouched — this is the rendering step, not a rewrite of what the
+  # device agent holds.
   defp describe(device, snapshot) do
-    "- #{device.id} — #{naming(device)}; #{state_phrase(snapshot)}#{access(device)}"
+    "- #{device.id} — #{naming(device)}; #{state_phrase(Dobby.Home.localize(snapshot))}#{access(device)}"
   end
 
   defp access(%{hands_only: true}), do: "; hands only"

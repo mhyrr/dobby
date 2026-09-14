@@ -86,6 +86,29 @@ defmodule Dobby.DeviceAgents.Light do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Light.SyncState
 
+  # The brightness fader, once a dimmable light is on and has reported how
+  # bright it is. An off light reports no brightness at all, so there is no
+  # slug to place; it gets its power control and the fader appears when it
+  # answers on.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true, dimmable: true, power: :on, brightness_percent: brightness})
+      when is_number(brightness) do
+    [
+      %{
+        kind: :fader,
+        action: :set_brightness,
+        arg: :brightness_percent,
+        field: :brightness_percent,
+        min: 1,
+        max: 100,
+        step: 1,
+        unit: "%"
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   # A light's power *is* somebody's hand on the wall switch — but saying so
   # in the thread needs the commanded?-echo bookkeeping the thermostat has
   # and this agent does not yet. Without it, every light Dobby switched would

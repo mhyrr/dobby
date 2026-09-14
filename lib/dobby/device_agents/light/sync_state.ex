@@ -70,7 +70,10 @@ defmodule Dobby.DeviceAgents.Light.SyncState do
       type: :light,
       available: next.available,
       power: next.power,
-      brightness_percent: next.brightness_percent
+      brightness_percent: next.brightness_percent,
+      # Whether a brightness may be asked of it, from the colour modes
+      # discovery heard. The card draws a fader on it; nothing else reads it.
+      dimmable: Dobby.DeviceAgents.Light.dimmable?(next)
     }
   end
 

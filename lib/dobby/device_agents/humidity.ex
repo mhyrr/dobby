@@ -63,15 +63,99 @@ defmodule Dobby.DeviceAgents.Humidity do
     do: Map.put(DeviceAgent.initial_state(device, :humidifier), :device_type, type)
 
   def snapshot(state) do
+    {min, max} = accepted_range(state)
+
     state
     |> Map.take(@fields)
     |> Map.merge(%{
       id: state.dobby_id,
       name: state.name,
       type: state.device_type,
+      min_humidity_percent: min,
+      max_humidity_percent: max,
+      target_humidity_step: get_in(state, [:capabilities, :target_humidity_step]),
       units: %{current_humidity_percent: "%", target_humidity_percent: "%"}
     })
   end
+
+  @doc """
+  The humidity targets this device will accept right now: Home Assistant's
+  reported range narrowed by the household's settings, and held to the step
+  Home Assistant reported from its own low end. `{nil, nil}` until the device
+  has reported a range that is a range.
+
+  Travels with the snapshot for the thermostat's reason: the card is the one
+  surface that offers a target before anybody names one, and a fader that
+  reaches a value the device is going to refuse is a control that exists to be
+  refused. The step is why the household's bound is snapped rather than taken
+  as written — a range input walks its grid from its own minimum, so a bound
+  off the device's grid would put every position off it.
+  """
+  @spec accepted_range(map()) :: {integer() | nil, integer() | nil}
+  def accepted_range(state) do
+    low = get_in(state, [:capabilities, :min_humidity_percent])
+    high = get_in(state, [:capabilities, :max_humidity_percent])
+    step = get_in(state, [:capabilities, :target_humidity_step])
+    settings = Map.get(state, :settings) || %{}
+
+    if is_number(low) and is_number(high) and low <= high do
+      min = max(low, Map.get(settings, :min_humidity_percent, 0))
+      max = min(high, Map.get(settings, :max_humidity_percent, 100))
+      {on_grid(min, low, step, :up), on_grid(max, low, step, :down)}
+    else
+      {nil, nil}
+    end
+  end
+
+  defp on_grid(value, low, step, direction) when is_number(step) and step > 0 do
+    notches = (value - low) / step
+
+    rounded =
+      case direction do
+        :up -> Float.ceil(notches / 1)
+        :down -> Float.floor(notches / 1)
+      end
+
+    round(low + rounded * step)
+  end
+
+  defp on_grid(value, _low, _step, _direction), do: round(value)
+
+  @doc """
+  The target fader, for a card. Offered only once the device has reported a
+  target and a range, and never for a device Home Assistant has not confirmed
+  as the class the household said it was — the same gate `set_humidity/2`
+  keeps, read the way the card reads it.
+  """
+  @spec controls(map()) :: [DeviceAgent.control()]
+  def controls(
+        %{
+          available: true,
+          target_humidity_percent: target,
+          min_humidity_percent: min,
+          max_humidity_percent: max
+        } = snapshot
+      )
+      when is_number(target) and is_integer(min) and is_integer(max) and min < max do
+    if snapshot.device_class == Atom.to_string(snapshot.type) do
+      [
+        %{
+          kind: :fader,
+          action: :set_humidity,
+          arg: :target_humidity_percent,
+          field: :target_humidity_percent,
+          min: min,
+          max: max,
+          step: snapshot[:target_humidity_step] || 1,
+          unit: "%"
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  def controls(_snapshot), do: []
 
   def sync(%{entity_id: entity_id} = params, %{entity_id: entity_id} = previous) do
     available = params.state in ["on", "off"]
@@ -221,8 +305,7 @@ defmodule Dobby.DeviceAgents.Humidity do
     low = state.capabilities[:min_humidity_percent]
     high = state.capabilities[:max_humidity_percent]
     step = state.capabilities[:target_humidity_step]
-    min = max(low || 0, Map.get(state.settings, :min_humidity_percent, 0))
-    max = min(high || 100, Map.get(state.settings, :max_humidity_percent, 100))
+    {min, max} = accepted_range(state)
 
     cond do
       not is_integer(target) ->

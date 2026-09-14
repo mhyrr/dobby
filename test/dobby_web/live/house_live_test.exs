@@ -185,6 +185,140 @@ defmodule DobbyWeb.HouseLiveTest do
     end
   end
 
+  # The same dial on every device that has one. Each case issues a real
+  # command through the rig and reads the thread, per the rule that a test
+  # about somebody's doing reads the thread and not the flag.
+  describe "turning the other dials" do
+    setup do
+      seed_house(%{
+        "water_heater.tank" => water_heater_entity(),
+        "fan.bedroom" => %{state: "on", attributes: %{percentage: 35, supported_features: 1}},
+        "light.living_room" => light_entity()
+      })
+
+      :ok
+    end
+
+    test "the hot water takes a temperature inside the heater's own range", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The rig heater reports 90–150 and sits at 120.
+      assert has_element?(
+               view,
+               "#set-water_heater\\:tank-target_temperature_f[min='90'][max='150'][value='120']"
+             )
+
+      dial(view, "water_heater:tank", "set_temperature", "125")
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "water_heater.tank", data: %{temperature: 125.0}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "hot water", meta: meta}}
+      assert meta["via"] == "greg, card"
+      assert meta["value"] == "125°"
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to 120°")
+    end
+
+    test "a card cannot set a temperature a sentence could not", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      dial(view, "water_heater:tank", "set_temperature", "200")
+
+      assert has_element?(view, "#card-water_heater\\:tank .held .why", "maximum")
+      assert Fake.trace() == []
+      refute has_element?(view, "#card-water_heater\\:tank .undo")
+    end
+
+    test "the fan takes a speed", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      assert has_element?(
+               view,
+               "#set-fan\\:bedroom-speed_percent[min='1'][max='100'][value='35']"
+             )
+
+      dial(view, "fan:bedroom", "set_speed", "60")
+
+      assert_receive {:ha_call, %HACall{entity_id: "fan.bedroom", data: %{percentage: 60}}}, 2_000
+      assert_receive {:system_line, %{text: "bedroom fan", meta: %{"value" => "60%"}}}
+      assert has_element?(view, "#card-fan\\:bedroom .undo", "back to 35%")
+    end
+
+    test "the light takes a brightness", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # 128 of 255 is what the rig bulb reports.
+      assert has_element?(view, "#set-light\\:living_room-brightness_percent[value='50']")
+
+      dial(view, "light:living_room", "set_brightness", "80")
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "light.living_room", data: %{brightness_pct: 80}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "living room light", meta: %{"value" => "80%"}}}
+      assert has_element?(view, "#card-light\\:living_room .undo", "back to 50%")
+    end
+
+    test "a humidifier takes a target on the step its integration reported", %{conn: conn} do
+      boot_house!([
+        %{
+          id: "humidifier:office",
+          name: "office humidifier",
+          aliases: [],
+          agent_module: Dobby.DeviceAgents.Humidifier,
+          bindings: %{humidifier: "humidifier.office"},
+          settings: %{max_humidity_percent: 62}
+        }
+      ])
+
+      seed_house(%{
+        "humidifier.office" => %{
+          state: "on",
+          attributes: %{
+            device_class: "humidifier",
+            current_humidity: 41,
+            humidity: 45,
+            min_humidity: 30,
+            max_humidity: 70,
+            target_humidity_step: 5,
+            supported_features: 1,
+            available_modes: ["auto", "sleep"],
+            mode: "auto"
+          }
+        }
+      })
+
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The household's 62 is not on the device's grid of fives from 30, so
+      # the fader stops at 60 rather than offering a value the device refuses.
+      assert has_element?(
+               view,
+               "#set-humidifier\\:office-target_humidity_percent[min='30'][max='60'][step='5'][value='45']"
+             )
+
+      dial(view, "humidifier:office", "set_humidity", "50")
+
+      assert_receive {:ha_call, %HACall{entity_id: "humidifier.office", data: %{humidity: 50}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "office humidifier", meta: %{"value" => "50%"}}}
+      assert has_element?(view, "#card-humidifier\\:office .undo", "back to 45%")
+    end
+
+    # A read-only device grows nothing, whatever it reports.
+    test "an appliance that only reads offers nothing", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+      refute has_element?(view, "#card-dishwasher\\:kitchen .fader")
+    end
+  end
+
   describe "a house with nothing in it" do
     # The record voice, not Barlow. The board saying what it has is the board
     # speaking about itself, and the only person who ever opens an unconfigured
@@ -696,6 +830,26 @@ defmodule DobbyWeb.HouseLiveTest do
   # -- helpers ---------------------------------------------------------------
 
   # What the fader's hook pushes when a finger comes up — never on a drag tick.
+  # The rig's own heater, as `config/homes/rig.exs` reports it: 90–150, at 120.
+  defp water_heater_entity do
+    %{
+      state: "eco",
+      attributes: %{
+        current_temperature: 118,
+        temperature: 120,
+        min_temp: 90,
+        max_temp: 150,
+        supported_features: 15,
+        operation_list: ["eco", "gas", "off"],
+        away_mode: "off"
+      }
+    }
+  end
+
+  defp dial(view, device, action, value) do
+    render_hook(view, "set", %{"device" => device, "action" => action, "value" => value})
+  end
+
   defp release(view, device, temperature) do
     render_hook(view, "set", %{
       "device" => device,

@@ -80,6 +80,32 @@ defmodule Dobby.DeviceAgents.Fan do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Fan.SyncState
 
+  # The speed fader, in whole percent from 1 to 100, once the fan has said it
+  # takes a speed and has reported one. Not in the fan's own notches: a
+  # three-speed fan advertises a step of 33.3, and a range input walks its
+  # grid from its minimum in that step, which lands nowhere the action takes
+  # (it wants a whole percent above zero) and never on 100. Home Assistant
+  # snaps whatever percent it is given to the nearest notch, and
+  # `command_arrived?/2` already allows one notch for exactly that reason.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true, supports_speed: true, speed_percent: speed})
+      when is_number(speed) do
+    [
+      %{
+        kind: :fader,
+        action: :set_speed,
+        arg: :speed_percent,
+        field: :speed_percent,
+        min: 1,
+        max: 100,
+        step: 1,
+        unit: "%"
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   @impl Dobby.DeviceAgent
   def intervention?(attribute), do: attribute in [:power, :speed_percent]
 

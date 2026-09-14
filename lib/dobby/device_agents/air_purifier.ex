@@ -77,6 +77,10 @@ defmodule Dobby.DeviceAgents.AirPurifier do
   @impl Dobby.DeviceAgent
   def snapshot(state), do: Ventilation.snapshot(state, :air_purifier)
 
+  # The same fan interface, so the same controls.
+  @impl Dobby.DeviceAgent
+  defdelegate controls(snapshot), to: Dobby.DeviceAgents.Fan
+
   @impl Dobby.DeviceAgent
   def intervention?(attribute), do: attribute in [:power, :speed_percent]
 

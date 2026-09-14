@@ -112,6 +112,39 @@ defmodule Dobby.DeviceAgents.WaterHeater do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: __MODULE__.SyncState
 
+  # The setpoint fader, between the ends the snapshot already carries — the
+  # accepted range, which is the hardware's narrowed by the household's. Only
+  # once the heater has reported a target and a range; a heater whose
+  # integration reports no temperature support gets no fader rather than one
+  # that exists to be refused.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true} = snapshot) do
+    Enum.reject([temperature_fader(snapshot)], &is_nil/1)
+  end
+
+  def controls(_snapshot), do: []
+
+  defp temperature_fader(%{
+         capabilities: %{supports_temperature: true},
+         target_temperature_f: target,
+         min_temperature_f: min,
+         max_temperature_f: max
+       })
+       when is_number(target) and is_number(min) and is_number(max) and min < max do
+    %{
+      kind: :fader,
+      action: :set_temperature,
+      arg: :temperature_f,
+      field: :target_temperature_f,
+      min: min,
+      max: max,
+      step: 1,
+      unit: "°"
+    }
+  end
+
+  defp temperature_fader(_snapshot), do: nil
+
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :water_heater)

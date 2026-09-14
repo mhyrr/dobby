@@ -49,6 +49,9 @@ defmodule Dobby.DeviceAgents.Dehumidifier do
   def initial_state(device), do: Humidity.initial_state(device, :dehumidifier)
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Humidity
+
+  @impl Dobby.DeviceAgent
+  defdelegate controls(snapshot), to: Dobby.DeviceAgents.Humidity
   @impl Dobby.DeviceAgent
   defdelegate command_arrived?(command, snapshot), to: Humidity
   @impl Dobby.DeviceAgent

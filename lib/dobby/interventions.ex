@@ -160,10 +160,12 @@ defmodule Dobby.Interventions do
            :speed_percent,
            :volume_percent,
            :target_humidity_percent,
+           :brightness_percent,
            "position",
            "speed_percent",
            "volume_percent",
-           "target_humidity_percent"
+           "target_humidity_percent",
+           "brightness_percent"
          ]) do
       value when is_number(value) -> "#{round(value)}%"
       _absent -> away_reading(source)

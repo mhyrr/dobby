@@ -21,7 +21,13 @@ defmodule Dobby.DeviceAgents.FanTest do
       {%{result: :accepted, action: :set_power, power: :on}, %{power: :on}, %{power: :off}},
       {%{result: :accepted, action: :set_speed, speed_percent: 35}, %{speed_percent: 35},
        %{speed_percent: 60}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      supports_speed: true,
+      speed_percent: 35,
+      power: :on
+    }
   )
 
   # `available` is nil between agent start and the first sync — a schedule

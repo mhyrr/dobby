@@ -22,7 +22,13 @@ defmodule Dobby.DeviceAgents.ShadeTest do
       {%{result: :accepted, action: :close}, %{shade_state: :closing}, %{shade_state: :open}},
       {%{result: :accepted, action: :set_position, position: 40}, %{position: 40},
        %{position: 60}}
-    ]
+    ],
+    # `move` takes a direction (open/close) that is not a value of
+    # `shade_state` (open/closed/opening/closing), so a choice row could not
+    # mark the current one; and the position fader would land on the
+    # TK-070 case-1 echo bug. Held for the shade's own pass (TK-069,
+    # follow-up).
+    controls: :none
   )
 
   # `available` is nil between agent start and the first sync — a command in

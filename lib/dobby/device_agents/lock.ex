@@ -57,6 +57,26 @@ defmodule Dobby.DeviceAgents.Lock do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Lock.SyncState
 
+  # One word, because a lock has one safe direction. The row reads LOCKED in
+  # the record voice when it is, and offers `locked` when it is not; unlock
+  # stays absent from every surface, and this is the card-side proof of
+  # `hands_only` — the same lock that refuses a sentence takes a hand.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true, lock_state: state}) when is_atom(state) and not is_nil(state) do
+    [
+      %{
+        kind: :choice,
+        action: :secure,
+        arg: nil,
+        field: :lock_state,
+        options: [:locked],
+        label: nil
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   @impl Dobby.DeviceAgent
   def intervention?(attribute), do: attribute == :lock_state
 

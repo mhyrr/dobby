@@ -183,15 +183,13 @@ defmodule DobbyWeb.HouseLive do
 
   # -- what a person does ----------------------------------------------------
 
+  # The control names its action and the hand's value, and nothing else: the
+  # argument the action takes, the type it wants, and whether the device will
+  # have it are all the device's own knowledge, read through `Dobby.Controls`.
   @impl true
-  def handle_event("set", %{"device" => device, "temperature_f" => temperature}, socket) do
-    with {value, _rest} <- Float.parse(to_string(temperature)) do
-      {:noreply, commit(socket, device, value)}
-    else
-      # A range input cannot send this. Ignoring it is right anyway: the card
-      # is a control, not a form, and there is nothing to tell anybody.
-      :error -> {:noreply, socket}
-    end
+  def handle_event("set", %{"device" => device, "action" => action, "value" => value}, socket)
+      when is_binary(device) and is_binary(action) do
+    {:noreply, commit(socket, device, action, value)}
   end
 
   # Going back does not offer a way back. One step, not a stack: a button
@@ -200,8 +198,8 @@ defmodule DobbyWeb.HouseLive do
   # numbers with nothing on the card saying which one you are on.
   def handle_event("undo", %{"device" => device}, socket) do
     case socket.assigns.undo[device] do
-      %{to: temperature} ->
-        {:noreply, socket |> commit(device, temperature) |> clear_undo(device)}
+      %{action: action, to: value} ->
+        {:noreply, socket |> commit(device, action, value) |> clear_undo(device)}
 
       nil ->
         {:noreply, socket}
@@ -368,22 +366,22 @@ defmodule DobbyWeb.HouseLive do
   # to an event that was never offered, and nothing to change.
   def handle_event(event, _params, socket) when event in @edits, do: {:noreply, socket}
 
-  # The undo is offered against the setpoint as it was *before* the release,
+  # The undo is offered against the value as it was *before* the release,
   # read from the snapshot this page is already holding rather than remembered
   # separately — so a way back is only offered when there is one to go back to.
   #
   # Undoing writes its own line. That is two lines in the thread for one
   # mistake, and it is the honest count: the house went to 85 and then it went
   # back to 70, and both of those happened.
-  defp commit(socket, device, temperature) do
+  defp commit(socket, device, action, value) do
     previous = Enum.find(socket.assigns.snapshots, &(&1.id == device))
     via = via(socket.assigns.speaker)
 
-    case Controls.set_temperature(device, temperature, via: via) do
+    case Controls.command(device, action, value, via: via) do
       {:ok, _result} ->
         socket
         |> clear_held(device)
-        |> offer_undo(device, previous)
+        |> offer_undo(device, action, previous)
 
       {:held, reason} ->
         socket |> clear_undo(device) |> put_held(device, reason)
@@ -396,16 +394,34 @@ defmodule DobbyWeb.HouseLive do
   defp via(nil), do: "card"
   defp via(speaker), do: "#{speaker.name}, card"
 
-  defp offer_undo(socket, device, %{target_temperature_f: previous})
-       when is_number(previous) do
-    token = make_ref()
-    Process.send_after(self(), {:undo_expired, device, token}, @undo_window)
+  # The way back is the attribute the control moves, as the device reported it
+  # before the release — the control says which attribute, and the snapshot
+  # says what it was. Nothing to go back to when the device had never said.
+  defp offer_undo(socket, device, action, %{} = previous) do
+    control = Enum.find(controls(previous), &(Atom.to_string(&1.action) == action))
 
-    assign(socket, :undo, Map.put(socket.assigns.undo, device, %{to: previous, token: token}))
+    case control && way_back(control, previous[control.field]) do
+      nil ->
+        clear_undo(socket, device)
+
+      value ->
+        token = make_ref()
+        Process.send_after(self(), {:undo_expired, device, token}, @undo_window)
+
+        offer = %{to: value, action: action, word: word(control, value), token: token}
+        assign(socket, :undo, Map.put(socket.assigns.undo, device, offer))
+    end
   end
 
-  # Nothing to go back to: this thermostat had no setpoint before now.
-  defp offer_undo(socket, device, _previous), do: clear_undo(socket, device)
+  defp offer_undo(socket, device, _action, _previous), do: clear_undo(socket, device)
+
+  # A choice can only go back to a word it offers. A lock that was unlocked
+  # has no way back from locked, because unlock is on no surface; a fader can
+  # always return to the number it left.
+  defp way_back(%{kind: :choice, options: options}, value),
+    do: if(value in options, do: value)
+
+  defp way_back(_control, value), do: value
 
   defp clear_undo(socket, device),
     do: assign(socket, :undo, Map.delete(socket.assigns.undo, device))

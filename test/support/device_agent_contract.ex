@@ -29,6 +29,16 @@ defmodule Dobby.DeviceAgentContract do
 
   "Writable" is not a judgment call: it is a signal route whose action takes a
   `:ref`, which is the write protocol's own marker (`Dobby.DeviceAgent.command/3`).
+
+  ## `controls:`
+
+  A reported snapshot, for a type that puts its actions on a card. Given one,
+  the contract asserts that the type offers every scheduled action from its
+  card and nothing else, and that each control names an argument its action
+  takes and an attribute the snapshot carries. Every type is also held to
+  offering nothing before the device has reported. A writable type must
+  supply it; `:none` records that its actions have no card shape yet, with
+  the reason beside it in the test file.
   """
 
   import ExUnit.Assertions
@@ -176,7 +186,67 @@ defmodule Dobby.DeviceAgentContract do
       assert Keyword.has_key?(action_module.schema(), :ref)
     end
 
+    assert_controls(module, module.snapshot(agent.state), Keyword.get(opts, :controls))
+
     :ok
+  end
+
+  # What a hand may do from the card, in both directions: nothing before the
+  # device has reported, and — given a reported snapshot — every scheduled
+  # action and nothing else, each bounded by something the snapshot carries.
+  # The card and `Dobby.Controls` dispatch on these specs and never on a type,
+  # so a spec that names an action the type cannot fire, or an argument the
+  # action does not take, is a control that exists to fail at the tap.
+  defp assert_controls(module, unreported, controls) do
+    assert Dobby.DeviceAgent.controls(module, unreported) == [],
+           "#{inspect(module)} offers a control before the device has reported"
+
+    case controls do
+      nil ->
+        assert module.scheduled_actions() == %{},
+               "#{inspect(module)} has actions to offer and must supply :controls — a reported " <>
+                 "snapshot, or :none where the card cannot yet draw its actions (say why)"
+
+      # The type's actions are not on a card yet. This is a documented gap,
+      # not a pass: the test file says which shape the card lacks.
+      :none ->
+        :ok
+
+      %{} = reported ->
+        specs = Dobby.DeviceAgent.controls(module, reported)
+        actions = Enum.map(specs, & &1.action)
+
+        assert MapSet.new(actions) == MapSet.new(Map.keys(module.scheduled_actions())),
+               "#{inspect(module)} offers #{inspect(actions)} from its card and schedules " <>
+                 inspect(Map.keys(module.scheduled_actions()))
+
+        assert Enum.uniq(actions) == actions
+
+        for spec <- specs, do: assert_control(module, spec, reported)
+    end
+  end
+
+  defp assert_control(module, spec, snapshot) do
+    {_signal, action_module} = Map.fetch!(module.scheduled_actions(), spec.action)
+    arguments = Keyword.keys(Dobby.DeviceAgent.Args.arguments(action_module))
+
+    assert spec.kind in [:fader, :choice]
+    assert Map.has_key?(snapshot, spec.field), "#{inspect(spec.field)} is not in the snapshot"
+
+    case spec do
+      %{kind: :fader, arg: arg, min: min, max: max, step: step, unit: unit} ->
+        assert arg in arguments, "#{inspect(action_module)} takes no #{inspect(arg)}"
+        assert is_number(min) and is_number(max) and min < max
+        assert is_number(step) and step > 0
+        assert is_binary(unit)
+
+      %{kind: :choice, arg: arg, options: options} ->
+        assert is_nil(arg) or arg in arguments,
+               "#{inspect(action_module)} takes no #{inspect(arg)}"
+
+        assert is_list(options) and options != []
+        assert is_nil(spec[:label]) or is_binary(spec[:label])
+    end
   end
 
   # The type's own vocabulary, in both directions. `command_arrived?/2` is

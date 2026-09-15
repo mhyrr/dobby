@@ -10,6 +10,18 @@ defmodule Dobby.DeviceAgents.HumidifierTest do
       {%{result: :accepted, action: :set_humidity, target_humidity_percent: 45},
        %{target_humidity_percent: 45}, %{target_humidity_percent: 40}},
       {%{result: :accepted, action: :set_mode, mode: "auto"}, %{mode: "auto"}, %{mode: "sleep"}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      type: :humidifier,
+      device_class: "humidifier",
+      capabilities: %{supports_modes: true, available_modes: ["auto", "sleep"]},
+      target_humidity_percent: 45,
+      min_humidity_percent: 30,
+      max_humidity_percent: 70,
+      target_humidity_step: 5,
+      mode: "auto",
+      power: :on
+    }
   )
 end

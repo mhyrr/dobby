@@ -63,6 +63,25 @@ defmodule Dobby.DeviceAgents.AccessCover do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.AccessCover.SyncState
 
+  # One word, for the lock's reason: closing is the only direction a card may
+  # send a garage, and opening one is not on any surface.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true, cover_state: state})
+      when is_atom(state) and not is_nil(state) do
+    [
+      %{
+        kind: :choice,
+        action: :close,
+        arg: nil,
+        field: :cover_state,
+        options: [:closed],
+        label: nil
+      }
+    ]
+  end
+
+  def controls(_snapshot), do: []
+
   @impl Dobby.DeviceAgent
   def intervention?(attribute), do: attribute in [:cover_state, :position]
 

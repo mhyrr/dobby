@@ -679,6 +679,40 @@ body {
   color: var(--ink-faint);
 }
 
+/* the choice row — a device's own words, the one it holds now in the record
+   voice and the rest as the quiet verbs the board already has. No dropdown
+   (it hides the other words), no dialog, no icon. The current word is not a
+   control: it is where the device is. */
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem .9rem;
+  font-family: var(--board-type);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .74rem;
+  color: var(--ink-quiet);
+}
+/* Which attribute this row is about, when a card has more than one. Faint
+   and a fixed measure, so three rows on one card read as a column of labels
+   and a column of words rather than three sentences. */
+.choice .of { color: var(--ink-faint); min-width: 3.4rem; }
+/* The word the device holds now, in the record voice: painted lettering, no
+   underline, because there is no house to reach from here. */
+.choice .now { color: var(--ink); }
+.choice button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--brass-dim);
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
+  color: var(--brass);
+}
+
 /* what happened after the last release */
 .undo, .held {
   display: flex;
@@ -1331,6 +1365,7 @@ body {
      second reason — it is baseline-aligned, so anything taller in it takes the
      nameplate off the line it shares with the mark. */
   .undo button,
+  .choice button,
   .acts button,
   .sched .acts button,
   .fields button,
@@ -1351,6 +1386,7 @@ body {
   .rail { gap: 1.5rem 1.4rem; }
 
   .undo button::after,
+  .choice button::after,
   .acts button::after,
   .sched .acts button::after,
   .fields button::after,

@@ -373,6 +373,25 @@ defmodule Dobby.Home do
   end
 
   @doc """
+  Resolves a device ID to its manifest entry and its running agent.
+
+  The two-argument form is what the model's tools use: it refuses anything off
+  the roster and anything of the wrong type. This form pins no type, for the
+  callers that look the action up in the device's own module afterwards — a
+  schedule firing, a card released — and so cannot name a type without
+  becoming the central switch the design forbids.
+  """
+  @spec resolve(String.t()) :: {:ok, Device.t(), pid()} | {:error, String.t()}
+  def resolve(device_id) do
+    with {:ok, device} <- fetch_device_or_error(device_id) do
+      case Dobby.Jido.whereis(device_id) do
+        pid when is_pid(pid) -> {:ok, device, pid}
+        nil -> {:error, "#{device.name} is not running"}
+      end
+    end
+  end
+
+  @doc """
   Resolves a device ID the model supplied, refusing anything off the roster.
 
   This is the closed-by-construction guarantee at runtime: the model can name

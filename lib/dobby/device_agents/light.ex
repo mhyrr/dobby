@@ -89,6 +89,52 @@ defmodule Dobby.DeviceAgents.Light do
   @impl Dobby.DeviceAgent
   defdelegate snapshot(state), to: Dobby.DeviceAgents.Light.SyncState
 
+  # The brightness fader, once a dimmable light is on and has reported how
+  # bright it is. An off light reports no brightness at all, so there is no
+  # slug to place; it gets its power control and the fader appears when it
+  # answers on.
+  #
+  # Power is the same two words every other type offers. The light's own
+  # action takes `on: true` rather than `power: :on` — that spelling is the
+  # tool contract the model already learned and the schedule rows already
+  # store — so the choice says how its word becomes the argument.
+  @impl Dobby.DeviceAgent
+  def controls(%{available: true} = snapshot) do
+    Enum.reject([brightness_fader(snapshot), power_choice(snapshot)], &is_nil/1)
+  end
+
+  def controls(_snapshot), do: []
+
+  defp brightness_fader(%{dimmable: true, power: :on, brightness_percent: brightness})
+       when is_number(brightness) do
+    %{
+      kind: :fader,
+      action: :set_brightness,
+      arg: :brightness_percent,
+      field: :brightness_percent,
+      min: 1,
+      max: 100,
+      step: 1,
+      unit: "%"
+    }
+  end
+
+  defp brightness_fader(_snapshot), do: nil
+
+  defp power_choice(%{power: power}) when power in [:on, :off] do
+    %{
+      kind: :choice,
+      action: :set_power,
+      arg: :on,
+      arg_value: &(&1 == :on),
+      field: :power,
+      options: [:on, :off],
+      label: "power"
+    }
+  end
+
+  defp power_choice(_snapshot), do: nil
+
   # A light's power *is* somebody's hand on the wall switch — but saying so
   # in the thread needs the commanded?-echo bookkeeping the thermostat has
   # and this agent does not yet. Without it, every light Dobby switched would

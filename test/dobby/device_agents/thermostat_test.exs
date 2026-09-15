@@ -18,7 +18,13 @@ defmodule Dobby.DeviceAgents.ThermostatTest do
     arrivals: [
       {%{result: :accepted, action: :set_temperature, temperature_f: 70.0},
        %{target_temperature_f: 70.0}, %{target_temperature_f: 68.0}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      target_temperature_f: 70.0,
+      min_temperature_f: 60,
+      max_temperature_f: 76
+    }
   )
 
   alias Dobby.Tools.{ThermostatGetStatus, ThermostatSetTemperature}

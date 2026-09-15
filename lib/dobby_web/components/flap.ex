@@ -351,7 +351,17 @@ defmodule DobbyWeb.Flap do
   # says so itself — the list ends there and the column stays blank. That is
   # The Absent Word Rule, carried from the flap to the reading beside it: a
   # phrase invented to fill a column is worse than a column with nothing in it.
-  defp reading(%{readings: readings, units: units}, candidates) do
+  @doc """
+  The first reading an appliance carries out of `candidates`, with its unit.
+
+  A candidate is a reading key, or `{key, {yes, no}}` for a boolean read as
+  one of two words. Public because the card's detail line wants an
+  appliance's *other* number by the same rendering the row uses for its
+  first — the target under an oven's temperature — and two renderings of one
+  reading would drift.
+  """
+  @spec reading(map(), [atom() | {atom(), {String.t(), String.t()}}]) :: String.t() | nil
+  def reading(%{readings: readings, units: units}, candidates) do
     Enum.find_value(candidates, fn
       {key, {yes, no}} -> boolean_value(Map.get(readings, key), yes, no)
       key -> scalar_value(Map.get(readings, key), Map.get(units, key))

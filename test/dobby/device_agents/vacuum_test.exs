@@ -20,7 +20,11 @@ defmodule Dobby.DeviceAgents.VacuumTest do
       {%{result: :accepted, action: :start_cleaning}, %{activity: :cleaning},
        %{activity: :docked}},
       {%{result: :accepted, action: :dock}, %{activity: :returning}, %{activity: :cleaning}}
-    ]
+    ],
+    # Two verbs with no argument — start cleaning, dock — which are neither a
+    # number between two ends nor one attribute's values. The card has no
+    # part for a verb yet (TK-069, follow-up).
+    controls: :none
   )
 
   alias Dobby.Tools.{VacuumDock, VacuumGetStatus, VacuumStart}

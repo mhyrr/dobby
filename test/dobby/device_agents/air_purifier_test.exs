@@ -24,7 +24,13 @@ defmodule Dobby.DeviceAgents.AirPurifierTest do
        %{available: true, power: :off}},
       {%{result: :accepted, action: :set_speed, speed_percent: 35},
        %{available: true, speed_percent: 35}, %{available: true, speed_percent: 60}}
-    ]
+    ],
+    controls: %{
+      available: true,
+      supports_speed: true,
+      speed_percent: 35,
+      power: :on
+    }
   )
 
   # `available` is nil between agent start and the first sync — a schedule

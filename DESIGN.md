@@ -767,8 +767,9 @@ A board row that grew a control. Same three columns, same vocabulary, same
 pitch — what a card adds is the room underneath the row.
 
 - **Structure:** the row · a detail line in the record voice (`Room 68°`, or
-  `Since 4:12 PM`) · the control, when the device can take one · what happened
-  after the last release
+  `Since 4:12 PM`) · the controls the device offers, faders then choice rows,
+  in the order the device's own module lists them · what happened after the
+  last release
 - **Separation:** a hairline `rule` on top and 0.7/0.8rem of padding; the first
   card has none. A card is not a panel — no border, no fill, no shadow
 - **One column on every viewport.** The column stays the pitch and never becomes
@@ -835,6 +836,50 @@ default this surface is a refusal of — and rather than a stepper, which turns
   finger is already covering it. That is The Reach Rule broken by the commit
   that wrote it. Measured after the fix: label at y −16.8..3.1 against a slug at
   y 10..34
+
+### The Choice Row
+
+A control for a value that is a word rather than a number: a water heater's
+mode, a humidifier's mode, away mode, power, a lock's one safe direction. A row
+of the words the device itself advertised, under the reading, in the same
+quiet lettering `edit` and `remove` use. Not a dropdown, which hides the other
+words; not a dialog, which trains people to dismiss dialogs; no icon, no
+switch drawn to look like a switch.
+
+- **Structure:** an optional label naming the attribute (`mode`, `away`,
+  `power`) in faint ink at a fixed measure, then the words. When a card holds
+  several rows the labels make a column and the words make a column, rather
+  than three sentences
+- **The current word is written, not offered.** It is set in the record voice
+  — painted lettering, no underline — because it is where the device is, and
+  the board never offers to set a thing to what it already says. An unlocked
+  door offers `locked`, and unlock is on no surface
+- **A row with nothing left to offer is not drawn.** A locked door's one word
+  is the one it holds, and its reading already says `Locked`; a second line
+  saying it again is the same fact twice, which the card rule forbids. Seen
+  in the browser before it was a rule: `LOCKED` under `Locked`, `CLOSED`
+  under `Closed`, on every card that had nothing to do
+- **The other words are the quiet control unchanged:** brass on a 1px
+  `brass-dim` underline, lower case, because each is a verb in the sense that
+  tapping it reaches the house. Tapping commits at once and offers the undo
+  line, exactly as a release does — `undo · back to eco` — for the same eight
+  seconds
+- **The words are the device's, never ours.** Options come from what Home
+  Assistant advertised for the entity (`operation_list`, `available_modes`)
+  or from the attribute's own two values (`on` / `off`, `true` / `false` drawn
+  as `on` / `off`). A hard-coded list would be a card claiming to know what a
+  heater takes
+- **Power is the same part with two words.** Decided by looking at it (Greg,
+  2026-09-14) over the alternative of a two-position fader with the words at
+  the ends. The two words read as a row, not as a toggle: `ON · off`
+- **Off can appear twice on one card**, once under `mode` and once under
+  `power`, because a water heater really holds both and Home Assistant derives
+  one from the other. Saying it once would be the card knowing better than the
+  entity
+- **No asking label.** A choice has no in-between value to show while a finger
+  is on it; the word goes to the house on the tap
+- **A finger:** the words are quiet lettering and grow by reach under
+  `pointer: coarse`, like every other quiet control — nothing painted moves
 
 ### The Note
 
@@ -904,8 +949,8 @@ eight seconds. Dialogs train people to dismiss dialogs, and a household that has
 learned to dismiss them is worse off than one that never had them. The card and
 the admin's schedule delete use the same line, unchanged.
 
-- **Style:** the record voice in faint ink — `undo · back to 70°`, or
-  `undo · put back "weeknight heat"`
+- **Style:** the record voice in faint ink — `undo · back to 70°`,
+  `undo · back to eco`, or `undo · put back "weeknight heat"`
 - **The button:** transparent, no border but a 1px `brass-dim` underline, brass
   lettering, lower case. That is the system's quiet control, and it carries
   `pause`, `resume`, `edit`, `switch`, `save` and the form's `add` — all of them

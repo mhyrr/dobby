@@ -84,10 +84,13 @@ defmodule DobbyWeb.HouseLiveTest do
 
       # The rig's household policy caps at 76 and the hardware reports 50-90.
       # A control that let you reach 85 would exist to be refused.
-      assert has_element?(view, "#set-thermostat\\:main[min='60'][max='76'][value='70']")
+      assert has_element?(
+               view,
+               "#set-thermostat\\:main-target_temperature_f[min='60'][max='76'][value='70']"
+             )
 
       # A read-only device grows nothing.
-      refute has_element?(view, "#set-wifi\\:kitchen_tv")
+      refute has_element?(view, "#card-wifi\\:kitchen_tv .fader")
     end
 
     test "a device that has not reported has nothing to offer", %{conn: conn} do
@@ -98,7 +101,7 @@ defmodule DobbyWeb.HouseLiveTest do
       # NOT KNOWN, not QUIET: nobody has told us, which is a different fact
       # from a device that stopped answering.
       assert has_element?(view, "#card-thermostat\\:main .flap[data-st=silent]", "Not known")
-      refute has_element?(view, "#set-thermostat\\:main")
+      refute has_element?(view, "#card-thermostat\\:main .fader")
     end
 
     test "follow the house as it changes", %{conn: conn} do
@@ -179,6 +182,285 @@ defmodule DobbyWeb.HouseLiveTest do
       release(view, @thermostat, "72")
 
       assert_receive {:system_line, %{meta: %{"via" => "card"}}}
+    end
+  end
+
+  # The same dial on every device that has one. Each case issues a real
+  # command through the rig and reads the thread, per the rule that a test
+  # about somebody's doing reads the thread and not the flag.
+  describe "turning the other dials" do
+    setup do
+      seed_house(%{
+        "water_heater.tank" => water_heater_entity(),
+        "fan.bedroom" => %{state: "on", attributes: %{percentage: 35, supported_features: 1}},
+        "light.living_room" => light_entity()
+      })
+
+      :ok
+    end
+
+    test "the hot water takes a temperature inside the heater's own range", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The rig heater reports 90–150 and sits at 120.
+      assert has_element?(
+               view,
+               "#set-water_heater\\:tank-target_temperature_f[min='90'][max='150'][value='120']"
+             )
+
+      dial(view, "water_heater:tank", "set_temperature", "125")
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "water_heater.tank", data: %{temperature: 125.0}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "hot water", meta: meta}}
+      assert meta["via"] == "greg, card"
+      assert meta["value"] == "125°"
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to 120°")
+    end
+
+    test "a card cannot set a temperature a sentence could not", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      dial(view, "water_heater:tank", "set_temperature", "200")
+
+      assert has_element?(view, "#card-water_heater\\:tank .held .why", "maximum")
+      assert Fake.trace() == []
+      refute has_element?(view, "#card-water_heater\\:tank .undo")
+    end
+
+    test "the fan takes a speed", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      assert has_element?(
+               view,
+               "#set-fan\\:bedroom-speed_percent[min='1'][max='100'][value='35']"
+             )
+
+      dial(view, "fan:bedroom", "set_speed", "60")
+
+      assert_receive {:ha_call, %HACall{entity_id: "fan.bedroom", data: %{percentage: 60}}}, 2_000
+      assert_receive {:system_line, %{text: "bedroom fan", meta: %{"value" => "60%"}}}
+      assert has_element?(view, "#card-fan\\:bedroom .undo", "back to 35%")
+    end
+
+    test "the light takes a brightness", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # 128 of 255 is what the rig bulb reports.
+      assert has_element?(view, "#set-light\\:living_room-brightness_percent[value='50']")
+
+      dial(view, "light:living_room", "set_brightness", "80")
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "light.living_room", data: %{brightness_pct: 80}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "living room light", meta: %{"value" => "80%"}}}
+      assert has_element?(view, "#card-light\\:living_room .undo", "back to 50%")
+    end
+
+    test "a humidifier takes a target on the step its integration reported", %{conn: conn} do
+      boot_house!([
+        %{
+          id: "humidifier:office",
+          name: "office humidifier",
+          aliases: [],
+          agent_module: Dobby.DeviceAgents.Humidifier,
+          bindings: %{humidifier: "humidifier.office"},
+          settings: %{max_humidity_percent: 62}
+        }
+      ])
+
+      seed_house(%{
+        "humidifier.office" => %{
+          state: "on",
+          attributes: %{
+            device_class: "humidifier",
+            current_humidity: 41,
+            humidity: 45,
+            min_humidity: 30,
+            max_humidity: 70,
+            target_humidity_step: 5,
+            supported_features: 1,
+            available_modes: ["auto", "sleep"],
+            mode: "auto"
+          }
+        }
+      })
+
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The household's 62 is not on the device's grid of fives from 30, so
+      # the fader stops at 60 rather than offering a value the device refuses.
+      assert has_element?(
+               view,
+               "#set-humidifier\\:office-target_humidity_percent[min='30'][max='60'][step='5'][value='45']"
+             )
+
+      assert has_element?(view, "#card-humidifier\\:office .detail", "Room 41%")
+
+      dial(view, "humidifier:office", "set_humidity", "50")
+
+      assert_receive {:ha_call, %HACall{entity_id: "humidifier.office", data: %{humidity: 50}}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "office humidifier", meta: %{"value" => "50%"}}}
+      assert has_element?(view, "#card-humidifier\\:office .undo", "back to 45%")
+    end
+
+    # The second number is a different fact: the tank's water under the
+    # heater's setpoint, the room's air under a humidifier's target.
+    test "an appliance's detail line is its other number, not the time", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+      assert has_element?(view, "#card-water_heater\\:tank .detail", "Water 118°")
+      refute has_element?(view, "#card-water_heater\\:tank .detail", "Since")
+    end
+
+    # A read-only device grows nothing, whatever it reports.
+    test "an appliance that only reads offers nothing", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/house")
+      refute has_element?(view, "#card-dishwasher\\:kitchen .fader")
+    end
+  end
+
+  # The choice row: the device's own words, the current one marked, the rest
+  # a tap away. Every case commands the house through the rig and reads the
+  # thread.
+  describe "choosing a word" do
+    setup do
+      seed_house(%{
+        "water_heater.tank" => water_heater_entity(),
+        "switch.coffee_station" => %{state: "off", attributes: %{}},
+        "lock.side_door" => %{state: "unlocked", attributes: %{}},
+        "lock.front_door" => %{state: "locked", attributes: %{}},
+        "light.living_room" => light_entity(),
+        "cover.garage_door" => %{state: "open", attributes: %{current_position: 100}}
+      })
+
+      :ok
+    end
+
+    test "the hot water's mode is one of the words the heater advertised", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # The current word is written, not offered.
+      assert has_element?(view, "#choose-water_heater\\:tank-mode .now", "eco")
+      refute has_element?(view, "#choose-water_heater\\:tank-mode button", "eco")
+
+      view |> element("#choose-water_heater\\:tank-mode button", "gas") |> render_click()
+
+      assert_receive {:ha_call,
+                      %HACall{
+                        entity_id: "water_heater.tank",
+                        service: "set_operation_mode",
+                        data: %{operation_mode: "gas"}
+                      }},
+                     2_000
+
+      assert_receive {:system_line, %{text: "hot water", meta: meta}}
+      assert meta["via"] == "greg, card"
+      assert meta["value"] == "Gas"
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to eco")
+    end
+
+    test "away mode and power are the same part with two words", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-water_heater\\:tank-away_mode button", "on") |> render_click()
+
+      assert_receive {:ha_call,
+                      %HACall{entity_id: "water_heater.tank", service: "set_away_mode"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Away mode on"}}}
+      assert has_element?(view, "#card-water_heater\\:tank .undo", "back to off")
+
+      view |> element("#choose-water_heater\\:tank-power button", "off") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "water_heater.tank", service: "turn_off"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Off"}}}
+    end
+
+    test "a switch takes on and off", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-switch\\:coffee-power button", "on") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "switch.coffee_station", service: "turn_on"}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "coffee station", meta: %{"value" => "On"}}}
+      assert has_element?(view, "#card-switch\\:coffee .undo", "back to off")
+    end
+
+    # The light's own action spells power as `on: true`; the card never learns
+    # that, and the wire gets the call the tool would have sent.
+    test "a light's power reaches its own action's spelling", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-light\\:living_room-power button", "off") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "light.living_room", service: "turn_off"}},
+                     2_000
+
+      assert_receive {:system_line, %{text: "living room light", meta: %{"value" => "Off"}}}
+    end
+
+    # The hands-only proof on the card: unlock is on no surface, and a locked
+    # door offers nothing, because the board never offers to set a thing to
+    # what it already says.
+    test "a door can be locked from its card, and never unlocked", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      # A locked door's row already says LOCKED; a second line saying it
+      # again would be the same fact twice, so the card draws no row at all.
+      refute has_element?(view, "#choose-lock\\:front-lock_state")
+      refute has_element?(view, "#card-lock\\:side button", "unlocked")
+
+      view |> element("#choose-lock\\:side-lock_state button", "locked") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.side_door", service: "lock"}}, 2_000
+      assert_receive {:system_line, %{text: "side door lock", meta: meta}}
+      assert meta["value"] == "Locked"
+      assert meta["via"] == "greg, card"
+
+      # Nothing to go back to: the way back from locked is a way this surface
+      # does not have.
+      refute has_element?(view, "#card-lock\\:side .undo")
+    end
+
+    test "the garage can be closed from its card", %{conn: conn} do
+      ThreadEvents.subscribe()
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      view |> element("#choose-cover\\:garage-cover_state button", "closed") |> render_click()
+
+      assert_receive {:ha_call, %HACall{entity_id: "cover.garage_door", service: "close_cover"}},
+                     2_000
+
+      assert_receive {:system_line, %{meta: %{"value" => "Closed", "via" => "greg, card"}}}
+    end
+
+    test "a word the device did not offer is refused on the card", %{conn: conn} do
+      {:ok, view, _html} = live(named(conn, "greg"), "/house")
+
+      dial(view, "water_heater:tank", "set_mode", "turbo")
+
+      assert has_element?(view, "#card-water_heater\\:tank .held .why", "turbo")
+      assert Fake.trace() == []
     end
   end
 
@@ -693,8 +975,32 @@ defmodule DobbyWeb.HouseLiveTest do
   # -- helpers ---------------------------------------------------------------
 
   # What the fader's hook pushes when a finger comes up — never on a drag tick.
+  # The rig's own heater, as `config/homes/rig.exs` reports it: 90–150, at 120.
+  defp water_heater_entity do
+    %{
+      state: "eco",
+      attributes: %{
+        current_temperature: 118,
+        temperature: 120,
+        min_temp: 90,
+        max_temp: 150,
+        supported_features: 15,
+        operation_list: ["eco", "gas", "off"],
+        away_mode: "off"
+      }
+    }
+  end
+
+  defp dial(view, device, action, value) do
+    render_hook(view, "set", %{"device" => device, "action" => action, "value" => value})
+  end
+
   defp release(view, device, temperature) do
-    render_hook(view, "set", %{"device" => device, "temperature_f" => temperature})
+    render_hook(view, "set", %{
+      "device" => device,
+      "action" => "set_temperature",
+      "value" => temperature
+    })
   end
 
   defp named(conn, name) do

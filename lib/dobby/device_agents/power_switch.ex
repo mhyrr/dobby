@@ -26,6 +26,9 @@ defmodule Dobby.DeviceAgents.PowerSwitch do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{power: {:enum, [:on, :off]}}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

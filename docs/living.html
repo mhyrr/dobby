@@ -142,6 +142,16 @@ downstairs thermostat · set_temperature · 70° · Greg</p>
       <li><strong>Activity.</strong> The full log, newest first. It records tool calls, device changes, schedule firings, refusals, and configuration work.</li>
     </ul>
 
+    <h2 id="history">Ask about what happened</h2>
+    <p>“Who changed the thermostat today?” and “Which commands did not arrive this week?” ask Dobby to read its activity record. The answer distinguishes a command from a reported state change. Counts cover the requested period even when the displayed evidence is shorter.</p>
+    <p>This is Dobby's record, not Home Assistant's complete history. No entry does not prove nothing happened. Dobby cannot measure hours of heating or cleaning from this record. Times use the house clock; a week begins on Monday, and “last night” means 6 PM yesterday through 6 AM today.</p>
+
+    <h2 id="rules">Ask Dobby to keep watch</h2>
+    <p>“Tell me if the main room stays below 60°F for twenty minutes.” Dobby proposes the exact condition and waits for agreement in a later message. Once saved, code watches the condition without asking a model. The rule reports a notice; it never changes a device.</p>
+    <p>A rule can watch a lasting condition, or the absence of a matching recorded state change. It can watch all day or during a daily window, on selected weekdays. An overnight window belongs to the day it starts. Each rule watches one condition on one device; combined conditions and calendar deadlines need a different design.</p>
+    <p>There is one notice per occurrence, in the thread and above it. Acknowledge it to remove the standing notice. A known recovery lets the rule report a future occurrence. On <a href="house.html#rules">The House</a>, add a rule, pause or resume it, or delete it with an undo. These controls work without a model.</p>
+    <p>Unknown readings, a lost Home Assistant connection, or a restart begin a fresh observation interval. Dobby does not count time it could not observe. An acknowledgment survives a restart. A new rule starts watching now; it does not assume the condition held before it was saved.</p>
+
     <h2 id="schedules">Tell it once. The house remembers.</h2>
     <p>A schedule is a standing intention: “Set downstairs to 70 at seven every weekday.” Say it in the thread and Dobby writes a label, a time, the device, the action, the value, and who asked. It says the instruction is set for those times. It does not say the house is already that way.</p>
     <p>“By 8 PM” and “at 8 PM” are different requests. Dobby supports the second. It asks when the wording implies the first. At the appointed time, a timer sends the stored command to the device agent. No model runs.</p>

@@ -282,9 +282,19 @@ defmodule Dobby.HomeConfig.Writer do
 
   defp apply_house(%{house: house}, %{house: house}, _manifest, _opts), do: {:ok, [], []}
 
-  defp apply_house(_previous, _incoming, manifest, opts) do
+  defp apply_house(previous, incoming, manifest, opts) do
     Application.put_env(:dobby, Dobby.Home, manifest)
 
+    if Keyword.delete(previous.house, :rules) == Keyword.delete(incoming.house, :rules) do
+      loaded = Dobby.Home.Manifest.load!(manifest)
+      :ok = Dobby.Home.apply_rules(loaded.rules)
+      {:ok, [:rules], []}
+    else
+      apply_restarted_house(opts)
+    end
+  end
+
+  defp apply_restarted_house(opts) do
     # Deferred, the manifest is already the applied one and only the processes
     # are behind — which is precisely the state an external hand edit leaves the
     # house in until it restarts, so it is a state the design already accepts.
@@ -314,8 +324,8 @@ defmodule Dobby.HomeConfig.Writer do
   # The `:capable` alias is a system setting that is only ever read at the
   # moment it is used, which is exactly why design §2.1 made the agent name an
   # alias instead of a provider: swapping the model is configuration, and here
-  # it is configuration that does not need a restart. `reasoning` and `routing`
-  # reach the model the same way, as options on each request.
+  # it is configuration that does not need a restart. `reasoning`, `routing`
+  # and `provider` reach the model the same way, as options on each request.
   defp apply_system(previous, incoming) do
     exported_model = System.get_env("DOBBY_MODEL")
 
@@ -328,7 +338,7 @@ defmodule Dobby.HomeConfig.Writer do
       end
 
     changed_options =
-      for field <- [:reasoning, :routing],
+      for field <- [:reasoning, :routing, :provider],
           Map.get(incoming, field) != Map.get(previous, field),
           do: field
 

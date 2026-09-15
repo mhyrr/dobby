@@ -27,6 +27,10 @@ defmodule Dobby.DeviceAgents.AccessCover do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables,
+    do: %{cover_state: {:enum, [:open, :closed, :opening, :closing]}, position: :number}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

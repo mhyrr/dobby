@@ -38,7 +38,21 @@ defmodule Dobby.RigCase do
 
     # Shared: the house is started by the application supervisor, so the
     # processes that query are not descendants of the test.
-    owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Dobby.Repo, shared: true)
+    #
+    # The sandbox's own ownership timeout is off, and the test's timeout is the
+    # bound instead. The default is two minutes, which no replay scenario
+    # approaches and which a paid sweep of forty endpoints
+    # (`Dobby.Eval.ProviderEvalTest`) passes in the middle of an answer: the
+    # owner is dropped, the house's next query has no connection, and the
+    # sweep dies at endpoint five with the money for four spent. A test that
+    # hangs still ends — ExUnit kills the test process at its timeout, and
+    # the owner goes with it.
+    owner =
+      Ecto.Adapters.SQL.Sandbox.start_owner!(Dobby.Repo,
+        shared: true,
+        ownership_timeout: :infinity
+      )
+
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
     # After the house is down, so anything its last breath emitted is already
     # in the watcher's mailbox when we queue behind it.

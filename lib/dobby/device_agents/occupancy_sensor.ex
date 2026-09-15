@@ -30,6 +30,9 @@ defmodule Dobby.DeviceAgents.OccupancySensor do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{occupied: :boolean}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

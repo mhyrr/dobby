@@ -41,6 +41,14 @@ defmodule Dobby.DeviceAgents.Ventilation do
     )
   end
 
+  # What a rule may watch: the fan's own vocabulary, and whatever numbered
+  # readings the type binds beside it. The fan half is `Fan.observables/0`
+  # rather than a copy of it, for the reason `command_arrived?` delegates
+  # too — the interface owns its own words, and a second copy here is how the
+  # two drifted apart the first time.
+  def observables(readings),
+    do: Map.merge(Fan.observables(), ApplianceReadings.observables(readings))
+
   def snapshot(state, type) do
     state
     |> Fan.SyncState.snapshot()

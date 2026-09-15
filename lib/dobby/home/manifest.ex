@@ -11,7 +11,7 @@ defmodule Dobby.Home.Manifest do
   alias Dobby.Home.Device
 
   @enforce_keys [:id, :name, :timezone]
-  defstruct [:id, :name, :timezone, home_assistant: [], networks: [], devices: []]
+  defstruct [:id, :name, :timezone, home_assistant: [], networks: [], devices: [], rules: []]
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -19,7 +19,8 @@ defmodule Dobby.Home.Manifest do
           timezone: String.t(),
           home_assistant: keyword(),
           networks: [map()],
-          devices: [Device.t()]
+          devices: [Device.t()],
+          rules: [Dobby.Rules.Rule.t()]
         }
 
   @doc """
@@ -31,7 +32,8 @@ defmodule Dobby.Home.Manifest do
          {:ok, name} <- fetch(config, :name),
          {:ok, timezone} <- fetch(config, :timezone),
          networks = Keyword.get(config, :networks, []),
-         {:ok, devices} <- load_devices(Keyword.get(config, :devices, []), networks) do
+         {:ok, devices} <- load_devices(Keyword.get(config, :devices, []), networks),
+         {:ok, rules} <- Dobby.Rules.Rule.load_all(Keyword.get(config, :rules, []), devices) do
       {:ok,
        %__MODULE__{
          id: id,
@@ -39,7 +41,8 @@ defmodule Dobby.Home.Manifest do
          timezone: timezone,
          home_assistant: Keyword.get(config, :home_assistant, []),
          networks: networks,
-         devices: devices
+         devices: devices,
+         rules: rules
        }}
     end
   end

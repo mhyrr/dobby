@@ -46,6 +46,22 @@ defmodule Dobby.DeviceAgents.WaterHeater do
   @impl Dobby.DeviceAgent
   def config_type, do: "water_heater"
 
+  # What a standing rule may watch. The Fahrenheit readings, because they are
+  # the ones the whole surface speaks in whatever unit HA reports. `mode` is
+  # left out: the operation list is this heater's own — HA sends it in
+  # `operation_list` and the type accepts whatever is in it — so there is no
+  # closed set to name, and a rule watching for a word this heater does not
+  # have would never fire. `power` is derived from the mode, and it is the two
+  # words every heater has.
+  @impl Dobby.DeviceAgent
+  def observables,
+    do: %{
+      power: {:enum, [:on, :off]},
+      away_mode: :boolean,
+      current_temperature_f: :number,
+      target_temperature_f: :number
+    }
+
   @impl Dobby.DeviceAgent
   def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "water_heater"
 

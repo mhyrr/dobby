@@ -61,6 +61,9 @@ defmodule Dobby.DeviceAgents.Oven do
   def subscribed_bindings, do: Keyword.keys(@reading_types)
 
   @impl Dobby.DeviceAgent
+  def observables, do: ApplianceReadings.observables(@reading_types)
+
+  @impl Dobby.DeviceAgent
   def initial_state(device), do: ApplianceReadings.initial_state(device)
 
   @impl Dobby.DeviceAgent

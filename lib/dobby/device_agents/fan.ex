@@ -41,6 +41,9 @@ defmodule Dobby.DeviceAgents.Fan do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables, do: %{power: {:enum, [:on, :off]}, speed_percent: :number}
+
   alias Dobby.Home.Device
   alias Dobby.HomeAssistant.Entity
 

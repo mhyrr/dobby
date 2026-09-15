@@ -33,6 +33,14 @@ defmodule Dobby.DeviceAgents.Speaker do
 
   @behaviour Dobby.DeviceAgent
 
+  @impl Dobby.DeviceAgent
+  def observables,
+    do: %{
+      playback: {:enum, [:playing, :paused, :idle, :off, :buffering]},
+      volume_percent: :number,
+      muted: :boolean
+    }
+
   alias Dobby.Home.Device
 
   @impl Dobby.DeviceAgent

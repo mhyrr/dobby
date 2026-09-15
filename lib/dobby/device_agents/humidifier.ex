@@ -42,6 +42,8 @@ defmodule Dobby.DeviceAgents.Humidifier do
   @impl Dobby.DeviceAgent
   defdelegate config_schema(), to: Humidity
   @impl Dobby.DeviceAgent
+  defdelegate observables(), to: Humidity
+  @impl Dobby.DeviceAgent
   defdelegate validate_device(device), to: Humidity
   @impl Dobby.DeviceAgent
   def subscribed_bindings, do: [:humidifier]

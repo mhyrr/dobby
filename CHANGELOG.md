@@ -1,0 +1,48 @@
+# Changelog
+
+What changed for the house, release by release, newest first. Each entry is
+written on the branch that made it (`bin/changelog` creates the file under
+`CHANGELOG/unreleased/`), and `bin/changelog -r <version>` folds those files
+into a release when the tag is cut. The GitHub release carries the same text.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+[Unreleased]: https://github.com/mhyrr/dobby/compare/v0.1.0...main
+[0.1.0]: https://github.com/mhyrr/dobby/commits/v0.1.0
+
+### 0.1.0 - 2026-09-04
+
+The first tagged release. Linux tarballs for amd64 and arm64 are attached to it, and the guide's [box chapter](https://mhyrr.github.io/dobby/box.html#install) covers installing one.
+
+##### Added
+- **Three pages**: `/` is the shared thread, with a board of device rows above the conversation. `/house` shows every device with its controls; a control offers an undo after it acts, never a confirm dialog before. `/admin` shows health, schedules, the topology of the running house, and the full activity log. A name entered on a browser is remembered on that browser. It labels who said what; it is not a login
+- **The Home Assistant client**: one WebSocket connection owning authentication, subscriptions, service calls, and reconnect. Dobby starts whether or not Home Assistant is reachable, including a host that accepts the connection and then stalls
+- **Sixteen device types**: thermostat, light, speaker, camera, doorbell, lock, access cover, power switch, shade, fan, environment monitor, contact sensor, occupancy sensor, safety sensor, vacuum, and wifi endpoint. Types are semantic, not per vendor: Home Assistant owns the integrations and credentials, Dobby owns what each type may do. Permissions are per action: the lock can report and lock but not unlock, the garage door can report and close but not open. Discovery groups a doorbell's event, camera, and motion entities into one proposal and never offers a diagnostic entity
+- **The house file**: `home.yaml` is read, validated, and written back. An editor, the `/house` and `/admin` forms, Dobby proposing a device in the thread, and an agent over MCP all write the same file. Credentials are `env:` references, never values. If the file is missing, the error names the variable that pointed at it
+- **MCP**: the full tool set at `/mcp` for an external agent, behind bearer tokens minted and revoked on `/admin`. Each token has a label, and the label is recorded as the speaker on every call. Tested end to end with Claude Code as the client
+- **Command confirmation**: every accepted command becomes an expectation with a per-type deadline, checked by code with no model call. If the device reports the change, the board updates. If Home Assistant refuses the call, a HELD line is written beneath Dobby's reply. If nothing is reported by the deadline, one NOT KNOWN line is written and the board shows NOT KNOWN. A reply that made no tool call is marked `asked nothing of the house`
+- **`hands_only: true`** on a device: the model may read it and may not command it, from the thread, from MCP, or through a schedule the model created. Card taps and schedules made on `/admin` still work
+- **Models**: Dobby answers through OpenRouter. GPT-5.6 Luna is the default and GLM 5.3 Flash is the second model. `reasoning` and `routing` are settings in `home.yaml`, in effect at the next reply. A setting the current model does not accept is refused at boot and on save
+- **Releases**: `mix release`, with migrations run before every start under systemd. GitHub Actions builds tarballs for Linux amd64 and arm64 from a `v*` tag. Tested on a Debian 12 VM: install, reboot, and an upgrade with two seconds of downtime
+- **The guide**: nine pages at [mhyrr.github.io/dobby](https://mhyrr.github.io/dobby/). Every example of output on those pages comes from a real run
+- **Eval tests**: twelve scenarios run the sixteen types against a real model, and a second model judges each reply against a rubric. A separate test derives, per device type, which Home Assistant services each tool is allowed to call
+
+##### Changed
+- **Replies after a command**: Dobby may state the commanded value as done ("Coffee station's on, Greg"), because HELD or NOT KNOWN is written beneath the reply if the command did not arrive. It still may not report a reading it never took or a command it never sent
+- **Two people asking for different settings**: Dobby carries out both in order and tells the second person what the first asked for, instead of stopping to ask which to keep
+- **`config/soul.md`** no longer contains an example reply to a command. The last one changed the wording of five replies while every test stayed green. What a reply may claim is decided in code
+
+##### Fixed
+- An activity row could record a tool call against no device when the completion event arrived before the start event. Events now carry a sequence number, and a finished step can no longer show as running
+- A slow Home Assistant could crash the confirmation watcher and lose every pending expectation. The watcher no longer calls into a device agent that is blocked on a service call; each expectation carries its own snapshot, taken before the call
+- A finished turn could disconnect the thread page: the end-of-turn broadcast had no handler in the LiveView
+- In production, the LiveView socket refused a page opened by IP address. The origin check now uses the connection's own host
+- `dobby.local` on Linux: `avahi-publish` without `-R` collided with avahi-daemon's own reverse record
+
+##### Security
+- MCP tokens are stored as SHA-256 digests and shown once, at minting
+- The test environment reads no environment variables, so a stale `DOBBY_*` export cannot point `mix test` at a real house
+- The release build's ignore file is an allowlist, so `.env` and the local Home Assistant's storage never enter a build
+
+##### Upgrade and Migration
+- First release. Six migrations create `schedules`, `speakers`, `messages`, `activity_entries`, `device_proposals`, and `mcp_tokens`. The installed service runs them before every start

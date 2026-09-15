@@ -335,7 +335,9 @@ defmodule DobbyWeb.AdminLive do
           <div :for={{dom_id, entry} <- @streams.activity} id={dom_id} class="entry">
             <span class="t">{at(entry)}</span>
             <span class="kind">{kind(entry)}</span>
-            <span class="what arg">{what(entry)}</span>
+            <%!-- An identifier for every row but a request's, whose substance
+                  is a cost in the record voice and not a name. --%>
+            <span class={["what", entry.kind != "request" && "arg"]}>{what(entry)}</span>
             <span class="who">{entry.actor}</span>
             <span class="took">{took(entry)}</span>
           </div>
@@ -1058,9 +1060,35 @@ defmodule DobbyWeb.AdminLive do
   # Identifier Rule, which this column would otherwise fail while not being one.
   defp kind(%{kind: kind}), do: kind |> to_string() |> String.replace("_", " ")
 
+  # A request's substance is what it cost (TK-052): the model turns and the
+  # four counters, in the record voice. A row from before the counters were
+  # recorded still says what it always said.
+  defp what(%{kind: "request", result: %{"usage" => %{"turns" => turns} = usage}})
+       when is_integer(turns) do
+    "#{turns} #{if turns == 1, do: "turn", else: "turns"} · " <>
+      "#{count(usage["input_tokens"])} in · #{count(usage["output_tokens"])} out · " <>
+      "#{count(usage["cached_tokens"])} cached · #{count(usage["reasoning_tokens"])} reasoning"
+  end
+
+  # A request row from before the counters were recorded has no cost to say,
+  # and its action name shouted in capitals would read as an identifier.
+  defp what(%{kind: "request"}), do: "cost not recorded"
+
   defp what(%{device: nil, action: action}), do: action
   defp what(%{device: device, action: nil}), do: device
   defp what(%{device: device, action: action}), do: "#{device} · #{action}"
+
+  # Thousands grouped, because 15613 is a number a person has to count the
+  # digits of and 15,613 is one they can read.
+  defp count(value) when is_integer(value) do
+    value
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
+
+  defp count(_value), do: "0"
 
   defp took(%{duration_ms: ms}) when is_integer(ms) and ms > 0 do
     :erlang.float_to_binary(ms / 1000, decimals: 1) <> " s"

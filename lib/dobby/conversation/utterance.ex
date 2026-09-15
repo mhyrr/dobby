@@ -35,4 +35,17 @@ defmodule Dobby.Utterance do
   """
   @spec to_message(t()) :: String.t()
   def to_message(%__MODULE__{speaker: speaker, text: text}), do: "[#{speaker}] #{text}"
+
+  @doc """
+  Whether a message string is one `to_message/1` wrote: a household utterance,
+  as opposed to a user-role message something else put in the conversation.
+
+  The request transformer draws a request's boundary at the last household
+  utterance, and jido_ai appends its own user-role message when the model
+  repeats a tool call; the prefix is the one thing that tells them apart, and
+  it is this module's format, so this module answers.
+  """
+  @spec message?(String.t()) :: boolean()
+  def message?(text) when is_binary(text), do: Regex.match?(~r/\A\[[^\]]+\] /, text)
+  def message?(_other), do: false
 end

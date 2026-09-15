@@ -397,7 +397,7 @@ defmodule Dobby.HomeConfigTest do
     test "an unknown setting is named, with what the section holds" do
       assert {:error, message} = load(@house <> "system:\n  modle: openai:gpt-5.6-luna\n")
       assert message =~ ~s(unknown setting "modle")
-      assert message =~ "model, reasoning, routing, port, lan, hostname"
+      assert message =~ "model, reasoning, routing, provider, port, lan, hostname"
     end
 
     test "a port that is not a port is named" do
@@ -413,6 +413,20 @@ defmodule Dobby.HomeConfigTest do
 
       assert {:error, message} = load(@house <> "system:\n  routing: nitro\n")
       assert message =~ ":routing"
+    end
+
+    test "a provider is a slug as OpenRouter's endpoint listing writes it" do
+      assert {:ok, config} = load(@house <> "system:\n  provider: deepinfra/fp4\n")
+      assert config.system.provider == "deepinfra/fp4"
+
+      assert {:ok, config} = load(@house <> "system:\n  provider: z-ai\n")
+      assert config.system.provider == "z-ai"
+
+      # The display name, not the slug: the listing shows both, and only one
+      # of them is what `provider.order` takes.
+      assert {:error, message} = load(@house <> "system:\n  provider: DeepInfra (fp4)\n")
+      assert message =~ "system.provider"
+      assert message =~ "deepinfra/fp4"
     end
 
     test "a hostname is one safe mDNS name" do
@@ -436,6 +450,7 @@ defmodule Dobby.HomeConfigTest do
         model: openai:gpt-5.6-luna
         reasoning: low
         routing: latency
+        provider: deepinfra/fp4
         port: 4001
         lan: true
         hostname: dobby.local
@@ -447,6 +462,7 @@ defmodule Dobby.HomeConfigTest do
                model: "openai:gpt-5.6-luna",
                reasoning: "low",
                routing: "latency",
+               provider: "deepinfra/fp4",
                port: 4001,
                lan: true,
                hostname: "dobby.local"
@@ -473,6 +489,29 @@ defmodule Dobby.HomeConfigTest do
                routing: "price"
              }) == [reasoning_effort: :high, openrouter_provider: %{sort: "price"}]
     end
+
+    # A pin is an order of one with fallbacks refused — the shape the model
+    # settings eval proved on the wire — and never an order that OpenRouter may
+    # quietly step past on a busy minute, which would be `routing` again.
+    test "a pinned provider is an order of one, with no fallback" do
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{provider: "deepinfra/fp4"}) ==
+               [openrouter_provider: %{order: ["deepinfra/fp4"], allow_fallbacks: false}]
+
+      # Both written, both sent: the file's words all travel, in one map,
+      # because OpenRouter takes one.
+      assert Dobby.HomeConfig.System.llm_opts(%Dobby.HomeConfig.System{
+               reasoning: "low",
+               routing: "latency",
+               provider: "z-ai/fp8"
+             }) == [
+               reasoning_effort: :low,
+               openrouter_provider: %{
+                 sort: "latency",
+                 order: ["z-ai/fp8"],
+                 allow_fallbacks: false
+               }
+             ]
+    end
   end
 
   # The failure this describes is the one that reached a kitchen: the house
@@ -496,8 +535,25 @@ defmodule Dobby.HomeConfigTest do
       assert message =~ @direct
     end
 
+    test "a pinned provider on a model not reached through OpenRouter is refused the same way" do
+      section = %Section{provider: "deepinfra/fp4"}
+
+      assert {:error, message} = Section.check_llm_opts(section, @direct)
+      assert message =~ "provider: deepinfra/fp4"
+      refute message =~ "openrouter_provider"
+      refute message =~ "order"
+
+      # Two of the file's words in one option: the refusal names both, since
+      # either alone would send the person to fix half of it.
+      assert {:error, both} =
+               Section.check_llm_opts(%Section{routing: "latency", provider: "z-ai/fp8"}, @direct)
+
+      assert both =~ "routing: latency, provider: z-ai/fp8"
+    end
+
     test "the same setting is fine on a model that is reached through OpenRouter" do
       assert Section.check_llm_opts(%Section{routing: "latency"}, @openrouter) == :ok
+      assert Section.check_llm_opts(%Section{provider: "deepinfra/fp4"}, @openrouter) == :ok
 
       assert Section.check_llm_opts(
                %Section{reasoning: "low", routing: "latency"},
@@ -766,12 +822,19 @@ defmodule Dobby.HomeConfigTest do
                [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
     end
 
-    test "the local house answers with GLM 5.3 Flash, with the two settings that make it fast" do
+    # Latency routing is the default, and the pin is a household's own choice
+    # (Greg, 2026-09-07, after the TK-051 sweep): the local house names no
+    # endpoint and lets OpenRouter choose per reply.
+    test "the local house answers with GLM 5.3 Flash, thinking low, routed for latency" do
       assert {:ok, config} = HomeConfig.load("config/homes/local.yaml")
 
       assert config.system.model == "openrouter:z-ai/glm-5.3-flash"
       assert config.system.reasoning == "low"
       assert config.system.routing == "latency"
+      assert config.system.provider == nil
+
+      assert Dobby.HomeConfig.System.llm_opts(config.system) ==
+               [reasoning_effort: :low, openrouter_provider: %{sort: "latency"}]
     end
 
     test "this house survived the migration with every real value on it" do

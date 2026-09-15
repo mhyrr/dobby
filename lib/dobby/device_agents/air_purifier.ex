@@ -64,6 +64,9 @@ defmodule Dobby.DeviceAgents.AirPurifier do
   @impl Dobby.DeviceAgent
   def subscribed_bindings, do: [:fan | Keyword.keys(@readings)]
 
+  @impl Dobby.DeviceAgent
+  def observables, do: Ventilation.observables(@readings)
+
   @doc false
   def reading_types, do: @readings
 

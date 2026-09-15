@@ -408,6 +408,59 @@ defmodule Dobby.HomeConfig.WriterTest do
       assert Application.get_env(:dobby, :llm_opts) == [openrouter_provider: %{sort: "latency"}]
     end
 
+    # The pin is the third of the settings about how the model answers, and it
+    # goes the way the other two go: live on a model that takes it, refused
+    # whole and named on one that does not (TK-051, after TK-037).
+    test "a pinned provider applies live, and is refused on a model that cannot take it", %{
+      writer: writer,
+      path: path
+    } do
+      previous_aliases = Application.get_env(:jido_ai, :model_aliases)
+      previous = Application.get_env(:dobby, :llm_opts)
+
+      on_exit(fn ->
+        Application.put_env(:jido_ai, :model_aliases, previous_aliases)
+
+        if previous,
+          do: Application.put_env(:dobby, :llm_opts, previous),
+          else: Application.delete_env(:dobby, :llm_opts)
+      end)
+
+      with_env("DOBBY_MODEL", nil)
+
+      assert {:ok, applied} =
+               Writer.save(
+                 writer,
+                 with_system(current(writer),
+                   model: "openrouter:z-ai/glm-5.3-flash",
+                   provider: "deepinfra/fp4"
+                 )
+               )
+
+      assert applied.applied == [:model, :provider]
+      assert applied.overridden == []
+
+      assert Application.get_env(:dobby, :llm_opts) ==
+               [openrouter_provider: %{order: ["deepinfra/fp4"], allow_fallbacks: false}]
+
+      # Now the export outranks the file with a model OpenRouter does not serve.
+      with_env("DOBBY_MODEL", "openai:gpt-5.6-luna")
+
+      assert {:ok, refused} =
+               Writer.save(writer, with_system(current(writer), provider: "z-ai/fp8"))
+
+      assert refused.applied == []
+      assert [{:provider, reason}] = refused.overridden
+      assert reason =~ "provider: z-ai/fp8"
+      assert reason =~ "exported as DOBBY_MODEL"
+
+      # The running house keeps the pin it had, and the file carries the new one.
+      assert Application.get_env(:dobby, :llm_opts) ==
+               [openrouter_provider: %{order: ["deepinfra/fp4"], allow_fallbacks: false}]
+
+      assert File.read!(path) =~ "provider: z-ai/fp8"
+    end
+
     test "the port and the LAN wait for a restart, and say so", %{writer: writer} do
       config = current(writer)
 

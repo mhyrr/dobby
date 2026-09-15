@@ -192,6 +192,16 @@ defmodule Dobby.DeviceAgent do
   @callback snapshot(state :: map()) :: map()
 
   @doc """
+  Closed, typed readings a standing rule may watch. Enum atoms come from the
+  device's parser; no household input creates atoms. Environmental readings
+  also require the unit reported by HA, so a threshold cannot silently change
+  meaning when an integration changes units.
+  """
+  @callback observables() :: %{
+              atom() => :boolean | :number | {:enum, [atom()]} | {:reading, atom()}
+            }
+
+  @doc """
   Whether a change to this attribute is something somebody *did* (design §10.3).
 
   The thread records interventions and the cards record everything, but Home

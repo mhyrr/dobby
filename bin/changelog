@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+#
+# The changelog, written on the branch that made the change.
+#
+#   bin/changelog            create CHANGELOG/unreleased/<branch>.md if missing, stage it, print its path
+#   bin/changelog -e         the same, opened in $EDITOR
+#   bin/changelog -d         print the release entry the unreleased files would make
+#   bin/changelog -r 0.2.0   cut a release: CHANGELOG/0.2.0.md, the top of CHANGELOG.md,
+#                            and the unreleased files removed, all staged
+#
+# Every branch says what it changed for the house before it merges, under
+# headings a reader of Keep a Changelog already knows. Headings left empty
+# are dropped when the release is cut, so the template costs nothing to
+# leave alone. The release workflow publishes CHANGELOG/<version>.md as the
+# GitHub release notes, so the entry is the text a household reads before
+# it upgrades.
+#
+# Lifted from revrec's bin/changelog (itself from deltafi), with three
+# changes: a branch name with a slash still lands as one flat file, the
+# compare links carry the v-prefixed tags this repository uses, and it
+# runs on the bash macOS ships as well as on Debian's.
+
+set -euo pipefail
+
+GIT_ROOT=$(git rev-parse --show-toplevel)
+CHANGELOG_DIR=$GIT_ROOT/CHANGELOG
+UNRELEASED_DIR=$CHANGELOG_DIR/unreleased
+CHANGELOG_MD=$GIT_ROOT/CHANGELOG.md
+MIX_EXS=$GIT_ROOT/mix.exs
+EDITOR=${EDITOR:-vim}
+
+# The order a release entry reads in. Any other heading follows these.
+KNOWN_HEADINGS=(
+  "Highlights"
+  "Added"
+  "Changed"
+  "Fixed"
+  "Removed"
+  "Deprecated"
+  "Security"
+  "Tech-Debt/Refactor"
+  "Upgrade and Migration"
+)
+
+_branchname() {
+  # A slash in the branch name would make a directory the coalescer never
+  # looked in; one flat file per branch instead.
+  git rev-parse --abbrev-ref HEAD | tr '/' '-'
+}
+
+_changelog_for_branch() {
+  local branchname changelog_path
+  mkdir -p "$UNRELEASED_DIR"
+  branchname="$(_branchname)"
+  changelog_path=$UNRELEASED_DIR/${branchname}.md
+  if [[ ! -f $changelog_path ]]; then
+    cat <<TEMPLATE > "$changelog_path"
+# Changes on branch \`${branchname}\`
+What changed for the house, in the voice of the commit messages. Empty headings are dropped at release.
+##### Added
+-
+
+##### Changed
+-
+
+##### Fixed
+-
+
+##### Removed
+-
+
+##### Deprecated
+-
+
+##### Security
+-
+
+##### Tech-Debt/Refactor
+-
+
+##### Upgrade and Migration
+-
+TEMPLATE
+    git add "$changelog_path"
+  fi
+  echo "$changelog_path"
+}
+
+_unreleased_files() {
+  [[ -d $UNRELEASED_DIR ]] || return 0
+  find "$UNRELEASED_DIR" -type f -name '*.md' | sort
+}
+
+# Every bullet under one heading, across every unreleased file, in file order.
+_lines_under() {
+  local want="##### $1"
+  shift
+  local file line heading
+  for file in "$@"; do
+    heading=""
+    while IFS= read -r line || [[ -n $line ]]; do
+      case "$line" in
+        "##### "*) heading="$line"; continue ;;
+      esac
+      [[ $heading == "$want" ]] || continue
+      [[ $line =~ ^[[:blank:]]*$ ]] && continue
+      [[ $line =~ ^-[[:blank:]]*$ ]] && continue
+      echo "$line"
+    done < "$file"
+  done
+}
+
+_coalesce_markdown() {
+  local version="$1"
+  local files=() file heading body known
+
+  while IFS= read -r file; do files+=("$file"); done < <(_unreleased_files)
+
+  echo "### ${version} - $(date "+%Y-%m-%d")"
+  echo
+
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "- No changes for this release"
+    echo
+    return
+  fi
+
+  local headings=("${KNOWN_HEADINGS[@]}")
+  while IFS= read -r heading; do
+    known=no
+    for h in "${KNOWN_HEADINGS[@]}"; do [[ $h == "$heading" ]] && known=yes; done
+    [[ $known == no ]] && headings+=("$heading")
+  done < <(grep -h '^##### ' "${files[@]}" | sed 's/^##### //' | sort -u)
+
+  for heading in "${headings[@]}"; do
+    body=$(_lines_under "$heading" "${files[@]}")
+    [[ -z $body ]] && continue
+    echo "##### $heading"
+    echo "$body"
+    echo
+  done
+}
+
+# Insert the new entry above the newest one in CHANGELOG.md and extend the
+# compare links. Done in bash rather than sed because BSD sed and GNU sed
+# disagree about a newline in a replacement.
+_insert_release() {
+  local version="$1" entry="$2"
+  local line inserted=no prev base tmp
+  tmp=$(mktemp)
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line == "[Unreleased]: "*"compare/"*"...main" ]]; then
+      base=${line#\[Unreleased\]: }
+      base=${base%compare/*}
+      prev=${line#*compare/}
+      prev=${prev%...main}
+      echo "[Unreleased]: ${base}compare/v${version}...main"
+      echo "[${version}]: ${base}compare/${prev}...v${version}"
+      continue
+    fi
+    if [[ $inserted == no && $line == "### "* ]]; then
+      printf '%s\n\n' "$entry"
+      inserted=yes
+    fi
+    echo "$line"
+  done < "$CHANGELOG_MD" > "$tmp"
+
+  if [[ $inserted == no ]]; then
+    printf '\n%s\n' "$entry" >> "$tmp"
+  fi
+
+  mv "$tmp" "$CHANGELOG_MD"
+}
+
+_revise_changelog() {
+  local version="$1" entry mix_version file
+
+  case "$version" in
+    v*) echo "give the version as it appears in mix.exs, without the v: ${version#v}" >&2; exit 1 ;;
+  esac
+
+  entry=$(_coalesce_markdown "$version")
+
+  mix_version=$(sed -n 's/^ *version: "\(.*\)",$/\1/p' "$MIX_EXS")
+  if [[ $mix_version != "$version" ]]; then
+    echo "note: mix.exs says ${mix_version}; the tag must be v${version} and the release build refuses a mismatch" >&2
+  fi
+
+  _insert_release "$version" "$entry"
+  printf '%s\n' "$entry" > "${CHANGELOG_DIR}/${version}.md"
+  git add "$CHANGELOG_MD" "${CHANGELOG_DIR}/${version}.md"
+
+  while IFS= read -r file; do
+    if git ls-files --error-unmatch "$file" > /dev/null 2>&1; then
+      git rm -q -f "$file"
+    else
+      rm -f "$file"
+    fi
+  done < <(_unreleased_files)
+
+  echo "CHANGELOG/${version}.md written and staged; the unreleased entries are gone" >&2
+}
+
+_usage() {
+  cat <<USAGE
+usage: bin/changelog [<option>]
+
+<no option>       create CHANGELOG/unreleased/<branch>.md if missing, stage it, print its path
+-e                the same, opened in \$EDITOR (vim unless set)
+-d [<version>]    print the release entry the unreleased files would make
+-r <version>      cut a release: CHANGELOG/<version>.md, the top of CHANGELOG.md,
+                  the unreleased files removed, all staged. Then commit, tag v<version>, push.
+USAGE
+  exit 1
+}
+
+if [[ $# -eq 0 ]]; then
+  _changelog_for_branch
+else
+  case "$1" in
+    -h|--help)
+      _usage
+      ;;
+    -e)
+      changelog_path=$(_changelog_for_branch)
+      "$EDITOR" "$changelog_path"
+      git add "$changelog_path"
+      echo "changelog written to ${changelog_path}" >&2
+      ;;
+    -r)
+      [[ -z ${2:-} ]] && _usage
+      _revise_changelog "$2"
+      ;;
+    -d)
+      _coalesce_markdown "${2:-next}"
+      ;;
+    *)
+      _usage
+      ;;
+  esac
+fi

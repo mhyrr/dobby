@@ -28,6 +28,19 @@ defmodule Dobby.DeviceAgents.Humidity do
   def matches_entity?(entity, type),
     do: Entity.domain(entity) == "humidifier" and entity.device_class == Atom.to_string(type)
 
+  # What a standing rule may watch. `mode` is not here: HA advertises the mode
+  # list per device in `available_modes`, so there is no closed set to name —
+  # `set_mode/2` validates against whatever that device advertised, and a rule
+  # promising to watch a word this humidifier may not have is a rule that
+  # never fires. `action` is a closed set, the four words `action/1` accepts.
+  def observables,
+    do: %{
+      power: {:enum, [:on, :off]},
+      action: {:enum, [:humidifying, :drying, :idle, :off]},
+      current_humidity_percent: :number,
+      target_humidity_percent: :number
+    }
+
   def config_schema do
     [
       min_humidity_percent: [type: :integer, doc: "Lowest permitted humidity target, in percent."],

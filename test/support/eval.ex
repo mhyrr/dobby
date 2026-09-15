@@ -39,14 +39,20 @@ defmodule Dobby.Eval do
   """
   @spec say!(String.t(), String.t()) :: String.t()
   def say!(speaker, text) do
-    utterance = Utterance.new(speaker, text)
-
     started = System.monotonic_time(:millisecond)
-    result = DobbyAgent.say(utterance, llm_opts: llm_opts())
+    events = stream!(speaker, text)
     Process.put(:eval_elapsed_ms, System.monotonic_time(:millisecond) - started)
 
-    case result do
-      {:ok, reply} ->
+    # The streaming path rather than `ask_sync`, since TK-052: the runtime's
+    # `:llm_completed` events are the only place the cache read and the
+    # reasoning tokens survive, and the thread streams too, so this is also
+    # the production path.
+    Process.put(:eval_usage, usage(events))
+
+    case Enum.find(events, &(&1.kind in [:request_completed, :request_failed])) do
+      %{kind: :request_completed, data: data} ->
+        reply = data[:result] || ""
+
         # An invariant every scenario shares, and one a real model broke the
         # first time it was watched: the speaker prefix is input framing, not
         # something Dobby says. gpt-5.6-luna opened a reply with "[greg] Set
@@ -57,9 +63,25 @@ defmodule Dobby.Eval do
 
         reply
 
-      {:error, reason} ->
-        flunk("model request failed: #{inspect(reason)}")
+      %{kind: :request_failed, data: data} ->
+        flunk("model request failed: #{inspect(data[:error])}")
+
+      nil ->
+        flunk("the request ended with neither a reply nor a failure")
     end
+  end
+
+  @doc """
+  What a request cost, summed from its runtime events: the four counters and
+  the turn count, as `Dobby.Conversation.Turn.cost/1` sums them for the
+  record — one definition of the number, read here from the same events.
+  """
+  @spec usage([Jido.AI.Runtime.Event.t()]) :: map()
+  def usage(events) do
+    events
+    |> Enum.filter(&(&1.kind == :llm_completed))
+    |> Enum.map(& &1.data[:usage])
+    |> Turn.cost()
   end
 
   @doc """
@@ -90,10 +112,117 @@ defmodule Dobby.Eval do
 
     assert reply, "the paid turn stored no assistant reply"
 
+    # The row `Turn` wrote for this request carries what it cost (TK-052);
+    # the report reads it from there, the way /admin does.
+    Process.put(:eval_usage, recorded_usage(request.request_id))
+
     refute reply.text =~ ~r/^\s*\[[^\]]+\]/,
            "reply echoed the speaker prefix back: #{inspect(reply.text)}"
 
     %{reply: reply.text, messages: messages}
+  end
+
+  @doc """
+  Runs one paid request through the production streaming path and returns
+  every runtime event it emitted.
+
+  `Dobby.DobbyAgent.stream/2` is the entry point the thread uses, with the
+  house's tools and the speaker on the tool context, so what comes back is
+  what a person's request would have emitted. The calling process is the
+  event sink and this blocks until the request ends (`Dobby.Conversation.Turn`
+  says why), which is the point: the list is complete when it returns.
+
+  `opts` are the request options `DobbyAgent.stream/2` takes; `:llm_opts`
+  defaults to `llm_opts/0` so a scenario that says nothing gets the tier's
+  reasoning and routing.
+  """
+  @spec stream!(String.t(), String.t(), keyword()) :: [Jido.AI.Runtime.Event.t()]
+  def stream!(speaker, text, opts \\ []) do
+    opts = Keyword.put_new(opts, :llm_opts, llm_opts())
+
+    case DobbyAgent.stream(Utterance.new(speaker, text), opts) do
+      {:ok, %{events: events}} -> Enum.to_list(events)
+      {:error, reason} -> flunk("model request failed: #{inspect(reason)}")
+    end
+  end
+
+  @doc """
+  The reply text as it streamed: `chunk_type: :content` deltas in `seq` order,
+  optionally for one iteration.
+
+  Only `:content` is text. A tool call streams as a delta too, carrying the
+  tool's name, and a thinking model streams its reasoning first; the thread
+  renders neither.
+  """
+  @spec content_deltas([Jido.AI.Runtime.Event.t()], pos_integer() | nil) ::
+          [Jido.AI.Runtime.Event.t()]
+  def content_deltas(events, iteration \\ nil) do
+    events
+    |> Enum.filter(&(&1.kind == :llm_delta and &1.data[:chunk_type] == :content))
+    |> Enum.filter(&(is_nil(iteration) or &1.iteration == iteration))
+    |> Enum.sort_by(& &1.seq)
+  end
+
+  @doc """
+  When each model turn's first token arrived, per turn.
+
+  Two clocks per turn. `from_start_ms` is what the household waits: from the
+  request starting to the first delta of any kind. `after_call_ms` is from the
+  model call that produced it, which is the number an endpoint's routing can
+  change and the one TK-051 pins a provider on. `kind` says what that first
+  delta was — a tool call, thinking, or content — because on an actuating
+  turn there is no content at all, and `content_after_call_ms` is the first
+  word a person could read, when there was one.
+  """
+  @spec first_tokens([Jido.AI.Runtime.Event.t()]) :: [map()]
+  def first_tokens(events) do
+    started = Enum.find(events, &(&1.kind == :request_started))
+
+    events
+    |> Enum.filter(&(&1.kind == :llm_delta))
+    |> Enum.group_by(& &1.iteration)
+    |> Enum.sort()
+    |> Enum.map(fn {iteration, deltas} ->
+      first = Enum.min_by(deltas, & &1.at_ms)
+      call = Enum.find(events, &(&1.kind == :llm_started and &1.iteration == iteration))
+
+      content =
+        deltas
+        |> Enum.filter(&(&1.data[:chunk_type] == :content))
+        |> Enum.min_by(& &1.at_ms, fn -> nil end)
+
+      %{
+        iteration: iteration,
+        kind: first.data[:chunk_type],
+        from_start_ms: started && first.at_ms - started.at_ms,
+        after_call_ms: call && first.at_ms - call.at_ms,
+        content_after_call_ms: content && call && content.at_ms - call.at_ms
+      }
+    end)
+  end
+
+  @doc """
+  `first_tokens/1` as one printed line, with the end-to-end at the end.
+  """
+  @spec first_delta_line([Jido.AI.Runtime.Event.t()]) :: String.t()
+  def first_delta_line(events) do
+    started = Enum.find(events, &(&1.kind == :request_started))
+    completed = Enum.find(events, &(&1.kind == :request_completed))
+
+    turns =
+      events
+      |> first_tokens()
+      |> Enum.map_join("   ", fn turn ->
+        after_call =
+          if turn.after_call_ms, do: " (#{turn.after_call_ms}ms after the call)", else: ""
+
+        "turn #{turn.iteration} #{turn.kind} +#{turn.from_start_ms}ms#{after_call}"
+      end)
+
+    done =
+      if started && completed, do: "   done +#{completed.at_ms - started.at_ms}ms", else: ""
+
+    turns <> done
   end
 
   @doc """
@@ -127,10 +256,21 @@ defmodule Dobby.Eval do
     end
   end
 
+  # DOBBY_EVAL_PROVIDER pins one endpoint with no fallback, the shape the house
+  # file's `provider` setting sends (TK-051), so a run lands on the endpoint
+  # the sweep chose and its seconds are comparable with the sweep's. A pin
+  # outranks a sort for the reason the house file's does: with one endpoint
+  # named there is nothing left to sort.
   defp routing_opts do
-    case System.get_env("DOBBY_EVAL_PROVIDER_SORT") do
-      blank when blank in [nil, ""] -> []
-      sort -> [openrouter_provider: %{sort: sort}]
+    case {System.get_env("DOBBY_EVAL_PROVIDER"), System.get_env("DOBBY_EVAL_PROVIDER_SORT")} do
+      {pin, _sort} when pin not in [nil, ""] ->
+        [openrouter_provider: %{order: [pin], allow_fallbacks: false}]
+
+      {_pin, sort} when sort not in [nil, ""] ->
+        [openrouter_provider: %{sort: sort}]
+
+      _neither ->
+        []
     end
   end
 
@@ -157,24 +297,112 @@ defmodule Dobby.Eval do
   """
   @spec report(String.t(), String.t()) :: :ok
   def report(label, reply) do
-    # `say!/2` returns when the request completes, but the final llm telemetry
-    # is delivered asynchronously — reading immediately sometimes reported zero
-    # tokens for a turn that plainly happened. A cost number that is
+    # The request's own runtime events, summed by `say!/2` or read back from
+    # the row `turn!/2` wrote: the four counters, not just the two telemetry
+    # keeps. Telemetry is the fallback for a scenario that reached the model
+    # some other way, and it is waited for because the final llm event lands
+    # after the request completes — reading immediately sometimes reported
+    # zero tokens for a turn that plainly happened. A cost number that is
     # occasionally a lie is worse than no cost number.
     usage =
-      Dobby.RigCase.eventually(
-        fn -> with %{turns: turns} = usage when turns > 0 <- Dobby.Trace.usage(), do: usage end,
-        2_000
-      )
+      Process.get(:eval_usage) ||
+        Dobby.RigCase.eventually(
+          fn -> with %{turns: turns} = usage when turns > 0 <- Dobby.Trace.usage(), do: usage end,
+          2_000
+        )
 
     IO.puts("""
 
     ── #{label} ─────────────────────────────────────
       tools    #{inspect(Dobby.Trace.tool_calls())}
       ha       #{inspect(Enum.map(Dobby.Trace.ha_calls(), &"#{&1.domain}.#{&1.service} #{inspect(&1.data)}"))}
-      turns    #{usage.turns}   tokens #{usage.input_tokens} in / #{usage.output_tokens} out   #{per_turn(usage)} in per turn   #{Process.get(:eval_elapsed_ms, 0)}ms end-to-end
+      turns    #{usage.turns}   tokens #{usage.input_tokens} in / #{usage.output_tokens} out   #{cache_line(usage)}   #{per_turn(usage)} in per turn   #{Process.get(:eval_elapsed_ms, 0)}ms end-to-end
+      steps    #{steps()}
       reply    #{reply}
+      calls
+    #{tool_trace()}
     """)
+  end
+
+  # Where the thinking tail is and what the cache returned, when the run
+  # could see them: cached input is what the byte-identical system prompt is
+  # meant to earn, and reasoning is where a slow turn's seconds go.
+  defp cache_line(%{cached_tokens: cached, reasoning_tokens: reasoning}),
+    do: "#{cached} cached / #{reasoning} reasoning"
+
+  defp cache_line(_telemetry_only), do: "cache and reasoning not seen"
+
+  # The `request` row for this request, as `/admin` reads it, with the keys
+  # back to atoms for the report.
+  defp recorded_usage(request_id) do
+    Dobby.RigCase.eventually(
+      fn ->
+        request_id
+        |> Dobby.Activity.for_request()
+        |> Enum.find(&(&1.kind == "request"))
+        |> case do
+          %{result: %{"usage" => %{"turns" => turns} = usage}} when turns > 0 ->
+            Map.new(usage, fn {key, value} -> {String.to_existing_atom(key), value} end)
+
+          _absent ->
+            nil
+        end
+      end,
+      2_000
+    )
+  end
+
+  @doc """
+  This test's tool calls as the record holds them: the model's raw arguments
+  and what came back. The arguments are the evidence in an eval — a wrong
+  filter or an invented field is the defect, and the reply only shows its
+  shadow.
+  """
+  def tool_trace do
+    # The turn records its tool calls after the reply is delivered, so the
+    # rows can lag the trace by a moment. Wait for them, but never fail here:
+    # this runs inside another assertion's message.
+    expected = length(Dobby.Trace.tool_calls())
+
+    tool_rows(expected, System.monotonic_time(:millisecond) + 2_000)
+    |> Enum.map_join("\n", fn entry ->
+      "      #{entry.action} #{inspect(entry.args, limit: :infinity, printable_limit: 200)}\n" <>
+        "        -> #{summarize(entry.result)}"
+    end)
+  end
+
+  defp tool_rows(expected, deadline) do
+    rows =
+      Dobby.Activity.recent(40) |> Enum.filter(&(&1.kind == "tool_call")) |> Enum.reverse()
+
+    if length(rows) >= expected or System.monotonic_time(:millisecond) >= deadline do
+      rows
+    else
+      Process.sleep(50)
+      tool_rows(expected, deadline)
+    end
+  end
+
+  defp summarize(%{"value" => ["error", %{"message" => message}]}), do: "error: #{message}"
+
+  defp summarize(%{"value" => ["ok", %{} = value]}) do
+    value
+    |> Map.take(~w(count returned truncated window mode applied id description status enabled))
+    |> inspect(limit: :infinity, printable_limit: 300)
+  end
+
+  defp summarize(other), do: inspect(other, limit: 10, printable_limit: 200)
+
+  @doc """
+  Where the end-to-end went, so a slow scenario names its slow step:
+  `Dobby.Trace.timeline/0` as one line.
+  """
+  @spec steps() :: String.t()
+  def steps do
+    case Dobby.Trace.timeline() do
+      [] -> "none recorded"
+      steps -> Enum.map_join(steps, " · ", fn {label, ms} -> "#{label} #{ms}ms" end)
+    end
   end
 
   defp per_turn(%{turns: 0}), do: 0
@@ -276,6 +504,8 @@ defmodule Dobby.Eval do
           rubric: #{rubric}
           judge:  NO - #{rationale}
           reply:  #{reply}
+          calls:
+        #{tool_trace()}
         """)
     end
   end

@@ -39,6 +39,7 @@ defmodule Dobby.Trace do
     [:jido, :ai, :llm, :start],
     [:jido, :ai, :llm, :complete],
     [:jido, :ai, :tool, :start],
+    [:jido, :ai, :tool, :complete],
     [:dobby, :ha, :call],
     [:dobby, :schedule, :fired]
   ]
@@ -147,6 +148,58 @@ defmodule Dobby.Trace do
   end
 
   @doc """
+  Where a request's seconds went, step by step: `{"model turn 1", ms}`,
+  `{"tool history", ms}`, `{"model turn 2", ms}`, in order.
+
+  The deterministic tools measure in single-digit milliseconds on their own,
+  so an end-to-end number says nothing about whether a slow turn was the model
+  or the house. This line does. Model turns are wall-clock between the start
+  and complete events as this collector saw them — jido_ai's own `duration_ms`
+  is zero on the ReAct path — and tool steps use the runtime's measured
+  `duration_ms`, which covers the tool alone. The loop is sequential, so the
+  n-th start pairs with the n-th completion of its kind.
+  """
+  @spec timeline() :: [{String.t(), non_neg_integer()}]
+  def timeline do
+    steps =
+      events()
+      |> Enum.filter(&(&1.kind in [:llm_call, :llm_done, :tool_call, :tool_done]))
+      |> Enum.reduce(%{turn: 0, open_llm: [], open_tools: [], steps: []}, &step/2)
+
+    Enum.reverse(steps.steps)
+  end
+
+  defp step(%{kind: :llm_call, at: at}, acc),
+    do: %{acc | open_llm: acc.open_llm ++ [at]}
+
+  defp step(%{kind: :llm_done, at: at}, %{open_llm: [started | rest]} = acc) do
+    turn = acc.turn + 1
+
+    %{
+      acc
+      | turn: turn,
+        open_llm: rest,
+        steps: [{"model turn #{turn}", max(at - started, 0)} | acc.steps]
+    }
+  end
+
+  defp step(%{kind: :tool_call, tool_name: name, at: at}, acc),
+    do: %{acc | open_tools: acc.open_tools ++ [{name, at}]}
+
+  defp step(%{kind: :tool_done, tool_name: name, duration_ms: ms, at: at}, acc) do
+    case Enum.split_with(acc.open_tools, fn {open, _} -> open == name end) do
+      {[{_, started} | same], other} ->
+        elapsed = if ms > 0, do: ms, else: max(at - started, 0)
+        %{acc | open_tools: other ++ same, steps: [{"tool #{name}", elapsed} | acc.steps]}
+
+      {[], _} ->
+        acc
+    end
+  end
+
+  defp step(_event, acc), do: acc
+
+  @doc """
   How many of each kind — the cheapest form of "did the shape change".
   """
   @spec counts() :: %{llm: non_neg_integer(), tool: non_neg_integer(), ha: non_neg_integer()}
@@ -163,7 +216,13 @@ defmodule Dobby.Trace do
 
   @doc false
   def handle_event(event, measurements, metadata, pid) do
-    GenServer.cast(pid, {:record, entry(event, measurements, metadata)})
+    # Stamped here, in the emitting process and before the cast, so the
+    # timeline reads the order things happened in rather than the order the
+    # mailbox drained.
+    entry =
+      event |> entry(measurements, metadata) |> Map.put(:at, System.monotonic_time(:millisecond))
+
+    GenServer.cast(pid, {:record, entry})
   end
 
   defp entry([:jido, :agent_server, :signal, :start], _measurements, metadata) do
@@ -176,6 +235,14 @@ defmodule Dobby.Trace do
 
   defp entry([:jido, :ai, :tool, :start], _measurements, metadata) do
     %{kind: :tool_call, tool_name: metadata[:tool_name], agent_id: metadata[:agent_id]}
+  end
+
+  defp entry([:jido, :ai, :tool, :complete], measurements, metadata) do
+    %{
+      kind: :tool_done,
+      tool_name: metadata[:tool_name],
+      duration_ms: measurements[:duration_ms] || 0
+    }
   end
 
   defp entry([:jido, :ai, :llm, :complete], measurements, metadata) do

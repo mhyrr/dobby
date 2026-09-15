@@ -36,9 +36,11 @@ defmodule DobbyWeb.ThreadLive do
   alias Dobby.Conversation.Turn
   alias Dobby.DeviceEvents
   alias Dobby.Home
+  alias Dobby.Rules
   alias Dobby.ThreadEvents
   alias Dobby.Utterance
   alias DobbyWeb.HouseLive.Card
+  alias DobbyWeb.HouseLive.RulesPanel
 
   @history 50
 
@@ -47,6 +49,7 @@ defmodule DobbyWeb.ThreadLive do
     if connected?(socket) do
       ThreadEvents.subscribe()
       DeviceEvents.subscribe()
+      Rules.subscribe()
     end
 
     history = Conversation.recent(@history)
@@ -57,6 +60,8 @@ defmodule DobbyWeb.ThreadLive do
      |> assign(:pending, %{})
      |> assign(:listening, listening?())
      |> assign(:snapshots, snapshots())
+     |> assign(:notice_error, nil)
+     |> stream(:notices, visible_notices())
      # A stream does not know how many rows it has, and this is the one thing
      # about the thread the page needs to know that it cannot ask the stream.
      |> assign(:blank, history == [])
@@ -69,6 +74,7 @@ defmodule DobbyWeb.ThreadLive do
     <header class="board">
       <.plate speaker={@speaker} listening={@listening} here={:thread} return_to={~p"/"} />
       <.band snapshots={@snapshots} />
+      <RulesPanel.notices notices={@streams.notices} error={@notice_error} />
     </header>
 
     <main class="thread" id="thread" phx-hook=".StickToBottom" phx-update="stream">
@@ -172,11 +178,28 @@ defmodule DobbyWeb.ThreadLive do
     {:noreply, clear_composer(socket)}
   end
 
+  def handle_event("rule_acknowledge", %{"id" => id, "occurrence" => occurrence}, socket) do
+    actor = if socket.assigns.speaker, do: socket.assigns.speaker.name, else: "the household"
+
+    case Rules.acknowledge(id, actor, expected_occurrence_id: occurrence) do
+      {:ok, _} ->
+        {:noreply,
+         socket |> assign(:notice_error, nil) |> stream(:notices, visible_notices(), reset: true)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :notice_error, reason)}
+    end
+  end
+
   defp clear_composer(socket), do: push_event(socket, "dobby:composer-clear", %{})
 
   # -- what the house does ---------------------------------------------------
 
   @impl true
+  def handle_info({:rules_changed}, socket) do
+    {:noreply, stream(socket, :notices, visible_notices(), reset: true)}
+  end
+
   def handle_info({:said, message}, socket) do
     {:noreply, socket |> filled() |> stream_insert(:messages, message)}
   end
@@ -256,6 +279,8 @@ defmodule DobbyWeb.ThreadLive do
   end
 
   def handle_info(%Jido.Signal{}, socket), do: {:noreply, socket}
+
+  defp visible_notices, do: Enum.reject(Rules.notices(), & &1.acknowledged)
 
   # -- the pending turn ------------------------------------------------------
 

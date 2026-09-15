@@ -53,6 +53,28 @@ defmodule Dobby.DeviceAgents.ApplianceReadings do
     }
   end
 
+  @numbered [:temperature, :percentage, :duration]
+
+  @doc """
+  What a standing rule may watch among a type's readings, for `observables/0`.
+
+  Only the numbered readings, each as `{:reading, key}` — the one shape
+  `Dobby.Rules.Rule` reads out of a nested `readings` map, comparing numbers
+  against the unit Home Assistant reported beside the value so a threshold
+  cannot change meaning when an integration changes units.
+
+  A door, a flag and a cycle word are left out, and that is not an oversight.
+  The rules vocabulary reads a `:boolean` or an `{:enum, _}` off the top of a
+  snapshot, where an appliance keeps nothing but its identity, and an
+  appliance's own word for what it is doing is the manufacturer's open
+  vocabulary rather than a closed set. Naming them here would advertise
+  watches no rule could be written against, which is worse than a short list.
+  """
+  @spec observables(keyword()) :: %{atom() => {:reading, atom()}}
+  def observables(reading_types) do
+    for {key, type} <- reading_types, type in @numbered, into: %{}, do: {key, {:reading, key}}
+  end
+
   def sync(params, previous, reading_types, type) do
     binding =
       Enum.find_value(previous.bindings, fn {key, entity} ->

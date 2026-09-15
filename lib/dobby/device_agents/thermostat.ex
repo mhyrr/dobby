@@ -53,7 +53,11 @@ defmodule Dobby.DeviceAgents.Thermostat do
   def config_type, do: "thermostat"
 
   @impl Dobby.DeviceAgent
-  def matches_entity?(entity), do: Dobby.HomeAssistant.Entity.domain(entity) == "climate"
+  # This integration exposes oven and refrigeration controls as climate
+  # entities. Offering them as room thermostats would authorize cooking via
+  # the ordinary setpoint tool. HA's domain alone is not a semantic type.
+  def matches_entity?(entity),
+    do: Dobby.HomeAssistant.Entity.domain(entity) == "climate" and entity.platform != "subzero"
 
   # Household policy, and only that. The hardware's own envelope is discovered
   # from the bound entity, so these narrow what the device already allows and

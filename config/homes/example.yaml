@@ -173,6 +173,136 @@ house:
       bindings:
         alarm: binary_sensor.basement_smoke
 
+    # Appliance status uses explicit HA sensor bindings. These are examples;
+    # replace them with the entities your integration actually exposes.
+    # See docs/appliance-research.md for Bosch, Wolf, and Sub-Zero setup.
+    - id: dishwasher:kitchen
+      type: dishwasher
+      name: kitchen dishwasher
+      aliases: [the dishwasher]
+      bindings:
+        operation_state: sensor.dishwasher_operation_state
+        door_open: sensor.dishwasher_door
+        progress: sensor.dishwasher_program_progress
+
+    - id: oven:kitchen
+      type: oven
+      name: kitchen oven
+      aliases: [the oven]
+      bindings:
+        temperature: sensor.oven_temperature
+        target_temperature: sensor.oven_setpoint
+
+    # Some refrigerators report only targets. A target is never presented as
+    # a measured temperature. Add display-temperature bindings only if HA
+    # actually exposes those readings.
+    - id: refrigerator:kitchen
+      type: refrigerator
+      name: kitchen refrigerator
+      aliases: [the fridge]
+      bindings:
+        refrigerator_target_temperature: sensor.refrigerator_setpoint
+        freezer_target_temperature: sensor.freezer_setpoint
+        refrigerator_door_open: binary_sensor.refrigerator_door
+
+    # A stacked washer and dryer have separate cycles and separate entries.
+    # Keep only readings your HA integration exposes. No start/stop commands
+    # are offered by these types yet.
+    - id: washer:laundry
+      type: washer
+      name: laundry washer
+      aliases: [the washer, washing machine]
+      bindings:
+        operation_state: sensor.washer_operation_state
+        remaining_time: sensor.washer_remaining_time
+        door_open: binary_sensor.washer_door
+
+    - id: dryer:laundry
+      type: dryer
+      name: laundry dryer
+      aliases: [the dryer]
+      bindings:
+        operation_state: sensor.dryer_operation_state
+        remaining_time: sensor.dryer_remaining_time
+        door_open: binary_sensor.dryer_door
+
+    # Native HA interfaces support controls according to reported capabilities.
+    - id: water_heater:utility
+      type: water_heater
+      name: water heater
+      bindings:
+        water_heater: water_heater.utility
+      settings:
+        # Must match HA's system unit when the entity omits its unit.
+        temperature_unit: °F
+        max_temperature_f: 120
+
+    - id: humidifier:bedroom
+      type: humidifier
+      name: bedroom humidifier
+      bindings:
+        humidifier: humidifier.bedroom
+      settings:
+        max_humidity_percent: 55
+
+    - id: dehumidifier:basement
+      type: dehumidifier
+      name: basement dehumidifier
+      bindings:
+        humidifier: humidifier.basement
+
+    # HA fan entities need an explicit household role for these types.
+    # A hood's light can be a separate normal light entry.
+    - id: air_purifier:bedroom
+      type: air_purifier
+      name: bedroom air purifier
+      bindings:
+        fan: fan.bedroom_purifier
+        filter_remaining: sensor.bedroom_filter_remaining
+
+    - id: range_hood:kitchen
+      type: range_hood
+      name: kitchen range hood
+      bindings:
+        fan: fan.kitchen_hood
+        filter_due: binary_sensor.kitchen_hood_filter_due
+
+    # These types report explicit sensor bindings; they expose no commands.
+    - id: coffee_maker:kitchen
+      type: coffee_maker
+      name: kitchen coffee maker
+      bindings:
+        operation_state: sensor.coffee_maker_state
+        water_empty: binary_sensor.coffee_maker_water_empty
+
+    - id: wine_cooler:dining
+      type: wine_cooler
+      name: dining room wine cooler
+      bindings:
+        temperature: sensor.wine_cooler_temperature
+        target_temperature: number.wine_cooler_target
+
+    - id: ice_maker:kitchen
+      type: ice_maker
+      name: kitchen ice maker
+      bindings:
+        ice_full: binary_sensor.ice_maker_full
+
+    # Use a separate cooktop entry for each zone when HA exposes zones.
+    - id: cooktop:kitchen_front
+      type: cooktop
+      name: front cooktop zone
+      bindings:
+        active: binary_sensor.cooktop_front_active
+        hot_surface: binary_sensor.cooktop_front_hot
+
+    - id: microwave:kitchen
+      type: microwave
+      name: kitchen microwave
+      bindings:
+        operation_state: sensor.microwave_state
+        remaining_time: sensor.microwave_remaining_time
+
     # A robot vacuum Dobby can start and send home.
     - id: vacuum:downstairs
       type: vacuum

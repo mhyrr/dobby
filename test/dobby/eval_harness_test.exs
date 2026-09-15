@@ -59,6 +59,28 @@ defmodule Dobby.EvalHarnessTest do
 
       assert_emits(DeviceAgents.Fan, ["fan", "turn_on", "turn_off", "set_percentage"])
       assert_emits(DeviceAgents.Vacuum, ["vacuum", "start", "return_to_base"])
+
+      # The types whose actions hand the directive to a helper module — the
+      # water heater's `Command`, the humidity pair's `Humidity`, the
+      # ventilation pair's `Fan` actions. The first paid hot-water setpoint
+      # (TK-071) failed here, on "water_heater" being a literal the action
+      # never contains, after the call had gone out exactly as asked.
+      assert_emits(DeviceAgents.WaterHeater, [
+        "water_heater",
+        "set_temperature",
+        "set_operation_mode",
+        "set_away_mode",
+        "turn_on",
+        "turn_off"
+      ])
+
+      for module <- [DeviceAgents.Humidifier, DeviceAgents.Dehumidifier] do
+        assert_emits(module, ["humidifier", "set_humidity", "set_mode", "turn_on", "turn_off"])
+      end
+
+      for module <- [DeviceAgents.AirPurifier, DeviceAgents.RangeHood] do
+        assert_emits(module, ["fan", "turn_on", "turn_off", "set_percentage"])
+      end
     end
 
     test "excludes the inverse of every one-way type" do

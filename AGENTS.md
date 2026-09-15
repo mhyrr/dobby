@@ -97,6 +97,19 @@ judgment is per-device knowledge and lives with the device.
 builds the identity map, `changes/3` separates what differs from what actually
 moved, and `command/3` is the write protocol every caller uses.
 
+**Before writing `command_arrived?/2`, find out what Home Assistant actually
+sends back — from the integration's source, not the domain docs.** Two facts the
+docs do not tell you have produced every bug in this seam. HA echoes a value at
+the entity's own precision or notch rather than the number sent, so a
+three-speed fan asked for 50 answers 66 and a Fahrenheit target on a Celsius
+house comes back two hundredths off. And one HA change moves several of Dobby's
+attributes at once, because HA sends whole state objects and integrations couple
+them: power is derived from mode on a water heater, a fan's turn-on restores its
+speed, a Xiaomi humidifier switches mode when asked for a humidity. Enumerate
+which attributes one service call moves before deciding what a command explains
+— accounting for one and judging the rest is how the thread ends up crediting a
+person with Dobby's own command.
+
 Every registered type must also have
 `test/dobby/device_agents/<module_name>_test.exs`. That file invokes
 `device_agent_contract Module, ...` for the shared manifest, discovery, state,
@@ -168,8 +181,15 @@ further down this file. The short version:
 
 ```sh
 mix test                      # the replay tier: no HA, no network, no model calls
-mix test --include eval       # the eval tier: real inference, real money
+DOBBY_EVAL=1 mix test --only eval    # the eval tier: real inference, real money
 ```
+
+`--only`, and the env var, both matter. `config/test.exs` gates the provider on
+`DOBBY_EVAL`, not on the ExUnit tag, so `--include eval` without it points every
+provider at a dead loopback address and the whole tier fails on connection
+refused. Setting the variable *and* using `--include` is worse: it lifts the
+loopback guard over all 670 replay tests, which is the billable accident the
+guard exists to prevent.
 
 **Replay** runs on every `mix test` and in CI, and is *incapable* of reaching a
 provider — `config/test.exs` guards it. `Dobby.RigCase` runs the whole
@@ -186,6 +206,14 @@ of which it has caught. Rotating models is itself part of the test.
 
 If a fixture seeds what production builds, the test is lying. Ask of every one:
 does production do this, or am I faking it?
+
+**A test about whether something was somebody's doing must read the thread, not
+the flag.** Every echo test in this suite once asserted `commanded?: true`, and
+that assertion passes in *both* failure modes — the one where Dobby says nothing
+about a hand on the dial, and the one where Dobby invents a person for its own
+command. Three fabrication bugs lived behind green tests because of it. Issue a
+real command through the rig and assert what the household actually reads:
+`system_lines() == []` for a command of ours, and the specific line for a hand.
 
 ## Commands
 

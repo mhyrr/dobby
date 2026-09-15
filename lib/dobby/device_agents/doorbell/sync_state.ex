@@ -49,7 +49,7 @@ defmodule Dobby.DeviceAgents.Doorbell.SyncState do
     %{
       available: available?(params.state),
       last_event: text(params.attributes["event_type"]),
-      last_event_at: text(params.state)
+      last_event_at: timestamp(params.state)
     }
   end
 
@@ -71,4 +71,21 @@ defmodule Dobby.DeviceAgents.Doorbell.SyncState do
 
   defp text(value) when is_binary(value) and value != "", do: value
   defp text(_value), do: nil
+
+  # An event entity's state is the timestamp of its last event, except when
+  # Home Assistant writes "unavailable" or "unknown" there on a restart or an
+  # outage. Taking any non-empty string used to make those two words a ring:
+  # the outage wrote one line into the thread, the reconnection wrote a
+  # second, and `doorbell_get_status` handed "unavailable" to the model as a
+  # time. Only a timestamp is a timestamp. The wire value is kept verbatim
+  # rather than parsed into a `DateTime`, because `Dobby.Home.localize/1`
+  # shifts it onto the household's clock at the boundary (TK-031).
+  defp timestamp(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, _at, _offset} -> value
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp timestamp(_value), do: nil
 end

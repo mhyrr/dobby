@@ -271,10 +271,23 @@ defmodule Dobby.Rules.RuleTest do
     assert {:ok, []} = Rule.load_all([], [])
   end
 
+  # Two read-only appliances have nothing the vocabulary can watch yet: every
+  # fact they carry is a nested flag (ice full, water empty, beans out) or the
+  # manufacturer's own cycle word, and `{:reading, _}` reaches a nested value
+  # only when it is a number with a unit. Declaring a watch no rule could be
+  # written against would be worse than declaring none. Named here rather than
+  # waived in general, so a third type answering `%{}` is a failure, and so
+  # this list shrinks when the vocabulary grows (TK-072).
+  @unwatchable [Dobby.DeviceAgents.IceMaker, Dobby.DeviceAgents.CoffeeMaker]
+
   test "every registered device declares observables that exist in its public snapshot" do
     for module <- Dobby.HomeConfig.Types.modules() do
       assert Code.ensure_loaded?(module)
-      assert map_size(module.observables()) > 0
+
+      if module in @unwatchable,
+        do: assert(module.observables() == %{}),
+        else: assert(map_size(module.observables()) > 0)
+
       bindings = Map.new(module.subscribed_bindings(), &{&1, "sensor.#{&1}"})
       configured = device(module, bindings)
       agent = module.new(id: configured.id, state: module.initial_state(configured))

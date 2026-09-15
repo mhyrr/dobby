@@ -302,6 +302,13 @@ defmodule Dobby.DeviceAgent do
   after a restart did not get set to 68 by anybody, and a thread that said so
   would announce the boot sequence to the kitchen every time the box came up.
 
+  Knowledge going the other way is not movement either. When a device stops
+  answering, every reading it had becomes nil, and the house has not learned
+  that somebody turned anything — it has learned that nobody is telling it any
+  more. Counting that as movement wrote "changed at the air purifier" into the
+  thread every time a fan dropped off the network, which is the 3am endpoint
+  §10.3 puts in the log and nowhere else.
+
   This is why `available` defaults to `nil` rather than `false` on both device
   types. `false` would have made every first report look like a device coming
   back from the dead.
@@ -310,7 +317,12 @@ defmodule Dobby.DeviceAgent do
   def changes(previous, next, keys) do
     changed = Enum.filter(keys, &(Map.get(previous, &1) != Map.get(next, &1)))
 
-    %{changed: changed, moved: Enum.reject(changed, &is_nil(Map.get(previous, &1)))}
+    moved =
+      Enum.reject(changed, fn key ->
+        is_nil(Map.get(previous, key)) or is_nil(Map.get(next, key))
+      end)
+
+    %{changed: changed, moved: moved}
   end
 
   @typedoc "What a device agent decided about a command it was sent."

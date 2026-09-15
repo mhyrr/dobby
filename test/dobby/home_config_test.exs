@@ -123,6 +123,26 @@ defmodule Dobby.HomeConfigTest do
                get_in(Config.Reader.read!("config/homes/rig.exs"), [:dobby, Dobby.Home])
     end
 
+    # The rig's roster and the rig's fake Home Assistant are one file, and they
+    # have to agree: a device the roster names but the fake never reports gets
+    # no snapshot, and the library eval waits on every device having one before
+    # it spends a model call. Two appliances were added to the roster without
+    # their entities on 2026-09-13, and every scenario in that file failed in
+    # setup, before a model was asked anything — the tier reported nothing.
+    test "every entity the rig's roster binds is one the rig's Home Assistant holds" do
+      house = get_in(Config.Reader.read!("config/homes/rig.exs"), [:dobby, Dobby.Home])
+      held = house |> get_in([:home_assistant, :entities]) |> Map.keys() |> MapSet.new()
+
+      unheld =
+        for device <- house[:devices],
+            entity <- Map.values(device.bindings),
+            entity not in held,
+            do: {device.id, entity}
+
+      assert unheld == [],
+             "bound on the rig but never reported by its fake: #{inspect(unheld)}"
+    end
+
     test "the same house in either format describes the same devices" do
       elixir = """
       import Config

@@ -220,6 +220,8 @@ defmodule Dobby.HomeConfig.WriterTest do
                "switch:coffee",
                "shade:dining",
                "fan:bedroom",
+               "water_heater:tank",
+               "dishwasher:kitchen",
                "monitor:office",
                "contact:patio",
                "occupancy:hall",

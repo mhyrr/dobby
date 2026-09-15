@@ -26,6 +26,7 @@ defmodule Dobby.InterventionsTest do
   @thermostat "thermostat:main"
   @entity "climate.main_floor"
   @endpoint "binary_sensor.kitchen_tv"
+  @fan "fan.bedroom"
 
   setup do
     ThreadEvents.subscribe()
@@ -113,6 +114,58 @@ defmodule Dobby.InterventionsTest do
       assert_receive {:system_line, %Message{text: "main thermostat", meta: meta}}
       assert meta["via"] == "changed at the main thermostat"
       assert meta["value"] == "66°"
+    end
+
+    # The line names one attribute, so it has to read that attribute. Handing
+    # the whole snapshot to the reader let a fixed priority order answer a
+    # different question: a fan's power outranks its speed, so a hand on the
+    # speed dial reported "On" and never said what it had been moved to.
+    test "reads the attribute that moved, not whichever one the reader reaches first" do
+      Fake.inject_state_changed(@fan, fan_entity(20))
+      settle!()
+
+      Fake.inject_state_changed(@fan, fan_entity(55))
+
+      assert_receive {:system_line, %Message{text: "bedroom fan", meta: meta}}
+      assert meta["action"] == "speed_percent"
+      assert meta["value"] == "55%"
+    end
+
+    # Dobby's own command must never come back as a person. Home Assistant's
+    # turn-on moves the power and restores the speed in one report, and a seam
+    # that accounted for only one of them wrote "changed at the bedroom fan" for
+    # a command this house had just issued.
+    test "our own command never comes back as somebody's hand" do
+      Fake.inject_state_changed(@fan, fan_entity(20, "off"))
+      settle!()
+
+      {:ok, _result} = Jido.Exec.run(Dobby.Tools.FanTurnOn, %{device: "fan:bedroom"})
+      assert_receive {:ha_call, %HACall{entity_id: @fan}}, 2_000
+      Fake.inject_state_changed(@fan, fan_entity(55, "on"))
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert system_lines() == []
+    end
+
+    # Once the echo has landed, the next report is nobody's but the hand's.
+    # A standing command used to swallow every one of these.
+    test "a hand after the echo still reaches the thread" do
+      Fake.inject_state_changed(@fan, fan_entity(20, "off"))
+      settle!()
+
+      {:ok, _result} = Jido.Exec.run(Dobby.Tools.FanTurnOn, %{device: "fan:bedroom"})
+      assert_receive {:ha_call, %HACall{entity_id: @fan}}, 2_000
+      Fake.inject_state_changed(@fan, fan_entity(20, "on"))
+      settle!()
+
+      Fake.inject_state_changed(@fan, fan_entity(55, "on"))
+
+      assert_receive {:system_line, %Message{text: "bedroom fan", meta: meta}}
+      assert meta["action"] == "speed_percent"
+      assert meta["value"] == "55%"
+      assert meta["via"] == "changed at the bedroom fan"
     end
 
     test "the room getting colder is weather, and stays off the thread" do
@@ -205,6 +258,43 @@ defmodule Dobby.InterventionsTest do
       assert_receive {:system_line, %Message{text: "front doorbell", meta: meta}}, 2_000
       assert meta["value"] == "Ring"
       assert meta["via"] == "changed at the front doorbell"
+    end
+
+    # Home Assistant writes "unavailable" into the event entity's state on a
+    # restart, and the reconnection writes the old timestamp back. Neither is
+    # a press. The sync used to take any non-empty string as the time of the
+    # last ring, so an outage rang the bell twice in the thread and the status
+    # tool handed the model "unavailable" as a time (TK-070, case 3).
+    test "a Home Assistant restart is not a ring, on the way out or the way back" do
+      seed_house(%{
+        "event.front_door" => %{
+          state: "2026-08-23T12:00:00+00:00",
+          attributes: %{event_type: "ring", device_class: "doorbell"}
+        }
+      })
+
+      settle!()
+      assert system_lines() == []
+
+      Fake.inject_state_changed("event.front_door", %{state: "unavailable", attributes: %{}})
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert %{available: false, last_event_at: nil} = Home.snapshots()["doorbell:front"]
+      assert system_lines() == []
+
+      Fake.inject_state_changed("event.front_door", %{
+        state: "2026-08-23T12:00:00+00:00",
+        attributes: %{event_type: "ring", device_class: "doorbell"}
+      })
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle!()
+
+      assert %{available: true, last_event_at: "2026-08-23T12:00:00+00:00"} =
+               Home.snapshots()["doorbell:front"]
+
+      assert system_lines() == []
     end
   end
 
@@ -446,6 +536,9 @@ defmodule Dobby.InterventionsTest do
   end
 
   # -- helpers ---------------------------------------------------------------
+
+  defp fan_entity(percent, state \\ "on"),
+    do: %{state: state, attributes: %{percentage: percent, supported_features: 1}}
 
   defp system_lines do
     Enum.filter(Conversation.list_messages(), &(&1.role == :system))

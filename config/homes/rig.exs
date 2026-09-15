@@ -91,6 +91,28 @@ config :dobby, Dobby.Home,
         state: "off",
         attributes: %{device_class: "smoke"}
       },
+      # The two appliances the roster keeps for the eval tier. A device the
+      # roster names but the fake never reports is a device that never gets a
+      # snapshot, and the library eval waits on every device having one before
+      # it spends a model call — so the roster and this map must agree.
+      # HomeConfigTest holds that tripwire.
+      "water_heater.tank" => %{
+        state: "eco",
+        attributes: %{
+          current_temperature: 118,
+          temperature: 120,
+          min_temp: 90,
+          max_temp: 150,
+          supported_features: 15,
+          operation_list: ["eco", "gas", "off"],
+          away_mode: "off"
+        }
+      },
+      "sensor.dishwasher_operation_state" => %{state: "ready", attributes: %{}},
+      "binary_sensor.dishwasher_door" => %{
+        state: "off",
+        attributes: %{device_class: "door"}
+      },
       "sensor.garage_opener_temperature" => %{
         # Diagnostic on purpose, and permanently. This is the one rig entity a
         # type recognizes (a temperature is an environment monitor's word) that
@@ -207,6 +229,30 @@ config :dobby, Dobby.Home,
       aliases: [],
       agent_module: Dobby.DeviceAgents.Fan,
       bindings: %{fan: "fan.bedroom"},
+      settings: %{}
+    },
+    # Two appliances so the eval tier can reach the appliance half of the
+    # library at all. `Dobby.Home.tools/0` is roster-derived, so a house with no
+    # appliance never offers the model an appliance tool, and a real-inference
+    # run says nothing about fifteen device types. One writable and one
+    # read-only, because they are different contracts.
+    %{
+      id: "water_heater:tank",
+      name: "hot water",
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.WaterHeater,
+      bindings: %{water_heater: "water_heater.tank"},
+      settings: %{temperature_unit: "°F"}
+    },
+    %{
+      id: "dishwasher:kitchen",
+      name: "kitchen dishwasher",
+      aliases: [],
+      agent_module: Dobby.DeviceAgents.Dishwasher,
+      bindings: %{
+        operation_state: "sensor.dishwasher_operation_state",
+        door_open: "binary_sensor.dishwasher_door"
+      },
       settings: %{}
     },
     %{

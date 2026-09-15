@@ -31,23 +31,15 @@ defmodule Dobby.Tools.WifiGetStatus do
 
   @impl true
   def run(%{device: device_id}, _context) do
-    with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, WifiEndpoint),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
-      {:ok, status(server_state.agent.state)}
-    else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  defp status(state) do
-    %{
-      device: state.dobby_id,
-      name: state.name,
-      available: state.available,
-      reachability: reachability(state),
-      last_changed_at: state.last_changed_at
-    }
+    Dobby.Tools.Device.status(device_id, WifiEndpoint, fn state ->
+      %{
+        device: state.dobby_id,
+        name: state.name,
+        available: state.available,
+        reachability: reachability(state),
+        last_changed_at: state.last_changed_at
+      }
+    end)
   end
 
   defp reachability(%{online: true}), do: :online

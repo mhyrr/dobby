@@ -101,6 +101,49 @@ defmodule Dobby.DeviceAgents.FanTest do
     refute hand.data.commanded?
   end
 
+  test "a standing power echo stops swallowing every later hand on the speed dial" do
+    {state, _emit} = sync(booted_state(), "off", %{"supported_features" => 1})
+    {:ok, command, _calls} = Fan.SetPower.run(%{power: :on, ref: "cmd"}, %{state: state})
+    state = Map.merge(state, command)
+
+    {state, %Emit{signal: echo}} =
+      sync(state, "on", %{"percentage" => 20, "supported_features" => 1})
+
+    # Home Assistant's turn-on restores the speed the fan last had, so the same
+    # report moves both. Dobby cannot tell that restore from a hand, and the
+    # honest answer is to claim both rather than name a person for one of them.
+    assert echo.data.commanded?
+    assert echo.data.commanded == [:power, :speed_percent]
+
+    # A later report moves the speed alone. The fan is still on, so the accepted
+    # command still matches the power — but power did not move here, so nothing
+    # is claimed and the hand is visible.
+    {_state, %Emit{signal: hand}} =
+      sync(state, "on", %{"percentage" => 40, "supported_features" => 1})
+
+    refute hand.data.commanded?
+    assert hand.data.commanded == []
+    assert :speed_percent in hand.data.moved
+  end
+
+  # The seam must not claim more than it can see. A turn-on that arrives with a
+  # different speed is ambiguous: Home Assistant restores the last speed on a
+  # turn-on, so this report is exactly what our own command produces. Calling it
+  # somebody's hand would put a person's name on Dobby's own work, which is the
+  # one sentence this architecture exists to prevent.
+  test "a turn-on that also moves the speed is not somebody's hand" do
+    {state, _emit} = sync(booted_state(), "off", %{"percentage" => 20, "supported_features" => 1})
+    {:ok, command, _calls} = Fan.SetPower.run(%{power: :on, ref: "cmd"}, %{state: state})
+    state = Map.merge(state, command)
+
+    {_state, %Emit{signal: both}} =
+      sync(state, "on", %{"percentage" => 55, "supported_features" => 1})
+
+    assert :power in both.data.moved
+    assert :speed_percent in both.data.moved
+    assert both.data.commanded == [:power, :speed_percent]
+  end
+
   test "power and speed are somebody's doing; discovery and availability are not" do
     assert Fan.intervention?(:power)
     assert Fan.intervention?(:speed_percent)

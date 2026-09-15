@@ -8,6 +8,11 @@ defmodule Dobby.DeviceAgentContract do
   validation, discovery, initial state, snapshot construction, closed tools,
   and schedulable actions.
 
+  `discovery: :manual` proves that an entity is refused by discovery. Some
+  semantic types have no reliable HA discriminator; requiring a match would
+  force those types to guess. Their explicit manifest still passes the full
+  state, tool, and schedule contract.
+
   This is deliberately test support, not a production DSL. The production
   extension point remains `Dobby.DeviceAgent`; this module proves an
   implementation honors it.
@@ -49,6 +54,47 @@ defmodule Dobby.DeviceAgentContract do
     end
   end
 
+  @doc """
+  The fixture a type's contract test declares, read off disk.
+
+  Asking the compiled test module would be shorter and wrong: `mix test
+  one_file_test.exs` loads one test file, so a library-wide check built on the
+  modules would quietly find nothing and pass. The file is there either way,
+  and `LibraryContractTest` already guarantees it exists.
+
+  The options are evaluated with no environment, so they must be literals. A
+  contract that reaches for a module attribute, an alias or a helper compiles
+  fine and fails here instead, which is why the raise names the file.
+  """
+  @spec fixture(module()) :: keyword()
+  def fixture(module) do
+    basename = module |> Module.split() |> List.last() |> Macro.underscore()
+    path = Path.join(["test", "dobby", "device_agents", "#{basename}_test.exs"])
+
+    {options, _binding} =
+      path
+      |> File.read!()
+      |> Code.string_to_quoted!(file: path)
+      |> contract_options!(module, path)
+      |> Code.eval_quoted()
+
+    options
+  end
+
+  defp contract_options!(ast, module, path) do
+    {_ast, options} =
+      Macro.prewalk(ast, nil, fn
+        {:device_agent_contract, _meta, [{:__aliases__, _alias_meta, parts}, options]} = node,
+        found ->
+          if Module.concat(parts) == module, do: {node, options}, else: {node, found}
+
+        node, found ->
+          {node, found}
+      end)
+
+    options || raise "#{path} does not invoke device_agent_contract #{inspect(module)}"
+  end
+
   def assert_contract(module, opts) do
     bindings = Keyword.fetch!(opts, :bindings)
     settings = Keyword.get(opts, :settings, %{})
@@ -76,10 +122,15 @@ defmodule Dobby.DeviceAgentContract do
     related_options = Keyword.get(opts, :related, [entity_options])
     related = Enum.map(related_options, &struct!(Dobby.HomeAssistant.Entity, &1))
 
-    assert module.matches_entity?(entity)
+    if Keyword.get(opts, :discovery) == :manual do
+      refute module.matches_entity?(entity)
+      assert :ignore = Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+    else
+      assert module.matches_entity?(entity)
 
-    assert {:ok, ^bindings} =
-             Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+      assert {:ok, ^bindings} =
+               Dobby.DeviceAgent.discovery_bindings(module, entity, related)
+    end
 
     state = module.initial_state(device)
     assert state.dobby_id == device.id

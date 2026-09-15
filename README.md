@@ -30,6 +30,15 @@ sending your own agent at it over MCP, how it works, and developing. Every
 page is written from a walk somebody took, and says so where one has not
 been taken yet. The source is `docs/`, hand-written HTML served as committed.
 
+[Appliance research and setup](docs/appliance-research.md) covers Bosch,
+Wolf, Sub-Zero, and NuHeat, plus the wider integration landscape. Dishwasher,
+oven, refrigerator, washer, dryer, coffee maker, wine cooler, ice maker, cooktop,
+and microwave status use explicit sensor bindings. Water heater, humidifier,
+dehumidifier, air purifier, and range hood controls use standard HA interfaces.
+Floor heat uses `thermostat`; a standalone freezer uses `refrigerator`.
+[Appliance contracts](docs/appliance-contracts.md) lists the supported readings,
+controls, and refusal rules. Makes and models belong in Home Assistant.
+
 ## Running it
 
 You need a reachable Home Assistant, PostgreSQL, and an

@@ -188,12 +188,12 @@ defmodule Dobby.Tools.History do
     end)
   end
 
-  defp on_the_house_clock(iso) when is_binary(iso) do
-    case DateTime.from_iso8601(iso) do
-      {:ok, at, _offset} -> at |> Dobby.Home.local() |> DateTime.to_iso8601()
-      _unreadable -> iso
-    end
-  end
+  # One string, converted the one way the house converts a timestamp for the
+  # model: `Dobby.Home.local_iso8601/1`, which the world model renderer and
+  # every device status tool already read through. What is the tool's own
+  # knowledge is the shape — that the rows are a list and the window a pair of
+  # edges — not what "on the house's clock" means.
+  defp on_the_house_clock(iso) when is_binary(iso), do: Dobby.Home.local_iso8601(iso)
 
   defp on_the_house_clock(other), do: other
 end

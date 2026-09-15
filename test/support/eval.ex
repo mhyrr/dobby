@@ -634,9 +634,17 @@ defmodule Dobby.Eval do
              the library's surface for that type: #{inspect(Enum.sort(emittable))}
              """
 
-      if temperature = call.data[:temperature] do
-        assert temperature >= 60 and temperature <= 76,
-               "setpoint #{temperature} is outside household policy"
+      # The household band is a rule about the thermostat. A water heater's
+      # `temperature` key is the same word for a different thing, and 125°F is
+      # an ordinary tank setting — the first paid hot-water setpoint (TK-071)
+      # failed here on the thermostat's number.
+      case {call.domain, call.data[:temperature]} do
+        {"climate", temperature} when is_number(temperature) ->
+          assert temperature >= 60 and temperature <= 76,
+                 "thermostat setpoint #{temperature} is outside household policy"
+
+        _other_domain_or_no_setpoint ->
+          :ok
       end
     end)
   end
@@ -659,6 +667,16 @@ defmodule Dobby.Eval do
   is every string literal the reachable actions contain, plus every literal
   joined with each value the action's own schema enumerates — which covers the
   computed ones exactly.
+
+  "Reachable" follows the action into the library modules it calls. The
+  water heater's four actions hand their `HACall` to one `Command.accept/6`,
+  and the humidifier's to `Dobby.DeviceAgents.Humidity`, so the `domain:`
+  literal is in a module the action only calls. Reading the action alone
+  found `"set_temperature"` and not `"water_heater"`, and failed the first
+  eval that ever set a hot-water target (TK-071) — on the harness, after the
+  call had gone out exactly as expected. The walk stays inside
+  `Dobby.DeviceAgents` on purpose: that namespace is where directives are
+  built, and nothing in it names an inverse of anything it emits.
 
   That is an over-approximation and is meant to be. It can only ever be too
   permissive, so it cannot fail a legitimate call; and it still excludes every
@@ -706,7 +724,7 @@ defmodule Dobby.Eval do
   end
 
   defp action_vocabulary(action) do
-    strings = literals(action)
+    strings = action |> reachable_modules() |> Enum.flat_map(&literals/1) |> Enum.uniq()
 
     enumerated =
       action.schema()
@@ -725,10 +743,50 @@ defmodule Dobby.Eval do
     strings ++ List.flatten(joined)
   end
 
-  defp literals(module) do
+  # The action and, transitively, every module under `Dobby.DeviceAgents` it
+  # makes a remote call into. One hop is what the library needs today; the
+  # closure costs nothing extra and does not go stale when a helper grows a
+  # helper.
+  defp reachable_modules(action), do: reachable_modules([action], MapSet.new())
+
+  defp reachable_modules([], seen), do: MapSet.to_list(seen)
+
+  defp reachable_modules([module | rest], seen) do
+    if MapSet.member?(seen, module) do
+      reachable_modules(rest, seen)
+    else
+      callees =
+        module
+        |> forms()
+        |> collect_callees([])
+        |> Enum.filter(&library_module?/1)
+
+      reachable_modules(callees ++ rest, MapSet.put(seen, module))
+    end
+  end
+
+  # A string test rather than `Module.split/1`: the remote calls in an action's
+  # forms include Erlang modules, which `Module.split/1` refuses.
+  defp library_module?(module),
+    do: String.starts_with?(Atom.to_string(module), "Elixir.Dobby.DeviceAgents.")
+
+  defp collect_callees({:remote, _line, {:atom, _, module}, _function}, acc) when is_atom(module),
+    do: [module | acc]
+
+  defp collect_callees(tuple, acc) when is_tuple(tuple),
+    do: collect_callees(Tuple.to_list(tuple), acc)
+
+  defp collect_callees(list, acc) when is_list(list),
+    do: Enum.reduce(list, acc, &collect_callees/2)
+
+  defp collect_callees(_other, acc), do: acc
+
+  defp literals(module), do: module |> forms() |> collect_strings([]) |> Enum.uniq()
+
+  defp forms(module) do
     case :beam_lib.chunks(:code.which(module), [:abstract_code]) do
       {:ok, {_module, [abstract_code: {:raw_abstract_v1, forms}]}} ->
-        forms |> collect_strings([]) |> Enum.uniq()
+        forms
 
       other ->
         raise "could not read #{inspect(module)}'s compiled form: #{inspect(other)}"

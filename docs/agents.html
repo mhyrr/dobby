@@ -71,14 +71,16 @@ dobby: http://192.168.1.20:4000/mcp (HTTP) - ✔ Connected</p>
     </div>
 
     <h2 id="tools">What it can do</h2>
-    <p>The MCP client can read and set managed devices, write schedules, discover recognized Home Assistant entities, and propose or confirm house changes. It does not receive the Dobby conversation. It receives the same house tool modules Dobby's model receives.</p>
+    <p>The MCP client can read and set managed devices, write schedules and standing rules, read the household's record, discover recognized Home Assistant entities, and propose or confirm house changes. It does not receive the Dobby conversation. It receives the same house tool modules Dobby's model receives.</p>
 
     <div class="proof">
       <p class="label">What you should see</p>
-      <p class="line">confirm_device, create_schedule, delete_schedule, discover_entities,
+      <p class="line">acknowledge_rule, confirm_device, confirm_rule, create_schedule,
+delete_rule, delete_schedule, discover_entities, history,
 light_get_status, light_set_brightness, light_turn_off, light_turn_on,
-list_schedules, propose_device, set_schedule_enabled,
-thermostat_get_status, thermostat_set_temperature, wifi_get_status</p>
+list_rules, list_schedules, propose_device, propose_rule,
+set_rule_enabled, set_schedule_enabled, thermostat_get_status,
+thermostat_set_temperature, wifi_get_status</p>
       <p class="said">The tools of a house with a thermostat, a light, and a printer.</p>
     </div>
 

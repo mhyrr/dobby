@@ -137,9 +137,9 @@
     <table>
       <tr><th>Type</th><th>Bindings</th><th>What Dobby offers</th></tr>
       <tr><td><code>water_heater</code></td><td><code>water_heater</code></td><td>Temperature, mode, away mode, and power where HA reports the capability. Configure <code>settings.temperature_unit</code> to match HA's system unit when the entity omits it.</td></tr>
-      <tr><td><code>humidifier</code>, <code>dehumidifier</code></td><td><code>humidifier</code>, with the matching HA device class</td><td>Power, humidity target within the reported range, and advertised modes. Household bounds can narrow the range.</td></tr>
+      <tr><td><code>humidifier</code>, <code>dehumidifier</code></td><td><code>humidifier</code>, with the matching HA device class</td><td>Power, humidity target within the reported range, and advertised modes. Household bounds can narrow the range, and the fader on the card narrows too.</td></tr>
       <tr><td><code>air_purifier</code>, <code>range_hood</code></td><td><code>fan</code>; optional <code>filter_remaining</code> and <code>filter_due</code></td><td>Power, supported speed, and filter readings. Bind a hood light as a separate light.</td></tr>
-      <tr><td><code>dishwasher</code>, <code>washer</code>, <code>dryer</code></td><td>Explicit cycle, door, progress, or remaining-time sensors</td><td>Status only. A remote-readiness flag does not start a cycle.</td></tr>
+      <tr><td><code>dishwasher</code>, <code>washer</code>, <code>dryer</code></td><td>Explicit cycle, door, progress, and finish-time sensors; remaining time on the washer and dryer</td><td>Status only. A remote-readiness flag does not start a cycle.</td></tr>
       <tr><td><code>oven</code>, <code>refrigerator</code>, <code>wine_cooler</code></td><td>Explicit measured-temperature, setpoint, door, or activity sensors</td><td>Status only. A setpoint does not establish a measured temperature.</td></tr>
       <tr><td><code>coffee_maker</code>, <code>ice_maker</code></td><td>Explicit activity, supply, or maintenance sensors</td><td>Status only. Missing readings remain unknown.</td></tr>
       <tr><td><code>cooktop</code>, <code>microwave</code></td><td>Explicit activity, residual-heat, door, or cycle sensors as applicable</td><td>Status only. Use one cooktop entry per heating zone when HA reports separate zones.</td></tr>

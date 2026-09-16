@@ -52,6 +52,8 @@
 
     <p>Discovery can inspect recognized Home Assistant entities that are not yet managed. It does not dump every entity into the normal conversation. The proposal translates technical entities into a household device with a stable id, name, aliases, type, and exact binding map.</p>
 
+    <p>Discovery does not reach every type. The dishwasher, oven, cooktop, microwave, refrigerator, wine cooler, ice maker, coffee maker, washer, dryer, air purifier, and range hood go into the house file by hand, because a Home Assistant entity name does not say which appliance it belongs to. Each entry names its bindings, and <a href="house.html#appliances">Household appliances</a> shows them by type. The water heater, humidifier, and dehumidifier are proposed like any other device.</p>
+
     <h2 id="proposals">Proposed is not done</h2>
     <p>Dobby separates suggesting a house change from making it.</p>
     <p>First comes a <strong>proposal</strong>. Dobby checks that the entity exists, no managed device already uses it, and the new id is free. It returns the exact entry it would write and gives the proposal a number. Nothing changes.</p>

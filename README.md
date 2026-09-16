@@ -2,7 +2,7 @@
 
 A house elf for your Home Assistant.
 
-**Status:** 0.1.0, released 2026-09-04, is the first tagged release. Linux
+**Status:** 0.2.0, released 2026-09-16, is the current release. Linux
 tarballs for amd64 and arm64 are on the
 [releases page](https://github.com/mhyrr/dobby/releases), what is in them is
 in [CHANGELOG.md](CHANGELOG.md), and installing one is the guide's

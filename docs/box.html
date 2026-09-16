@@ -114,6 +114,7 @@ openssl rand -base64 48                                                      # t
     <p>Fill in <code>DATABASE_URL</code> with the password you chose, <code>SECRET_KEY_BASE</code> with the generated value, <code>DOBBY_HA_URL</code> and <code>DOBBY_HA_TOKEN</code> for Home Assistant, and <code>OPENROUTER_API_KEY</code>. The file is read by systemd: one <span class="arg">KEY=value</span> per line, no <code>export</code>. Keep the secret key base. Change it and every browser in the house is asked its name again.</p>
 
     <h3 id="start">Install and start</h3>
+    <p>The walk used 0.1.0, so every path here says 0.1.0. The tarball on the releases page is named for the current version, and that number goes in its place.</p>
 <pre><code>sudo mkdir -p /opt/dobby/releases/0.1.0
 sudo tar -xzf dobby-0.1.0-linux-arm64.tar.gz -C /opt/dobby/releases/0.1.0
 sudo ln -sfn /opt/dobby/releases/0.1.0 /opt/dobby/current

@@ -72,6 +72,10 @@
     <p><code>device</code> can only name a thermostat in Dobby's managed roster. The action validates the value in the thermostat agent. The tool adds transport and nothing else.</p>
     <p>Discovery is the deliberate exception. While teaching Dobby the house, discovery tools expose recognized, unmanaged Home Assistant entity IDs and proposed binding maps. The model can use them to propose a device. It still cannot call a Home Assistant service.</p>
 
+    <h2 id="arithmetic">The model never does arithmetic</h2>
+    <p>Questions about the household's past go to Dobby's own record, not to the model's memory. “Who changed the thermostat?” and “how many times did the door open last week?” reach one typed tool. The model names the device, the kinds of rows, and the period in household words. Code resolves that period against the house clock and counts the matching rows in the database. The model reads the rows back.</p>
+    <p>Every timestamp the model is handed is already on the household's clock. Home Assistant reports in UTC or in whatever offset it holds. Applying that offset is arithmetic, and a model given the stamp and the offset reads the time back without applying it. The conversion happens once, where the house and every tool result are rendered for the model. The device agents still hold exactly what Home Assistant said.</p>
+
     <h2 id="trust">The model can be wrong. The house still enforces its limits.</h2>
     <p>Before each message, Dobby gives the model the managed devices and their last known state. Unknown devices are absent from the control vocabulary. Unsupported actions do not exist as tools. Out-of-range values fail inside the device agent.</p>
     <p>The language layer also carries a rule: ambiguity is a refusal to act. A replay suite and real-model evals test that judgment. This is not a mathematical guarantee. A model can misunderstand a person and choose a valid action on a valid device. The architecture bounds the action; it does not make language perfect.</p>
@@ -98,11 +102,16 @@ observed  target 72° · current 67° · WARMING</p>
       <p class="said">The last line can arrive only from Home Assistant. Dobby never invents it from the request.</p>
     </div>
 
+    <h2 id="rules">A standing rule watches. It never acts.</h2>
+    <p>The household can ask Dobby to keep watch: a reading that holds for a stated time, or nothing recorded for a stated time. The model proposes the rule in words and waits for agreement in a later message. After that the rule belongs to the deterministic layer. A timer measures the interval and reads the device agents, and nothing in that watcher calls a model or Home Assistant.</p>
+    <p>No rule can change a device, which is why a device marked <code>hands_only: true</code> can still be watched. A breach is written into the thread once, and it stands above the thread until somebody acknowledges it.</p>
+
     <h2 id="without-model">When AI disappears</h2>
     <p>If the model provider is unavailable while Dobby itself is running:</p>
     <ul>
       <li>existing Dobby schedules still fire;</li>
-      <li>the thermostat card still works;</li>
+      <li>standing rules keep watching, and a breach still reaches the thread;</li>
+      <li>every card that takes a hand still works;</li>
       <li>Home Assistant keeps running its own devices and automations;</li>
       <li>conversation that requires model reasoning stops.</li>
     </ul>

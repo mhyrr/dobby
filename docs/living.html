@@ -100,8 +100,11 @@ downstairs thermostat · set_temperature · 70° · Greg</p>
 
     <h2 id="house">Sometimes talking is easier. Sometimes touching is easier.</h2>
     <p>Both paths reach the same device machinery. Conversation is a first-class interface, not the only interface.</p>
-    <p><span class="arg">/house</span> shows every managed device as a card with its reading and its word. The thermostat card has a fader across the range the household allows. While your finger is on it, the proposed number sits beside the fader in amber. The reading changes only when Home Assistant reports a new state.</p>
-    <p>A thermostat card tap bypasses the model. It is fast, and it still runs the thermostat's range checks. The card never asks “are you sure?” It offers <span class="arg">undo · back to 70°</span> after a change. Other device types show their state today. Their controls use the thread or schedules.</p>
+    <p><span class="arg">/house</span> shows every managed device as a card with its reading and its word. Under the row sits the device's other number: the water heater says the water in the tank, a humidifier says the air in the room, an oven says its target under its temperature. A type with no second number says <span class="arg">Since 4:12 PM</span>. The reading changes only when Home Assistant reports a new state.</p>
+    <p>A fader sets a thermostat's or water heater's setpoint, a humidifier's or dehumidifier's target, the speed of a fan, an air purifier or a range hood, and a dimmable light's brightness. It runs between the two ends the device itself reported. While your finger is on it, the proposed number rides above it in amber. Nothing is sent until the finger comes up. The step is the device's own too, so a target it would refuse cannot be reached from the card. A card cannot set the hot water to 200°F, and the device agent checks every value regardless, so anything it refuses reads <span class="arg">HELD</span> with the device's own reason and nothing reaches Home Assistant.</p>
+    <p>Where the value is a word rather than a number, the card draws a row of the words the device advertised. The water heater offers its mode, its away mode, and power. A humidifier offers its mode and power. The fan, the air purifier, the range hood, the light, and the switch offer power, which reads <span class="arg">ON · off</span>. The lock offers <span class="arg">locked</span> and the garage door offers <span class="arg">closed</span>. Unlock and open are on no surface.</p>
+    <p>The word the device holds is written in the record voice and is not a button, because the board never offers to set a thing to what it already says. The others are the quiet underlined verbs. A row with nothing left to offer is not drawn: a locked door already reads Locked.</p>
+    <p>A card tap reaches the device with no model involved. It is fast, it still runs that device's own range checks, and the thread says who did it. The card never asks “are you sure?” It offers a way back for eight seconds instead: <span class="arg">undo · back to 70°</span> after a fader, <span class="arg">undo · back to eco</span> after a word. The vacuum's start and stop and the shade's move have no card control yet. Ask for those in the thread, or put them on a schedule.</p>
     <p>The foot of the page holds <span class="arg">edit</span> and <span class="arg">remove</span> on each card, with <span class="arg">add a device</span> below. See <a href="growing.html">Teach Dobby your house</a>.</p>
 
     <h3 id="words">The eight words</h3>
@@ -113,7 +116,7 @@ downstairs thermostat · set_temperature · 70° · Greg</p>
       <tr><td><span class="flap" data-st="set">Set</span></td><td>Somebody asked for this value.</td></tr>
       <tr><td><span class="flap" data-st="acting">Warming</span> <span class="flap" data-st="acting">Cooling</span></td><td>The device is doing it. Home Assistant said so.</td></tr>
       <tr><td><span class="flap" data-st="expected">Ready</span></td><td>A schedule waiting for its time.</td></tr>
-      <tr><td><span class="flap" data-st="acting">Awake</span></td><td>A network device that answers.</td></tr>
+      <tr><td><span class="flap" data-st="acting">Awake</span></td><td>A device that answers and only reports. Its reading is beside the word.</td></tr>
       <tr><td><span class="flap" data-st="acting">Listening</span></td><td>Dobby is paying attention. On the plate, beside his mark.</td></tr>
       <tr><td><span class="flap" data-st="silent">Quiet</span></td><td>A network device that stopped answering.</td></tr>
       <tr><td><span class="flap" data-st="refused">Held</span></td><td>The device declined. The reason is beside it.</td></tr>
@@ -155,7 +158,7 @@ downstairs thermostat · set_temperature · 70° · Greg</p>
     <h2 id="schedules">Tell it once. The house remembers.</h2>
     <p>A schedule is a standing intention: “Set downstairs to 70 at seven every weekday.” Say it in the thread and Dobby writes a label, a time, the device, the action, the value, and who asked. It says the instruction is set for those times. It does not say the house is already that way.</p>
     <p>“By 8 PM” and “at 8 PM” are different requests. Dobby supports the second. It asks when the wording implies the first. At the appointed time, a timer sends the stored command to the device agent. No model runs.</p>
-    <p>If the model provider is unavailable while Dobby is still running, existing schedules still fire and the thermostat card still works. A stopped Dobby server cannot fire a Dobby-owned schedule.</p>
+    <p>If the model provider is unavailable while Dobby is still running, existing schedules still fire and the cards still work. A stopped Dobby server cannot fire a Dobby-owned schedule.</p>
 
     <nav class="foot" aria-label="Neighbouring chapters">
       <a class="prev" href="index.html"><small>Previous</small>Meet Dobby</a>

@@ -92,9 +92,10 @@ initial state sync: ok</p>
     <h2 id="tests">Two kinds of tests</h2>
     <p><strong>Replay</strong> runs on every <code>mix test</code> and in CI, against the fake Home Assistant. It cannot reach a model provider. It proves the machinery.</p>
     <p><strong>Eval</strong> runs a real model, for real money. It asks whether the model exercises judgment. It has caught a tool description that misled the model, a prompt that let the model act on an ambiguous request, and a model echoing the prompt's framing into a reply.</p>
-<pre><code>mix test                      <span class="c"># replay: no HA, no network, no model calls</span>
-mix test --include eval       <span class="c"># eval: real inference</span>
-mix precommit                 <span class="c"># compile --warnings-as-errors, unused deps, format, test</span></code></pre>
+<pre><code>mix test                             <span class="c"># replay: no HA, no network, no model calls</span>
+DOBBY_EVAL=1 mix test --only eval    <span class="c"># eval: real inference, real money</span>
+mix precommit                        <span class="c"># compile --warnings-as-errors, unused deps, format, test</span></code></pre>
+    <p><code>DOBBY_EVAL</code> lifts the guard in <span class="arg">config/test.exs</span>. Without it every provider points at a closed loopback port and the whole tier fails on connection refused. <code>--only</code> keeps the replay tier out of a run whose guard is down, where a replay test can reach a model provider and cost real money.</p>
     <p>A rule for fixtures: if a test seeds what production builds, the test is lying.</p>
 
     <h2 id="tidewave">Tidewave</h2>

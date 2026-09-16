@@ -97,4 +97,5 @@ evaluations excluded. The suite uses FakeHA with HA-shaped state objects and
 real Dobby agents. It covers native service calls and echoes, unavailable
 states, capability and range refusals, explicit units, sensor independence,
 manifest round trips, tool registration, and command-value rendering.
-Physical appliances and browser presentation have not been exercised.
+Physical appliances have not been exercised. The rig house's cards were
+looked at in the browser on 2026-09-14, when the card controls landed.

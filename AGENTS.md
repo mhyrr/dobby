@@ -130,14 +130,3 @@ Tidewave at `/tidewave/mcp` (loopback only).
   flags the ones that do not.
 - Never use `Mix.env()` to change runtime behaviour; it is a config value.
 - Incidents and gotchas go to HIVE memory, not this file.
-
-## Elixir traps the model still trips on
-
-Lists have no index access (`Enum.at`, never `list[i]`). A rebinding inside
-`if`/`case` is lost unless the block's result is bound. One module per file.
-Structs do not implement Access (`struct.field`, not `struct[:field]`). No
-`else if`: use `cond`. `String.to_atom/1` never on user input. Predicates end
-in `?` and never start with `is_`. In HEEx, `{...}` in attributes and bodies,
-`<%= %>` only for blocks in bodies, `<%!-- --%>` for comments, and
-`phx-no-curly-interpolation` on any tag showing literal braces. The `elixir-*`
-skills carry the rest.

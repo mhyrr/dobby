@@ -11,6 +11,8 @@ defmodule Dobby.ControlsTest do
   use Dobby.RigCase, async: false
 
   alias Dobby.Controls
+  alias Dobby.DeviceAgents.WaterHeater
+  alias Dobby.Home
 
   @heater "water_heater:tank"
 
@@ -67,5 +69,43 @@ defmodule Dobby.ControlsTest do
     assert {:error, reason} = Controls.command(@heater, "set_temperature", "warm")
     assert reason =~ "temperature_f"
     assert Fake.trace() == []
+  end
+
+  # An `HACall` runs inside the device agent and holds it for as long as Home
+  # Assistant takes — up to ten seconds, twice the five a state read waits. A
+  # suspended agent is that, without the ten seconds of HA: it is alive,
+  # registered, and says nothing. The board reads NOT KNOWN for it (the
+  # manifest's own answer, `available: nil`), and a card and a status read
+  # each refuse in a sentence, where every one of them used to crash.
+  @tag timeout: 30_000
+  test "a device whose agent does not answer degrades rather than crashing" do
+    assert Home.snapshots()[@heater].available == true
+
+    pid = Dobby.Jido.whereis(@heater)
+    :sys.suspend(pid)
+
+    try do
+      # Concurrently, because each waits out the same five-second read.
+      [snapshots, control, status] =
+        [
+          fn -> Home.snapshots() end,
+          fn -> Controls.command(@heater, "set_temperature", "125", via: "greg, card") end,
+          fn -> Dobby.Tools.Device.status(@heater, WaterHeater, & &1) end
+        ]
+        |> Enum.map(&Task.async/1)
+        |> Task.await_many(20_000)
+
+      assert %{available: nil, id: @heater} = snapshots[@heater]
+      assert {:error, reason} = control
+      assert reason =~ "not answering"
+      assert {:error, reason} = status
+      assert reason =~ "not answering"
+      assert Fake.trace() == []
+    after
+      :sys.resume(pid)
+    end
+
+    # And the house comes back as soon as the agent does.
+    assert Home.snapshots()[@heater].available == true
   end
 end

@@ -114,8 +114,12 @@ defmodule Dobby.Controls do
   # fired. This is not a second opinion on the value — the device agent has
   # the only opinion on that — it is the same rule the card draws by: a
   # device that has not reported has not said what it will accept.
+  #
+  # An agent too busy to answer — holding an `HACall` open while Home Assistant
+  # is slow — is refused in a sentence rather than crashing the page the hand
+  # is on. Nothing has been sent, so there is nothing to hold or undo.
   defp offered(device, pid, action) do
-    with {:ok, server_state} <- Jido.AgentServer.state(pid) do
+    with {:ok, server_state} <- read_state(device, pid) do
       snapshot = device.agent_module.snapshot(server_state.agent.state)
 
       device.agent_module
@@ -125,6 +129,13 @@ defmodule Dobby.Controls do
         nil -> {:error, "#{device.name} offers no control to #{action} right now"}
         control -> {:ok, control}
       end
+    end
+  end
+
+  defp read_state(device, pid) do
+    case DeviceAgent.read_state(pid) do
+      {:error, :not_answering} -> {:error, "#{device.name} is not answering right now"}
+      other -> other
     end
   end
 

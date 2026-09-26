@@ -447,14 +447,16 @@ defmodule Dobby.DeviceAgent do
   @spec command(pid(), String.t(), map(), caller()) :: outcome() | {:error, String.t()}
   def command(pid, signal_type, args, %{via: via} = caller)
       when is_pid(pid) and is_binary(signal_type) and is_map(args) do
-    with {:ok, server_state} <- Jido.AgentServer.state(pid),
+    with {:ok, server_state} <- read_state(pid),
          :ok <- authorize(server_state.agent.state, via),
          ref = Jido.Util.generate_id(),
          signal = command_signal(signal_type, args, ref, caller),
-         {:ok, agent} <- Jido.AgentServer.call(pid, signal) do
+         {:ok, agent} <- send_command(pid, signal) do
       command_outcome(agent.state, ref)
     else
       {:rejected, _reason} = refusal -> refusal
+      :unknown -> :unknown
+      {:error, :not_answering} -> {:error, "the device did not answer in time; nothing was sent"}
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}
     end
@@ -462,6 +464,42 @@ defmodule Dobby.DeviceAgent do
 
   def command(_pid, _signal_type, _args, caller),
     do: {:error, "unknown command caller #{inspect(caller)}"}
+
+  # Once the signal has been handed over, an agent that does not reply in time
+  # may still act on it: it was busy, not deaf, and the command is in its
+  # mailbox. So a timeout here is `:unknown`, the outcome that already means
+  # "sent, and nobody can say what became of it", and never an error claiming
+  # nothing happened. Broad for the same reason `read_state/1` is.
+  defp send_command(pid, signal) do
+    Jido.AgentServer.call(pid, signal)
+  catch
+    :exit, _reason -> :unknown
+  end
+
+  @doc """
+  Reads a device agent's server state, or says it did not answer.
+
+  `Jido.AgentServer.state/1` is a bare `GenServer.call` with the default five
+  seconds, and a device agent is exactly the process most likely to overrun
+  it: an `HACall` directive runs *inside* the agent (`Dobby.Directive.HACall`)
+  and holds it for as long as Home Assistant takes, up to the client's ten
+  second execute timeout. A caller that matched `{:ok, _}` crashed with the
+  timeout — which took down `/house` whenever Home Assistant was slow, a card
+  press, or a status tool, for a device that was merely busy.
+
+  The catch is broad on purpose: a timeout, an agent that died between the
+  registry lookup and the call, and one shutting down are all the same fact
+  to every caller here — the device could not be asked just now — and each
+  caller already has a way to say that (`Dobby.Home.snapshots/0` answers
+  from the manifest, NOT KNOWN on the board; a control or a tool refuses in a
+  sentence). Anything that is not an exit is still a bug and still raises.
+  """
+  @spec read_state(pid()) :: {:ok, struct()} | {:error, :not_answering | term()}
+  def read_state(pid) when is_pid(pid) do
+    Jido.AgentServer.state(pid)
+  catch
+    :exit, _reason -> {:error, :not_answering}
+  end
 
   defp authorize(%{dobby_id: id}, via)
        when via in [:conversation, :mcp, :card, :admin] do

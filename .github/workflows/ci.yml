@@ -1,0 +1,87 @@
+# The gate: `mix precommit` on every pull request and every push to main, the
+# same command CLAUDE.md asks for before anything is called done.
+#
+# This is the replay tier and nothing else. DOBBY_EVAL is never set here, so
+# config/test.exs points every model provider at a dead loopback port and no
+# inference is ever billed. The test environment reads no other variable
+# either (config/runtime.exs, TK-018): the rig in config/homes/rig.exs is the
+# house, and Home Assistant is the Fake. Nothing here needs a secret.
+#
+# Versions follow rel/Dockerfile, so the suite runs on the Elixir and OTP the
+# release is built with. Change them together.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes the older run moot.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  ELIXIR_VERSION: "1.19.4"
+  OTP_VERSION: "28.2"
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+
+    # config/test.exs expects postgres:postgres on localhost:5432; the test
+    # alias creates and migrates dobby_test itself.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      # Dependencies only. Dobby's own build is dropped below, so a warning in
+      # a file this change did not touch still fails --warnings-as-errors.
+      - uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ env.OTP_VERSION }}-elixir${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ env.OTP_VERSION }}-elixir${{ env.ELIXIR_VERSION }}-
+
+      - name: Fetch and compile dependencies
+        run: |
+          mix deps.get
+          mix deps.compile
+          rm -rf _build/test/lib/dobby
+
+      # compile --warnings-as-errors, deps.unlock --unused, format, test.
+      # No assets: the suite renders LiveViews without tailwind or esbuild.
+      - name: mix precommit
+        run: mix precommit
+
+      # `format` and `deps.unlock --unused` rewrite rather than fail, which is
+      # right on a laptop and silent here. Whatever they changed is what the
+      # branch forgot to commit.
+      - name: Nothing left for precommit to rewrite
+        run: git diff --exit-code

@@ -40,6 +40,40 @@ defmodule Dobby.Conversation.Turn.Queue do
   Every turn runs in a task under the application's supervisor and is
   monitored. A turn that crashes still frees the floor, because the next
   utterance in a house is not conditional on the last one having gone well.
+
+  It also still ends. `Turn.answer/4` catches whatever it can and writes its
+  own failure line, but nothing running inside a process sees that process
+  killed, so the monitor is the one place that sees every way a turn stops.
+  A turn that went down without saying `{:turn_finished, request_id}` gets
+  `Turn.abandon/2` from here: the failure line, and the finish that closes the
+  pending row on every surface and lets `Dobby.Interventions.Watcher` release
+  the outcomes it was holding for that request.
+
+  "Without saying" is read off the thread, not guessed from the exit reason.
+  The queue subscribes to `dobby:thread` and notes the running turn's own
+  finish. A local PubSub broadcast is a plain send from the turn's process, and
+  Erlang orders signals between one pair of processes, so that finish is in
+  the mailbox before the `:DOWN` that follows it. A turn killed after its
+  reply was stored — inside `Writer.catch_up/0`, say — therefore gets no
+  second, false failure line.
+
+  ## The deadline
+
+  `DobbyAgent.stream/2` blocks in `receive` for as long as the provider takes,
+  and a provider that never answers would hold the one floor the house has
+  forever. So each turn gets a deadline (`:turn_deadline_ms` under this
+  module's app config, three minutes when unset — long enough for a turn with
+  several tool calls on a slow model, short enough that a household notices
+  within one conversation), after which the task is killed and ends the same
+  way as any other death. Configured rather than switched on environment,
+  because how long a model may take is a property of the model.
+
+  Killing the task stops the waiting, not the request: the ReAct agent may
+  still be busy with it, in which case the next turn is refused as busy, with
+  a failure line, until it lets go. That is a sentence, where before it was a
+  silence that never ended. Cancelling the agent's own request as well was
+  left out because no cancel is used anywhere in this codebase yet, and one
+  added blind is worse than the honest refusal.
   """
 
   use GenServer
@@ -48,9 +82,12 @@ defmodule Dobby.Conversation.Turn.Queue do
 
   alias Dobby.Conversation.Speaker
   alias Dobby.Conversation.Turn
+  alias Dobby.ThreadEvents
   alias Dobby.Utterance
 
-  defstruct running: nil, waiting: :queue.new(), runner: nil
+  @default_deadline :timer.minutes(3)
+
+  defstruct running: nil, waiting: :queue.new(), runner: nil, deadline: @default_deadline
 
   # -- client ----------------------------------------------------------------
 
@@ -97,7 +134,16 @@ defmodule Dobby.Conversation.Turn.Queue do
     # queue's job is ordering and what it orders is a black box to it — a test
     # can hand it something that blocks on command, which is the only way to
     # observe ordering without racing a turn that finishes in microseconds.
-    {:ok, %__MODULE__{runner: Keyword.get(opts, :runner, &Turn.answer/4)}}
+    #
+    # The deadline is injectable for the same reason: a test cannot wait three
+    # minutes to watch one pass.
+    ThreadEvents.subscribe()
+
+    {:ok,
+     %__MODULE__{
+       runner: Keyword.get(opts, :runner, &Turn.answer/4),
+       deadline: Keyword.get_lazy(opts, :deadline, &configured_deadline/0)
+     }}
   end
 
   @impl GenServer
@@ -117,12 +163,30 @@ defmodule Dobby.Conversation.Turn.Queue do
   def handle_call(:waiting, _from, state), do: {:reply, :queue.len(state.waiting), state}
 
   @impl GenServer
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{running: %{ref: ref}} = state) do
-    if reason != :normal do
-      Logger.error("a turn died holding the floor: #{inspect(reason)}")
-    end
-
+  def handle_info(
+        {:DOWN, ref, :process, _pid, reason},
+        %{running: %{ref: ref} = running} = state
+      ) do
+    Process.cancel_timer(running.timer)
+    turn_ended(reason, running)
     {:noreply, next(%{state | running: nil})}
+  end
+
+  # The running turn said its own last line. Anything after this is not the
+  # person's business, so the `:DOWN` that follows writes nothing.
+  def handle_info(
+        {:turn_finished, request_id},
+        %{running: %{turn: {_utterance, _speaker, request_id, _opts}}} = state
+      ) do
+    {:noreply, %{state | running: %{state.running | finished?: true}}}
+  end
+
+  # Matched on the monitor ref as well as sent by this process, so a deadline
+  # left over from a turn that already ended cannot kill the one after it.
+  def handle_info({:deadline, ref}, %{running: %{ref: ref, pid: pid}} = state) do
+    Logger.error("a turn passed its #{state.deadline}ms deadline and was stopped")
+    Process.exit(pid, :kill)
+    {:noreply, state}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -143,20 +207,48 @@ defmodule Dobby.Conversation.Turn.Queue do
   defp start(state, {utterance, speaker, request_id, opts} = turn) do
     runner = state.runner
 
-    started =
-      Task.Supervisor.start_child(Dobby.TaskSupervisor, fn ->
+    # `async_nolink` rather than `start_child` plus `Process.monitor`: the task
+    # does not run the runner until this process's monitor is in place. With
+    # the monitor attached afterwards, a turn that died in that gap came back
+    # as `:noproc`, and its failure line said so instead of why it died.
+    %Task{ref: ref, pid: pid} =
+      Task.Supervisor.async_nolink(Dobby.TaskSupervisor, fn ->
         runner.(utterance, speaker, request_id, opts)
       end)
 
-    case started do
-      {:ok, pid} ->
-        %{state | running: %{ref: Process.monitor(pid), turn: turn}}
+    timer = Process.send_after(self(), {:deadline, ref}, state.deadline)
+    %{state | running: %{ref: ref, pid: pid, turn: turn, timer: timer, finished?: false}}
+  end
 
-      # The floor stays clear rather than being held by a turn that never
-      # started, which would wedge every utterance behind it for good.
-      {:error, reason} ->
-        Logger.error("could not start a turn: #{inspect(reason)}")
-        next(%{state | running: nil})
-    end
+  defp turn_ended(:normal, _running), do: :ok
+
+  # It died, but after its own last line was stored: nothing more to say.
+  defp turn_ended(reason, %{finished?: true}),
+    do: Logger.error("a turn died holding the floor: #{inspect(reason)}")
+
+  defp turn_ended(reason, %{turn: {_utterance, _speaker, request_id, _opts}}) do
+    Logger.error("a turn died holding the floor: #{inspect(reason)}")
+    end_abandoned(request_id, reason)
+  end
+
+  # The queue is holding everyone else's place in line, so a failure to write
+  # one dead turn's last line must not take the queue down with it: the
+  # rescue is broad because what can fail here is a database write, and every
+  # way that fails is the same to the people still waiting. It is logged.
+  defp end_abandoned(request_id, reason) do
+    Turn.abandon(request_id, abandon_detail(reason))
+  rescue
+    error ->
+      formatted = Exception.format(:error, error, __STACKTRACE__)
+      Logger.error("could not end a dead turn: #{formatted}")
+  end
+
+  defp abandon_detail(:killed), do: "the turn was stopped"
+  defp abandon_detail(reason), do: inspect(reason)
+
+  defp configured_deadline do
+    :dobby
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:turn_deadline_ms, @default_deadline)
   end
 end

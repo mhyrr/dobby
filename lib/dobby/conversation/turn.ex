@@ -143,24 +143,48 @@ defmodule Dobby.Conversation.Turn do
   @doc """
   Asks Dobby, for an utterance already in the thread.
 
-  This is what the queue runs, one at a time. It is also where the rescue is:
+  This is what the queue runs, one at a time. It is also where the catch is:
   the process running it is nobody's supervisor and nobody's caller, so without
   it a crash anywhere below is a person watching their own message sit there
   forever with no reply and no explanation.
+
+  A turn this catches ends normally, having already written its last line, so
+  the queue sees a `:normal` exit and does not write a second one. What it
+  cannot catch — a `:kill`, from the queue's own deadline or from anyone else
+  — is `Dobby.Conversation.Turn.Queue`'s to clean up, through `abandon/2`.
   """
   @spec answer(Utterance.t(), Speaker.t(), String.t(), keyword()) :: :ok
   def answer(%Utterance{} = utterance, %Speaker{} = speaker, request_id, opts \\ []) do
     ask(utterance, speaker, request_id, opts)
-  rescue
-    error ->
-      Logger.error("turn crashed: #{Exception.format(:error, error, __STACKTRACE__)}")
-      fail(request_id, "something went wrong answering that")
-      # The same barrier both `finish/1` clauses release, released here too. A
-      # HELD or NOT KNOWN correlated to this request is being held by the
-      # witness until the turn says its own last line is stored, and a crash is
-      # still a last line — without this the outcome waits forever for a turn
-      # that has already given up.
-      ThreadEvents.turn_finished(request_id)
+  catch
+    # Every kind, not just `rescue`. A provider that times out arrives as an
+    # exit from a `GenServer.call` somewhere below, and a library that throws
+    # arrives as a throw; either was a turn that died with no reply, the UI
+    # still showing it running and its held outcomes never released. Anything
+    # at all that stops a turn short is the same sentence to the person.
+    kind, reason ->
+      Logger.error("turn crashed: #{Exception.format(kind, reason, __STACKTRACE__)}")
+      abandon(request_id)
+  end
+
+  @doc """
+  Ends a turn that could not end itself.
+
+  The failure line the person reads, then the same barrier both `finish/1`
+  clauses release. A HELD or NOT KNOWN correlated to this request is being
+  held by the witness until the turn says its own last line is stored, and a
+  crash is still a last line — without the release the outcome waits forever
+  for a turn that has already given up, and every surface keeps the turn open.
+
+  Public because two places end turns abnormally and they must say the same
+  thing: `answer/4` for whatever it can catch, and `Turn.Queue` for a turn
+  whose process died where no code of its own could run.
+  """
+  @spec abandon(String.t(), String.t() | nil) :: :ok
+  def abandon(request_id, detail \\ nil) when is_binary(request_id) do
+    fail(request_id, "something went wrong answering that", detail)
+    ThreadEvents.turn_finished(request_id)
+    :ok
   end
 
   @doc """

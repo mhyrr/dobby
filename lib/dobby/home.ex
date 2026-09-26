@@ -290,22 +290,36 @@ defmodule Dobby.Home do
   A device whose agent is not running answers from its manifest entry, which
   reads as a device that exists and has told us nothing. That is the truth in
   that situation, and it is better than a hole in the board.
+
+  So does one whose agent is running but does not answer in time. An `HACall`
+  runs inside the device agent and holds it for as long as Home Assistant
+  takes (`Dobby.DeviceAgent.read_state/1`), so "the agent is busy" is an
+  ordinary afternoon with a slow Home Assistant, not a fault — and this is
+  what every surface reads on mount and on refresh. Matching `{:ok, _}` here
+  crashed `/house` whenever it happened. The board says NOT KNOWN for that
+  device instead, which is true: nobody could ask it just now. The next
+  `dobby.device.state_changed` puts the real reading back. A new word for
+  "busy" was the alternative, and rejected: it would be a state the house
+  never observed, on a board whose claim is that it shows only what it did.
+
+  The devices are read concurrently, so one slow agent costs a surface one
+  timeout rather than one per busy device in a scene.
   """
   @spec snapshots() :: %{String.t() => map()}
   def snapshots do
-    Map.new(devices(), fn device -> {device.id, snapshot(device)} end)
+    devices()
+    |> Task.async_stream(&{&1.id, snapshot(&1)}, timeout: :infinity)
+    |> Map.new(fn {:ok, entry} -> entry end)
   end
 
   defp snapshot(%Device{agent_module: module} = device) do
-    case Dobby.Jido.whereis(device.id) do
-      pid when is_pid(pid) ->
-        {:ok, server_state} = Jido.AgentServer.state(pid)
-
-        server_state.agent.state
-        |> module.snapshot()
-        |> Dobby.Interventions.Watcher.decorate()
-
-      nil ->
+    with pid when is_pid(pid) <- Dobby.Jido.whereis(device.id),
+         {:ok, server_state} <- Dobby.DeviceAgent.read_state(pid) do
+      server_state.agent.state
+      |> module.snapshot()
+      |> Dobby.Interventions.Watcher.decorate()
+    else
+      _not_running_or_not_answering ->
         # Through `new/1` rather than `initial_state/1` directly, so the schema
         # defaults are applied. A raw manifest projection is missing every
         # observable field, and a snapshot built from it would raise rather

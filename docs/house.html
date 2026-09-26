@@ -208,7 +208,7 @@
       <tr><td><code>provider</code></td><td>—</td><td>At the next reply. The one OpenRouter endpoint that serves the model, with no fallback to another, named by the slug OpenRouter's endpoint listing uses: <span class="arg">together</span>, <span class="arg">io-net/fp8</span>, <span class="arg">amazon-bedrock/us-east-1</span>. Set it when a measurement has chosen an endpoint and you want the same one every time; <code>routing</code> lets OpenRouter choose per request, and the same model's first word moved from half a second to three within one hour on that setting. With a pin in force the routing has nothing left to choose. An endpoint that stops serving the model refuses the reply rather than falling back, which is the point of a pin. Like <code>routing</code>, it needs a model reached through OpenRouter.</td></tr>
       <tr><td><code>port</code></td><td><code>PORT</code></td><td>On restart.</td></tr>
       <tr><td><code>lan</code></td><td><code>DOBBY_LAN</code></td><td>On restart. Binds every interface and advertises the hostname.</td></tr>
-      <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>.</td></tr>
+      <tr><td><code>hostname</code></td><td>—</td><td>On restart. One label and <span class="arg">.local</span>. Dobby answers only to this name, <span class="arg">localhost</span>, <code>PHX_HOST</code> and LAN addresses; any other name goes in <code>DOBBY_ALLOWED_HOSTS</code>. See <a href="running.html#household">running Dobby</a>.</td></tr>
     </table>
     </div>
 

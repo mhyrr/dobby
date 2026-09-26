@@ -68,6 +68,11 @@ config :dobby, DobbyWeb.Endpoint,
   secret_key_base: "NiFM7PDLaZSvmozhw+v2cdQW5zWyEmlh0dV9rZQvs4OrAr3zUWh9uYcB9owB20Vj",
   server: false
 
+# Phoenix.ConnTest's default host. Allowed by name rather than by switching
+# DobbyWeb.Plugs.AllowedHost off, so every request the suite makes goes through
+# the same Host check production does.
+config :dobby, :allowed_hosts, ["www.example.com"]
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

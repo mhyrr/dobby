@@ -24,8 +24,8 @@ defmodule Dobby.Tools.Device do
   @spec status(String.t(), module(), (map() -> map())) ::
           {:ok, map()} | {:error, String.t()}
   def status(device_id, module, render) when is_function(render, 1) do
-    with {:ok, _device, pid} <- Dobby.Home.resolve(device_id, module),
-         {:ok, server_state} <- Jido.AgentServer.state(pid) do
+    with {:ok, device, pid} <- Dobby.Home.resolve(device_id, module),
+         {:ok, server_state} <- Dobby.DeviceAgent.read_state(pid, device.name) do
       {:ok, server_state.agent.state |> render.() |> Dobby.Home.localize()}
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
@@ -55,7 +55,9 @@ defmodule Dobby.Tools.Device do
           {:ok, %{device: device.id, name: device.name, accepted: false, reason: reason}}
 
         :unknown ->
-          {:error, "could not confirm the command to #{device.name}; it may have been superseded"}
+          {:error,
+           "could not confirm the command to #{device.name}; " <>
+             "it may have been superseded, or the device was too busy to say"}
 
         {:error, reason} ->
           {:error, reason}

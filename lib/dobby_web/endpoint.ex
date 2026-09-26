@@ -15,6 +15,13 @@ defmodule DobbyWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # First, ahead of static files and Tidewave alike: a request by a name this
+  # house does not go by is a rebinding page, not a household member, and gets
+  # nothing (DobbyWeb.Plugs.AllowedHost). The sockets above are dispatched
+  # before any plug here, so they are held to the same list by the
+  # `check_origin` MFA in config/config.exs instead.
+  plug DobbyWeb.Plugs.AllowedHost
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

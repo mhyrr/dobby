@@ -180,6 +180,20 @@ if not test? do
   if lan? do
     config :dobby, :lan_beacon, hostname: home.system.hostname || "dobby.local"
   end
+
+  # The names DobbyWeb.Plugs.AllowedHost answers to beyond loopback, LAN
+  # addresses and the endpoint's url host. The house's own mDNS name is here
+  # even when the url host is something else (PHX_HOST behind a proxy), and
+  # DOBBY_ALLOWED_HOSTS is for the names Dobby cannot know: the one a router's
+  # DNS hands the box, or a reverse proxy's. An environment variable rather than
+  # a house-file key, because it is a fact about the network, not the house.
+  extra_hosts =
+    (System.get_env("DOBBY_ALLOWED_HOSTS") || "")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+
+  config :dobby, :allowed_hosts, [home.system.hostname || "dobby.local" | extra_hosts]
 end
 
 if config_env() == :dev do

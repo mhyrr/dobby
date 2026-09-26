@@ -25,7 +25,17 @@ config :dobby, DobbyWeb.Endpoint,
     layout: false
   ],
   pubsub_server: Dobby.PubSub,
-  live_view: [signing_salt: "IqifpPNW"]
+  live_view: [signing_salt: "IqifpPNW"],
+  # A socket upgrade is dispatched before any endpoint plug, so the Host check
+  # in DobbyWeb.Plugs.AllowedHost never sees it; this holds the upgrade's
+  # Origin to the same list. config/dev.exs still turns it off.
+  check_origin: {DobbyWeb.Plugs.AllowedHost, :origin_allowed?, []}
+
+# Names the house answers to beyond loopback, its LAN addresses, the endpoint's
+# url host and the advertised mDNS name. config/runtime.exs adds the house
+# file's hostname and DOBBY_ALLOWED_HOSTS; config/test.exs adds the host
+# Phoenix.ConnTest sends.
+config :dobby, :allowed_hosts, []
 
 # Configure LiveView
 config :phoenix_live_view,

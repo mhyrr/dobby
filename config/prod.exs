@@ -12,14 +12,12 @@ config :dobby, DobbyWeb.Endpoint, cache_static_manifest: "priv/static/cache_mani
 # the release does not run. TLS belongs at a real reverse proxy if a future
 # installation leaves this local-network trust model; it is not simulated here.
 
-# The household reaches Dobby by whatever address it typed — dobby.local, the
-# LAN IP the boot log prints, the name a router handed the box — and the
-# LiveView socket has to open from all of them. The default check compares the
-# browser's Origin with `url[:host]` alone, so a page opened by IP would render
-# once and never connect. `:conn` compares Origin with the Host header of the
-# request that served the page: whatever address the page came from is the one
-# its socket may use, and a page from anywhere else still may not.
-config :dobby, DobbyWeb.Endpoint, check_origin: :conn
+# The socket's `check_origin` is set in config/config.exs, not here. This file
+# used to set `:conn`, comparing the Origin with the request's own Host, so a
+# page opened by IP could still connect. It also let a DNS-rebinding page
+# through, since that page's Origin and Host are both the attacker's name.
+# `DobbyWeb.Plugs.AllowedHost` now judges both by the house's own names and
+# LAN addresses; a name a router hands the box goes in DOBBY_ALLOWED_HOSTS.
 
 # Do not print debug messages in production
 config :logger, level: :info

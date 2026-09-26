@@ -207,24 +207,17 @@ defmodule Dobby.Conversation.Turn.Queue do
   defp start(state, {utterance, speaker, request_id, opts} = turn) do
     runner = state.runner
 
-    started =
-      Task.Supervisor.start_child(Dobby.TaskSupervisor, fn ->
+    # `async_nolink` rather than `start_child` plus `Process.monitor`: the task
+    # does not run the runner until this process's monitor is in place. With
+    # the monitor attached afterwards, a turn that died in that gap came back
+    # as `:noproc`, and its failure line said so instead of why it died.
+    %Task{ref: ref, pid: pid} =
+      Task.Supervisor.async_nolink(Dobby.TaskSupervisor, fn ->
         runner.(utterance, speaker, request_id, opts)
       end)
 
-    case started do
-      {:ok, pid} ->
-        ref = Process.monitor(pid)
-        timer = Process.send_after(self(), {:deadline, ref}, state.deadline)
-
-        %{state | running: %{ref: ref, pid: pid, turn: turn, timer: timer, finished?: false}}
-
-      # The floor stays clear rather than being held by a turn that never
-      # started, which would wedge every utterance behind it for good.
-      {:error, reason} ->
-        Logger.error("could not start a turn: #{inspect(reason)}")
-        next(%{state | running: nil})
-    end
+    timer = Process.send_after(self(), {:deadline, ref}, state.deadline)
+    %{state | running: %{ref: ref, pid: pid, turn: turn, timer: timer, finished?: false}}
   end
 
   defp turn_ended(:normal, _running), do: :ok

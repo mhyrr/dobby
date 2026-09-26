@@ -32,7 +32,7 @@ defmodule Dobby.Conversation.Turn.QueueTest do
 
     test = self()
 
-      # Announces itself and then holds the floor until this test lets go — or
+    # Announces itself and then holds the floor until this test lets go — or
     # dies on command, which is the only way to watch the floor being freed by
     # something going wrong rather than by something finishing. Raise, exit
     # and throw are three commands because they are three different ways out

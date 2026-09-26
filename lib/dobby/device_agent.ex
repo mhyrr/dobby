@@ -501,6 +501,19 @@ defmodule Dobby.DeviceAgent do
     :exit, _reason -> {:error, :not_answering}
   end
 
+  @doc """
+  `read_state/1`, with a device that did not answer said in a sentence a card
+  or the model can relay. Nothing is made up in place of the reading, so a
+  reading nobody took stays impossible.
+  """
+  @spec read_state(pid(), String.t()) :: {:ok, struct()} | {:error, String.t() | term()}
+  def read_state(pid, name) when is_pid(pid) and is_binary(name) do
+    case read_state(pid) do
+      {:error, :not_answering} -> {:error, "#{name} is not answering right now"}
+      answered_or_other_error -> answered_or_other_error
+    end
+  end
+
   defp authorize(%{dobby_id: id}, via)
        when via in [:conversation, :mcp, :card, :admin] do
     case Dobby.Home.fetch_device(id) do

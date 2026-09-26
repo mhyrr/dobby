@@ -119,7 +119,7 @@ defmodule Dobby.Controls do
   # is slow — is refused in a sentence rather than crashing the page the hand
   # is on. Nothing has been sent, so there is nothing to hold or undo.
   defp offered(device, pid, action) do
-    with {:ok, server_state} <- read_state(device, pid) do
+    with {:ok, server_state} <- DeviceAgent.read_state(pid, device.name) do
       snapshot = device.agent_module.snapshot(server_state.agent.state)
 
       device.agent_module
@@ -129,13 +129,6 @@ defmodule Dobby.Controls do
         nil -> {:error, "#{device.name} offers no control to #{action} right now"}
         control -> {:ok, control}
       end
-    end
-  end
-
-  defp read_state(device, pid) do
-    case DeviceAgent.read_state(pid) do
-      {:error, :not_answering} -> {:error, "#{device.name} is not answering right now"}
-      other -> other
     end
   end
 

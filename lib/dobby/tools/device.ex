@@ -25,22 +25,11 @@ defmodule Dobby.Tools.Device do
           {:ok, map()} | {:error, String.t()}
   def status(device_id, module, render) when is_function(render, 1) do
     with {:ok, device, pid} <- Dobby.Home.resolve(device_id, module),
-         {:ok, server_state} <- read_state(device, pid) do
+         {:ok, server_state} <- Dobby.DeviceAgent.read_state(pid, device.name) do
       {:ok, server_state.agent.state |> render.() |> Dobby.Home.localize()}
     else
       {:error, reason} when is_binary(reason) -> {:error, reason}
       {:error, reason} -> {:error, inspect(reason)}
-    end
-  end
-
-  # A device agent holding an `HACall` open does not answer until Home
-  # Assistant does (`Dobby.DeviceAgent.read_state/1`). The model gets a
-  # sentence it can relay — and a reading it never took stays impossible,
-  # because nothing is made up in its place.
-  defp read_state(device, pid) do
-    case Dobby.DeviceAgent.read_state(pid) do
-      {:error, :not_answering} -> {:error, "#{device.name} is not answering right now"}
-      other -> other
     end
   end
 

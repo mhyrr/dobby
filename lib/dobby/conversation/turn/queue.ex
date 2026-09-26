@@ -163,20 +163,12 @@ defmodule Dobby.Conversation.Turn.Queue do
   def handle_call(:waiting, _from, state), do: {:reply, :queue.len(state.waiting), state}
 
   @impl GenServer
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{running: %{ref: ref}} = state) do
-    %{turn: {_utterance, _speaker, request_id, _opts}, timer: timer, finished?: finished?} =
-      state.running
-
-    Process.cancel_timer(timer)
-
-    if reason != :normal do
-      Logger.error("a turn died holding the floor: #{inspect(reason)}")
-    end
-
-    if reason != :normal and not finished? do
-      end_abandoned(request_id, reason)
-    end
-
+  def handle_info(
+        {:DOWN, ref, :process, _pid, reason},
+        %{running: %{ref: ref} = running} = state
+      ) do
+    Process.cancel_timer(running.timer)
+    turn_ended(reason, running)
     {:noreply, next(%{state | running: nil})}
   end
 
@@ -235,18 +227,31 @@ defmodule Dobby.Conversation.Turn.Queue do
     end
   end
 
+  defp turn_ended(:normal, _running), do: :ok
+
+  # It died, but after its own last line was stored: nothing more to say.
+  defp turn_ended(reason, %{finished?: true}),
+    do: Logger.error("a turn died holding the floor: #{inspect(reason)}")
+
+  defp turn_ended(reason, %{turn: {_utterance, _speaker, request_id, _opts}}) do
+    Logger.error("a turn died holding the floor: #{inspect(reason)}")
+    end_abandoned(request_id, reason)
+  end
+
   # The queue is holding everyone else's place in line, so a failure to write
   # one dead turn's last line must not take the queue down with it: the
   # rescue is broad because what can fail here is a database write, and every
   # way that fails is the same to the people still waiting. It is logged.
   defp end_abandoned(request_id, reason) do
-    detail = if reason == :killed, do: "the turn was stopped", else: inspect(reason)
-    Turn.abandon(request_id, detail)
+    Turn.abandon(request_id, abandon_detail(reason))
   rescue
     error ->
       formatted = Exception.format(:error, error, __STACKTRACE__)
       Logger.error("could not end a dead turn: #{formatted}")
   end
+
+  defp abandon_detail(:killed), do: "the turn was stopped"
+  defp abandon_detail(reason), do: inspect(reason)
 
   defp configured_deadline do
     :dobby

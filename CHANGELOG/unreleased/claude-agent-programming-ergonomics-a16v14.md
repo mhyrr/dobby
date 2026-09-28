@@ -19,7 +19,7 @@ What changed for the house, in the voice of the commit messages. Empty headings 
 -
 
 ##### Tech-Debt/Refactor
--
+- "The model never touches Home Assistant" is now a failing test rather than a sentence. If a tool, the agent, or the MCP door ever names the Home Assistant client or an HTTP client, `mix test` fails and says which module crossed the line and what it reached for
 
 ##### Upgrade and Migration
 -

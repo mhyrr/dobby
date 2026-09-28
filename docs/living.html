@@ -39,10 +39,8 @@
     <p class="lede">Dobby is not another dashboard. It is the person in the house who knows how the dashboard works.</p>
 
     <p>Every phone and shared screen opens the same household conversation. Say what you want. Use the cards when touching is faster. Open the activity record when you need to know exactly what happened.</p>
-    <p>Three surfaces. One house.</p>
 
     <h2 id="morning">A morning with Dobby</h2>
-    <p>A morning can look like this.</p>
     <h3>6:47 AM</h3>
     <ul class="thread">
       <li><span class="who">Maya</span><p class="say">It's cold downstairs.</p></li>
@@ -99,7 +97,7 @@ downstairs thermostat · set_temperature · 70° · Greg</p>
     <p>The model can still misunderstand a request and choose an allowed action on an allowed device. The closed roster and device rules limit that mistake. They do not make language infallible.</p>
 
     <h2 id="house">Sometimes talking is easier. Sometimes touching is easier.</h2>
-    <p>Both paths reach the same device machinery. Conversation is a first-class interface, not the only interface.</p>
+    <p>Both paths reach the same device machinery.</p>
     <p><span class="arg">/house</span> shows every managed device as a card with its reading and its word. Under the row sits the device's other number: the water heater says the water in the tank, a humidifier says the air in the room, an oven says its target under its temperature. A type with no second number says <span class="arg">Since 4:12 PM</span>. The reading changes only when Home Assistant reports a new state.</p>
     <p>A fader sets a thermostat's or water heater's setpoint, a humidifier's or dehumidifier's target, the speed of a fan, an air purifier or a range hood, and a dimmable light's brightness. It runs between the two ends the device itself reported. While your finger is on it, the proposed number rides above it in amber. Nothing is sent until the finger comes up. The step is the device's own too, so a target it would refuse cannot be reached from the card. A card cannot set the hot water to 200°F, and the device agent checks every value regardless, so anything it refuses reads <span class="arg">HELD</span> with the device's own reason and nothing reaches Home Assistant.</p>
     <p>Where the value is a word rather than a number, the card draws a row of the words the device advertised. The water heater offers its mode, its away mode, and power. A humidifier offers its mode and power. The fan, the air purifier, the range hood, the light, and the switch offer power, which reads <span class="arg">ON · off</span>. The lock offers <span class="arg">locked</span> and the garage door offers <span class="arg">closed</span>. Unlock and open are on no surface.</p>

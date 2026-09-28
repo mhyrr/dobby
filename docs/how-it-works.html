@@ -62,7 +62,7 @@
     <h2 id="semantics">The deterministic layer contains household semantics</h2>
     <p>A Home Assistant entity reports what hardware can technically do. Dobby's device agent decides what an allowed operation means here.</p>
     <p>The thermostat agent intersects the hardware range with the household range. The lock agent can secure a lock but offers no unlock action. An access-cover agent can close a garage door but offers no open action. Those limits apply before any Home Assistant call exists.</p>
-    <p>This is also where a future device profile can encode vendor-specific meaning: whether changing a setpoint overrides a vendor schedule, or whether “70 by eight” needs thermal lead time. Those rules are not implemented today. The architecture gives them a deterministic home instead of asking the model to guess.</p>
+    <p>This is also where a future device profile can encode vendor-specific meaning: whether changing a setpoint overrides a vendor schedule, or whether “70 by eight” needs thermal lead time. Those rules are not implemented today. If they are built, they go in code, not in a guess by the model.</p>
 
     <h2 id="vocabulary">The model gets capabilities, not plumbing</h2>
     <p>A generic Home Assistant service tool would make the model choose a domain, service, entity ID, and arbitrary data:</p>
@@ -78,7 +78,7 @@
 
     <h2 id="trust">The model can be wrong. The house still enforces its limits.</h2>
     <p>Before each message, Dobby gives the model the managed devices and their last known state. Unknown devices are absent from the control vocabulary. Unsupported actions do not exist as tools. Out-of-range values fail inside the device agent.</p>
-    <p>The language layer also carries a rule: ambiguity is a refusal to act. A replay suite and real-model evals test that judgment. This is not a mathematical guarantee. A model can misunderstand a person and choose a valid action on a valid device. The architecture bounds the action; it does not make language perfect.</p>
+    <p>The language layer also carries a rule: ambiguity is a refusal to act. A replay suite and real-model evals test that judgment. This is not a mathematical guarantee. A model can misunderstand a person and choose a valid action on a valid device.</p>
 
     <h2 id="truth">Three kinds of truth</h2>
     <p>Dobby keeps three moments separate.</p>
@@ -119,7 +119,6 @@ observed  target 72° · current 67° · WARMING</p>
 
     <h2 id="house-agent">One long-lived household agent</h2>
     <p>One Dobby process corresponds to the house. Messages from named speakers enter the same thread, and the transcript survives restarts in PostgreSQL. The model reasons over a recent working window from that record. The household keeps the complete transcript even when the model's context window does not.</p>
-    <p>That is the difference between a house that accumulates a record and a chat window that vanishes when somebody closes it.</p>
 
     <h2 id="restart">Why the managed house restarts</h2>
     <p>Each managed device runs as its own small process, started from the house file. Add or remove a device and the set of processes changes, so Dobby restarts that set. It takes about a second. Every device reads <span class="arg">NOT KNOWN</span> until Home Assistant speaks again. The thread stays up.</p>

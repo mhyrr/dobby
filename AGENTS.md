@@ -66,7 +66,9 @@ somewhere central is the design being lost.
 
 Every registered type needs `test/dobby/device_agents/<module>_test.exs`
 invoking `device_agent_contract`. `LibraryContractTest` fails without it and
-names the missing file. The contract requires `arrivals:` triples for every
+names the missing file. It names every other missing piece the same way: an
+unregistered module, a tool file, a line in that literal list, the guide's
+row, the board's word. The contract requires `arrivals:` triples for every
 writable attribute, because Home Assistant echoes a value at the entity's own
 precision or notch, and one service call can move several of Dobby's
 attributes at once. Find out what the integration actually sends back, from

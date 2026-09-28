@@ -4,7 +4,14 @@ defmodule Dobby.DeviceAgents.Shade.SetPosition do
   use Jido.Action,
     name: "shade_set_position",
     description: "Validates a shade position and emits the HA call",
-    schema: [position: [type: :integer, required: true], ref: [type: :string, required: true]]
+    schema: [
+      position: [
+        type: :integer,
+        required: true,
+        doc: "How far open to set it, from 0 to 100."
+      ],
+      ref: [type: :string, required: true]
+    ]
 
   alias Dobby.Directive.HACall
 

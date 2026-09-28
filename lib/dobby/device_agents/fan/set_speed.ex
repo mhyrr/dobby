@@ -5,7 +5,11 @@ defmodule Dobby.DeviceAgents.Fan.SetSpeed do
     name: "fan_set_speed",
     description: "Validates fan speed and emits the HA call",
     schema: [
-      speed_percent: [type: :integer, required: true],
+      speed_percent: [
+        type: :integer,
+        required: true,
+        doc: "How fast to run it, from 1 to 100."
+      ],
       ref: [type: :string, required: true]
     ]
 

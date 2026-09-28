@@ -7,7 +7,11 @@ defmodule Dobby.DeviceAgents.Speaker.SetVolume do
     name: "speaker_set_volume",
     description: "Validates speaker volume and emits the HA call",
     schema: [
-      volume_percent: [type: :integer, required: true],
+      volume_percent: [
+        type: :integer,
+        required: true,
+        doc: "How loud to play, from 0 to 100."
+      ],
       ref: [type: :string, required: true]
     ]
 

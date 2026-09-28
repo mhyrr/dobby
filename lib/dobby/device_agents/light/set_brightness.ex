@@ -16,7 +16,7 @@ defmodule Dobby.DeviceAgents.Light.SetBrightness do
       brightness_percent: [
         type: :integer,
         required: true,
-        doc: "How bright to make the light, from 0 to 100."
+        doc: "How bright to make the light, from 1 to 100."
       ],
       ref: [type: :string, required: true]
     ]

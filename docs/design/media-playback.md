@@ -190,7 +190,7 @@ one tap per playlist in the Sonos app:
 mid-request.** The `Dobby.HomeAssistant.entities/0` moduledoc forbids this
 today. Building M4 needs, in its own commit:
 
-- decision 29 in `dobby-design-jido.md` §13;
+- a decision under `docs/decisions/`, with what it rejected (§13 is closed at 28);
 - one typed callback, `search_catalog/2`. It is not a general
   service-with-response call.
 - a five-second limit, with a timeout reported as a refusal ("the music

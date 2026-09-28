@@ -8,6 +8,7 @@ umbrella: Elixir 1.18, Phoenix 1.8, LiveView 1.2, PostgreSQL, Jido 2.3.
 |---|---|
 | `README.md`, `PRODUCT.md` | What Dobby is, who it is for, what it promises |
 | `docs/design/dobby-design-jido.md` | The architecture and its numbered decisions. `@moduledoc`s cite it (`design §4.2`). A record, not a spec: read the code for what is true and this for why |
+| `docs/decisions/` | Decisions 29 onward, one file each, with the alternatives they rejected. §13 of the design record holds 1 to 28 and is closed |
 | `DESIGN.md` | The surface. Binding, and it overrides any generic UI guidance |
 | `docs/*.html` | The user's guide, published at https://mhyrr.github.io/dobby/ |
 
@@ -129,4 +130,10 @@ Tidewave at `/tidewave/mcp` (loopback only).
 - A broad `rescue` states why it is broad, at the rescue. `mix reach.check`
   flags the ones that do not.
 - Never use `Mix.env()` to change runtime behaviour; it is a config value.
-- Incidents and gotchas go to HIVE memory, not this file.
+- A rule specific to this repository is a test, a compiler error, or a script;
+  this file points at the check and does not stand in for it (decision 29).
+- An incident or gotcha goes into the tree at the place it bit: a test that
+  fails the way it did, a comment at the line, or a decision when it changed
+  one. Not this file, and not only a memory system (decision 30).
+- A decision about how Dobby is built is a file under `docs/decisions/`,
+  numbered on from §13, carrying what it rejected (decision 31).

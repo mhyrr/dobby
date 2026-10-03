@@ -299,7 +299,7 @@ HA voice satellite → HA Assist → local Phoenix endpoint → DobbyAgent
 Voice enters as `channel: :voice` with the speaker resolved by room default or
 left unknown until speaker identification exists, and its utterances appear in
 the same thread as everyone else's. It does not create another Dobby brain or
-another device-control path.
+another device-control path. `docs/design/voice.md` is the full design.
 
 ## 4. Defining a home
 

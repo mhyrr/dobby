@@ -75,10 +75,23 @@ defmodule Dobby.DeviceAgents.AccessCover.SyncState do
   # nothing is ours (see the command action).
   defp commanded?(%{last_command: %{echoed: true}}, _next), do: false
 
-  defp commanded?(%{last_command: %{result: :accepted, action: :close}}, next),
-    do: next.cover_state in [:closing, :closed]
+  defp commanded?(%{last_command: %{result: :accepted, action: :close}} = previous, next),
+    do: next.cover_state in [:closing, :closed] or travelling_down?(previous, next)
 
   defp commanded?(_previous, _next), do: false
+
+  # A door with no in-flight state is `open` all the way down: HA's
+  # `CoverEntity.state` reads open whenever the integration reports neither
+  # opening, closing nor closed. Its position falling under an accepted close
+  # is that close travelling, the same echo in flight `:closing` is on a door
+  # that reports one. Judging only the final `:closed` wrote "changed at the
+  # garage door" once per report on the way. A position that rises is not
+  # this command, so a door that goes back up still reads as somebody's.
+  defp travelling_down?(previous, %{cover_state: :open, position: position})
+       when is_integer(position) and is_integer(previous.position),
+       do: position < previous.position
+
+  defp travelling_down?(_previous, _next), do: false
 
   # One-shot for the same reason the lock's echo is (see Lock.SyncState):
   # the only closed value is :closed, so a standing accepted command would

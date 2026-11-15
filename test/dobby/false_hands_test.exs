@@ -205,6 +205,43 @@ defmodule Dobby.FalseHandsTest do
     end
   end
 
+  describe "a garage door with no closing state (case 2)" do
+    # `CoverEntity.state` is `open` whenever the integration reports neither
+    # opening, closing nor closed, so a door without an in-flight state sends
+    # its position on the way down under `open`.
+    setup do
+      seed_house(%{
+        "cover.garage_door" => %{state: "open", attributes: %{current_position: 100}}
+      })
+
+      settle_watcher!()
+      Fake.silence_next("cover.garage_door")
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.AccessCoverClose, %{device: "cover:garage"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "cover.garage_door"}}, 2_000
+      :ok
+    end
+
+    test "the reports on the way down are Dobby's close" do
+      echo!("cover.garage_door", %{state: "open", attributes: %{current_position: 70}})
+      echo!("cover.garage_door", %{state: "open", attributes: %{current_position: 30}})
+      echo!("cover.garage_door", %{state: "closed", attributes: %{current_position: 0}})
+      deadline_passes!("cover:garage")
+
+      assert system_lines() == []
+    end
+
+    test "a door that goes back up on the way down is somebody's doing" do
+      echo!("cover.garage_door", %{state: "open", attributes: %{current_position: 70}})
+      echo!("cover.garage_door", %{state: "open", attributes: %{current_position: 90}})
+
+      assert [%{text: "garage door", meta: %{"via" => "changed at the garage door"}}] =
+               system_lines()
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   # Home Assistant's answer, as the integration sends it. The command itself is

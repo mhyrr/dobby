@@ -1,0 +1,91 @@
+defmodule Dobby.FalseHandsTest do
+  @moduledoc """
+  The house's own commands, coming back from Home Assistant, are not somebody's
+  hand (TK-070).
+
+  Home Assistant does not say who moved a device. It sends a state object, and
+  each device type decides whether that object is the echo of a command this
+  house issued. When the type's model of the echo is narrower than what Home
+  Assistant actually sends — a rounded setpoint, a brightness one point off, a
+  report from halfway through a shade's travel — Dobby's own command comes back
+  as "changed at the thermostat". That is a false statement about a person, in
+  the household's thread.
+
+  Every scenario here issues a real command through the rig, has the fake
+  answer the way the real integration does, and then reads the thread. A test
+  of `commanded?: true` would not do: the false line is written by the watcher
+  from the whole report, and the flag answers only part of that question.
+  """
+
+  use Dobby.RigCase, async: false
+
+  alias Dobby.Conversation
+
+  describe "a thermostat that rounds the setpoint it reports (case 6)" do
+    @entity "climate.main_floor"
+
+    setup do
+      seed_house(%{@entity => thermostat_entity(target: 68)})
+      settle_watcher!()
+      :ok
+    end
+
+    # A Fahrenheit house reports whole degrees: `ClimateEntity` passes the
+    # target through `show_temp` at the entity's precision, so 70.5 comes back
+    # as 70. Nobody touched the dial.
+    test "a half-degree setpoint echoed at whole degrees is ours" do
+      Fake.silence_next(@entity)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.ThermostatSetTemperature, %{
+                 device: "thermostat:main",
+                 temperature_f: 70.5
+               })
+
+      assert_receive {:ha_call, %HACall{data: %{temperature: 70.5}}}, 2_000
+
+      echo!(@entity, thermostat_entity(target: 70))
+
+      assert system_lines() == []
+      assert expectations_for("thermostat:main") == []
+    end
+
+    test "a hand that moves the dial a whole step past the command is still a hand" do
+      Fake.silence_next(@entity)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.ThermostatSetTemperature, %{
+                 device: "thermostat:main",
+                 temperature_f: 70
+               })
+
+      echo!(@entity, thermostat_entity(target: 70))
+      echo!(@entity, thermostat_entity(target: 72))
+
+      assert [%{text: "main thermostat", meta: %{"via" => "changed at the " <> _}}] =
+               system_lines()
+    end
+  end
+
+  # -- helpers ---------------------------------------------------------------
+
+  # Home Assistant's answer, as the integration sends it. The command itself is
+  # silenced in the fake, so the echo the agent sees is exactly this one.
+  defp echo!(entity_id, entity) do
+    :ok = Fake.inject_state_changed(entity_id, entity)
+    assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+    settle_watcher!()
+  end
+
+  defp system_lines do
+    Enum.filter(Conversation.list_messages(), &(&1.role == :system))
+  end
+
+  defp expectations_for(device) do
+    Dobby.Interventions.Watcher
+    |> :sys.get_state()
+    |> Map.fetch!(:expectations)
+    |> Map.values()
+    |> Enum.filter(&(&1.device == device))
+  end
+end

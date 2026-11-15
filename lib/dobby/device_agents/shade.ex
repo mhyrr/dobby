@@ -96,6 +96,16 @@ defmodule Dobby.DeviceAgents.Shade do
   @impl Dobby.DeviceAgent
   def confirmation_timeout, do: 60_000
 
+  @doc """
+  When an accepted command stops counting reports on the way as its own.
+
+  The shade's confirmation deadline, on the monotonic clock: a shade still
+  travelling after that is a shade the watcher has already called NOT KNOWN,
+  and anything it does later is judged as anybody's (`SyncState`).
+  """
+  @spec in_flight_until() :: integer()
+  def in_flight_until, do: System.monotonic_time(:millisecond) + confirmation_timeout()
+
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :cover)
 end

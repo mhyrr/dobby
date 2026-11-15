@@ -93,6 +93,42 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     refute hand.data.commanded?
   end
 
+  # The travel allowance is bounded by the shade's deadline. A shade still
+  # moving toward a commanded end long after the command is somebody's hand,
+  # and crediting it to an old command would hide that person (TK-070 case 1).
+  test "a report on the way counts as the command's only while it is in flight" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    in_flight = Map.merge(state, command)
+
+    {_state, %Emit{signal: travelling}} =
+      sync(in_flight, "opening", %{"current_position" => 40})
+
+    assert travelling.data.commanded?
+
+    expired =
+      put_in(in_flight.last_command.in_flight_until, System.monotonic_time(:millisecond) - 1)
+
+    {_state, %Emit{signal: late}} = sync(expired, "opening", %{"current_position" => 40})
+    refute late.data.commanded?
+  end
+
+  # No position at all: the in-flight state for the command's direction is the
+  # only evidence, and the opposite one is not this command.
+  test "a shade with no position travels by its in-flight state alone" do
+    {state, _emit} = sync(booted_state(), "closed", %{})
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    in_flight = Map.merge(state, command)
+
+    {_state, %Emit{signal: opening}} = sync(in_flight, "opening", %{})
+    assert opening.data.commanded?
+
+    {_state, %Emit{signal: closing}} = sync(in_flight, "closing", %{})
+    refute closing.data.commanded?
+  end
+
   test "movement and position are somebody's doing; discovery and availability are not" do
     assert Shade.intervention?(:shade_state)
     assert Shade.intervention?(:position)

@@ -16,7 +16,15 @@ defmodule Dobby.DeviceAgents.Shade.Move do
     state = context.state
 
     if state.available do
-      {:ok, %{last_command: %{ref: ref, action: movement, result: :accepted}},
+      {:ok,
+       %{
+         last_command: %{
+           ref: ref,
+           action: movement,
+           result: :accepted,
+           in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()
+         }
+       },
        [
          %HACall{
            domain: "cover",

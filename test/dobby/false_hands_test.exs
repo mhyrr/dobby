@@ -242,7 +242,97 @@ defmodule Dobby.FalseHandsTest do
     end
   end
 
+  describe "a shade that reports on its way (case 1)" do
+    @shade "cover.dining_shade"
+
+    test "opening, reported at 40 and 70 under opening, is Dobby's open" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+
+      echo!(@shade, shade(:opening, 40))
+      echo!(@shade, shade(:opening, 70))
+      echo!(@shade, shade(:open, 100))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
+    end
+
+    # `CoverEntity.state` is `open` until the integration says closed, so a
+    # shade with no in-flight state reports open the whole way down.
+    test "closing, reported at 60 and 20 under open, is Dobby's close" do
+      command!(shade(:open, 100), Dobby.Tools.ShadeClose, %{})
+
+      echo!(@shade, shade(:open, 60))
+      echo!(@shade, shade(:open, 20))
+      echo!(@shade, shade(:closed, 0))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
+    end
+
+    test "a position, reported at 80 and 60 on the way to 50, is Dobby's" do
+      command!(shade(:open, 100), Dobby.Tools.ShadeSetPosition, %{position: 50})
+
+      echo!(@shade, shade(:closing, 80))
+      echo!(@shade, shade(:closing, 60))
+      echo!(@shade, shade(:open, 50))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
+    end
+
+    test "a hand that turns the shade back on its way is somebody's doing" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+
+      echo!(@shade, shade(:opening, 40))
+      echo!(@shade, shade(:closing, 30))
+
+      assert [%{meta: %{"via" => "changed at the dining room shade"}}] = system_lines()
+    end
+
+    # Once the command has arrived its travel is over, and the shade judges
+    # reports as it did before: a hand that moves it again writes its lines.
+    # The final report of a hand that returns it to the commanded end is
+    # still swallowed by the standing echo; that is case 5, open in TK-064,
+    # and this does not widen it.
+    test "after the command arrives, a hand's travel is a hand's again" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+      echo!(@shade, shade(:open, 100))
+      assert system_lines() == []
+
+      echo!(@shade, shade(:closing, 50))
+      echo!(@shade, shade(:closed, 0))
+      echo!(@shade, shade(:opening, 50))
+
+      assert [%{meta: %{"value" => "Closing"}}, %{meta: %{"value" => "Closed"}}, %{meta: opening}] =
+               system_lines()
+
+      assert opening["value"] == "Opening"
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
+
+  defp shade(state, position) do
+    %{
+      state: Atom.to_string(state),
+      attributes: %{current_position: position, supported_features: 4}
+    }
+  end
+
+  # Seeds the shade, issues one command through its tool, and silences the
+  # fake's own one-report answer so the reports the test sends are the only
+  # ones the shade sees, the way a travelling shade sends them.
+  defp command!(seeded, tool, args) do
+    seed_house(%{@shade => seeded})
+    settle_watcher!()
+    Fake.silence_next(@shade)
+
+    assert {:ok, %{accepted: true}} =
+             Jido.Exec.run(tool, Map.put(args, :device, "shade:dining"))
+
+    assert_receive {:ha_call, %HACall{entity_id: @shade}}, 2_000
+    settle_watcher!()
+  end
 
   # Home Assistant's answer, as the integration sends it. The command itself is
   # silenced in the fake, so the echo the agent sees is exactly this one.

@@ -25,7 +25,13 @@ defmodule Dobby.DeviceAgents.Shade.SetPosition do
       true ->
         {:ok,
          %{
-           last_command: %{ref: ref, action: :set_position, result: :accepted, position: position}
+           last_command: %{
+             ref: ref,
+             action: :set_position,
+             result: :accepted,
+             position: position,
+             in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()
+           }
          },
          [
            %HACall{

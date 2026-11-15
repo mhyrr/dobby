@@ -15,7 +15,8 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
   for its direction, or `open` with the position moving that way, and never
   past the target. The flight ends at the first of three things: the arrival,
   a report that is not travel toward the target (a hand turning the shade
-  back), or the shade's confirmation deadline.
+  back), or a deadline's worth of silence since the last report on the way.
+  A shade that goes unavailable mid-travel is still in flight when it answers.
 
   The bound is the point. The arrival keeps its standing echo, unchanged, so
   a hand that later returns the shade to a commanded end still has its last
@@ -72,13 +73,22 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
 
   # Whether this report is the command's, and the command as it stands after
   # it: still in flight only while the shade is travelling toward its end.
+  #
+  # A shade that stops answering has not been turned back by anybody, so the
+  # flight survives it; going quiet is not movement and writes no line either
+  # way (`DeviceAgent.changes/3`). Each report on the way pushes the window
+  # on, so a slow awning stays in flight for as long as it keeps travelling.
   defp judge(%{last_command: command} = previous, next) do
     cond do
+      next.available != true -> {false, command}
       commanded?(previous, next) -> {true, landed(command)}
-      travelling?(command, previous, next) -> {true, command}
+      travelling?(command, previous, next) -> {true, still_in_flight(command)}
       true -> {false, landed(command)}
     end
   end
+
+  defp still_in_flight(command),
+    do: %{command | in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()}
 
   # Set to nil rather than deleted: Jido deep-merges an action's result into
   # agent state, so a key dropped from the nested command would survive.

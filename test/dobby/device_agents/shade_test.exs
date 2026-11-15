@@ -115,6 +115,45 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     refute late.data.commanded?
   end
 
+  # An awning or a big shutter can take longer than the deadline. Each report
+  # on the way pushes the window on, so travel ends when the reports stop,
+  # not at a fixed minute.
+  test "each report on the way keeps the command in flight" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "cmd"}, %{state: state})
+    nearly_over = System.monotonic_time(:millisecond) + 5
+
+    in_flight =
+      state
+      |> Map.merge(command)
+      |> put_in([:last_command, :in_flight_until], nearly_over)
+
+    {state, %Emit{signal: first}} = sync(in_flight, "closing", %{"current_position" => 70})
+    assert first.data.commanded?
+    assert state.last_command.in_flight_until > nearly_over + 1_000
+
+    Process.sleep(10)
+    {_state, %Emit{signal: later}} = sync(state, "closing", %{"current_position" => 40})
+    assert later.data.commanded?
+  end
+
+  # A shade that drops off the network mid-travel has not been turned back by
+  # anybody; when it answers again it is still on Dobby's errand.
+  test "a shade that goes quiet on its way is still in flight when it answers" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    {state, _emit} = sync(Map.merge(state, command), "opening", %{"current_position" => 40})
+    {state, _emit} = sync(state, "unavailable", %{})
+    {state, _emit} = sync(state, "opening", %{"current_position" => 40})
+
+    {_state, %Emit{signal: back}} = sync(state, "opening", %{"current_position" => 70})
+    assert back.data.commanded?
+  end
+
   # No position at all: the in-flight state for the command's direction is the
   # only evidence, and the opposite one is not this command.
   test "a shade with no position travels by its in-flight state alone" do

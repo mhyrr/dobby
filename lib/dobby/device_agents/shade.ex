@@ -99,9 +99,10 @@ defmodule Dobby.DeviceAgents.Shade do
   @doc """
   When an accepted command stops counting reports on the way as its own.
 
-  The shade's confirmation deadline, on the monotonic clock: a shade still
-  travelling after that is a shade the watcher has already called NOT KNOWN,
-  and anything it does later is judged as anybody's (`SyncState`).
+  The shade's confirmation deadline from now, on the monotonic clock. Set when
+  the command is accepted and again at each report on the way, so the flight
+  ends a deadline's worth of silence after the shade last travelled toward
+  its end; after that, anything it does is judged as anybody's (`SyncState`).
   """
   @spec in_flight_until() :: integer()
   def in_flight_until, do: System.monotonic_time(:millisecond) + confirmation_timeout()

@@ -45,9 +45,9 @@ defmodule Dobby.FalseHandsTest do
       assert_receive {:ha_call, %HACall{data: %{temperature: 70.5}}}, 2_000
 
       echo!(@entity, thermostat_entity(target: 70))
+      deadline_passes!("thermostat:main")
 
       assert system_lines() == []
-      assert expectations_for("thermostat:main") == []
     end
 
     test "a hand that moves the dial a whole step past the command is still a hand" do
@@ -67,6 +67,52 @@ defmodule Dobby.FalseHandsTest do
     end
   end
 
+  describe "a Z-Wave dimmer that echoes brightness on a 0-99 scale (case 7)" do
+    @light "light.living_room"
+
+    setup do
+      seed_house(%{@light => light_entity(brightness: 26)})
+      settle_watcher!()
+      :ok
+    end
+
+    # HA turns 50% into brightness 128; Z-Wave JS stores round(128/255*99) =
+    # 50 on the device and reports round(50/99*255) = 129 back, which is 51%.
+    # Fifteen of the hundred percentages come back one point off like this,
+    # and none come back two off.
+    test "a brightness that comes back one point off is the command arriving" do
+      Fake.silence_next(@light)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LightSetBrightness, %{
+                 device: "light:living_room",
+                 brightness_percent: 50
+               })
+
+      assert_receive {:ha_call, %HACall{data: %{brightness_pct: 50}}}, 2_000
+
+      echo!(@light, light_entity(brightness: 129))
+      deadline_passes!("light:living_room")
+
+      assert system_lines() == []
+    end
+
+    test "a brightness two points off is not the command arriving" do
+      Fake.silence_next(@light)
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LightSetBrightness, %{
+                 device: "light:living_room",
+                 brightness_percent: 50
+               })
+
+      echo!(@light, light_entity(brightness: 133))
+      deadline_passes!("light:living_room")
+
+      assert [%{meta: %{"word" => "Not known"}}] = system_lines()
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   # Home Assistant's answer, as the integration sends it. The command itself is
@@ -81,11 +127,18 @@ defmodule Dobby.FalseHandsTest do
     Enum.filter(Conversation.list_messages(), &(&1.role == :system))
   end
 
-  defp expectations_for(device) do
+  # The deadline, arriving now rather than in thirty seconds. Whatever the
+  # watcher is still waiting for on this device becomes NOT KNOWN in the
+  # thread; whatever an echo already answered is gone and says nothing.
+  defp deadline_passes!(device) do
     Dobby.Interventions.Watcher
     |> :sys.get_state()
     |> Map.fetch!(:expectations)
-    |> Map.values()
-    |> Enum.filter(&(&1.device == device))
+    |> Enum.filter(fn {_ref, expectation} -> expectation.device == device end)
+    |> Enum.each(fn {ref, _expectation} ->
+      send(Dobby.Interventions.Watcher, {:expectation_expired, ref})
+    end)
+
+    settle_watcher!()
   end
 end

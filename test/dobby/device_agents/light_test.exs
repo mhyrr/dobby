@@ -20,7 +20,10 @@ defmodule Dobby.DeviceAgents.LightTest do
     arrivals: [
       {%{result: :accepted, action: :set_power, on: true}, %{power: :on}, %{power: :off}},
       {%{result: :accepted, action: :set_brightness, brightness_percent: 40},
-       %{power: :on, brightness_percent: 40}, %{power: :off, brightness_percent: 40}}
+       %{power: :on, brightness_percent: 40}, %{power: :off, brightness_percent: 40}},
+      # Z-Wave's 0-99 scale echoes 50% as 51%; two points off is somebody else.
+      {%{result: :accepted, action: :set_brightness, brightness_percent: 50},
+       %{power: :on, brightness_percent: 51}, %{power: :on, brightness_percent: 52}}
     ],
     controls: %{
       available: true,

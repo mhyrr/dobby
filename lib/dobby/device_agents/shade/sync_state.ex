@@ -151,7 +151,11 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
     }
   end
 
-  defp available?(state), do: state not in [nil, "unavailable", "unknown"]
+  # `unknown` is answering. Home Assistant reports it for a cover that cannot
+  # say where it is (an RF motor with assumed state), which is a cover whose
+  # state Dobby does not know, not one that stopped answering. Collapsing it
+  # into unavailable refused every command to a working shade.
+  defp available?(state), do: state not in [nil, "unavailable"]
   defp shade_state("open"), do: :open
   defp shade_state("closed"), do: :closed
   defp shade_state("opening"), do: :opening

@@ -57,7 +57,9 @@ defmodule Dobby.DeviceAgents.AccessCover.SyncState do
     }
   end
 
-  defp available?(state), do: state not in [nil, "unavailable", "unknown"]
+  # `unknown` is answering: see `Shade.SyncState`. Closing is the safe
+  # direction, so an opener that cannot report its state still takes it.
+  defp available?(state), do: state not in [nil, "unavailable"]
 
   defp cover_state("open"), do: :open
   defp cover_state("closed"), do: :closed

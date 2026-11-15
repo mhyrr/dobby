@@ -40,6 +40,22 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     assert reason =~ "unavailable"
   end
 
+  # `unknown` is a legal steady state for a cover that cannot report where it
+  # is. It is answering, so it takes open and close; `unavailable` is the word
+  # for one that is not.
+  test "an unknown shade is answering, and takes open and close" do
+    {state, _emit} = sync(booted_state(), "unknown", %{"supported_features" => 3})
+
+    assert state.available
+    assert state.shade_state == nil
+
+    assert {:ok, %{last_command: %{result: :accepted}}, [%HACall{service: "open_cover"}]} =
+             Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+
+    {state, _emit} = sync(state, "unavailable", %{})
+    refute state.available
+  end
+
   test "a shade without the position feature refuses a percentage, and no call leaves" do
     {state, _emit} = sync(booted_state(), "open", %{"supported_features" => 0})
     refute state.supports_position

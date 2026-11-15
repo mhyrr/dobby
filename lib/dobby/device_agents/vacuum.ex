@@ -56,14 +56,27 @@ defmodule Dobby.DeviceAgents.Vacuum do
   @impl Dobby.DeviceAgent
   def config_schema, do: []
 
+  # The battery is a separate binding because Home Assistant 2026.8 removed
+  # `battery_level` from the vacuum entity: an integration now publishes the
+  # charge as its own `sensor` with `device_class: battery` on the same device,
+  # and a vacuum reading the old attribute reported no battery at all. The
+  # binding is optional so a house on an older HA, or an integration that has
+  # no battery sensor, still works from the attribute; the doorbell binds its
+  # camera and motion sensor the same way.
   @impl Dobby.DeviceAgent
-  def validate_device(%Device{bindings: bindings, settings: settings}) do
-    with :ok <- require_binding(bindings, :vacuum) do
-      if is_map(settings),
-        do: :ok,
-        else: {:error, "settings must be a map, got #{inspect(settings)}"}
+  def discovery_bindings(anchor, related) do
+    case Enum.find(related, &battery_sensor?/1) do
+      nil -> {:ok, %{vacuum: anchor.entity_id}}
+      battery -> {:ok, %{vacuum: anchor.entity_id, battery: battery.entity_id}}
     end
   end
+
+  defp battery_sensor?(entity),
+    do: Dobby.HomeAssistant.Entity.domain(entity) == "sensor" and entity.device_class == "battery"
+
+  @impl Dobby.DeviceAgent
+  def validate_device(%Device{} = device),
+    do: Dobby.DeviceAgents.Validation.device(device, [:vacuum], [:battery])
 
   @impl Dobby.DeviceAgent
   def tools do
@@ -75,7 +88,7 @@ defmodule Dobby.DeviceAgents.Vacuum do
   end
 
   @impl Dobby.DeviceAgent
-  def subscribed_bindings, do: [:vacuum]
+  def subscribed_bindings, do: [:vacuum, :battery]
 
   @impl Dobby.DeviceAgent
   def scheduled_actions do
@@ -110,20 +123,4 @@ defmodule Dobby.DeviceAgents.Vacuum do
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),
     do: Dobby.DeviceAgent.initial_state(device, :vacuum)
-
-  defp require_binding(bindings, key) when is_map(bindings) do
-    case Map.fetch(bindings, key) do
-      {:ok, entity_id} when is_binary(entity_id) ->
-        :ok
-
-      {:ok, other} ->
-        {:error, "bindings.#{key} must be an entity id string, got #{inspect(other)}"}
-
-      :error ->
-        {:error, "missing required binding #{inspect(key)}"}
-    end
-  end
-
-  defp require_binding(other, _key),
-    do: {:error, "bindings must be a map, got #{inspect(other)}"}
 end

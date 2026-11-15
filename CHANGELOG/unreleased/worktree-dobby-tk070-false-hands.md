@@ -1,7 +1,7 @@
 # Changes on branch `worktree-dobby-tk070-false-hands`
 What changed for the house, in the voice of the commit messages. Empty headings are dropped at release.
 ##### Added
--
+- A vacuum can bind its battery sensor (`battery:`), and discovery suggests it. Home Assistant 2026.8 took the battery off the vacuum entity, so a vacuum without the binding reported no battery at all on a current Home Assistant
 
 ##### Changed
 -

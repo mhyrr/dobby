@@ -25,20 +25,16 @@ defmodule Dobby.DeviceAgents.Vacuum.SyncState do
   def run(params, context) do
     previous = context.state
 
-    next = %{
-      available: params.state not in [nil, "unavailable", "unknown"],
-      activity: parse_activity(params.state),
-      battery_percent: battery(params.attributes["battery_level"])
-    }
+    next = update(previous.bindings, params)
 
-    case DeviceAgent.changes(previous, next, [:available, :activity, :battery_percent]) do
+    case DeviceAgent.changes(previous, next, Map.keys(next)) do
       %{changed: []} ->
         {:ok, next}
 
       %{changed: changed, moved: moved} ->
         {:ok, next,
          [
-           DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
+           DeviceEvents.emit(previous.dobby_id, snapshot(Map.merge(previous, next)),
              changed: changed,
              moved: moved
            )
@@ -67,7 +63,38 @@ defmodule Dobby.DeviceAgents.Vacuum.SyncState do
     }
   end
 
+  # A battery sensor, when the house binds one, owns the reading: the vacuum's
+  # own reports leave it alone, because on HA 2026.8 and later they no longer
+  # carry `battery_level` and reading the absent attribute would erase what
+  # the sensor said. Without the binding the attribute is still read, for an
+  # older HA.
+  defp update(%{battery: entity_id}, %{entity_id: entity_id, state: state}),
+    do: %{battery_percent: battery(state)}
+
+  defp update(bindings, %{entity_id: entity_id} = params) do
+    if bindings[:vacuum] == entity_id do
+      vacuum = %{
+        available: params.state not in [nil, "unavailable", "unknown"],
+        activity: parse_activity(params.state)
+      }
+
+      if Map.has_key?(bindings, :battery),
+        do: vacuum,
+        else: Map.put(vacuum, :battery_percent, battery(params.attributes["battery_level"]))
+    else
+      %{}
+    end
+  end
+
   defp battery(level) when is_number(level), do: round(level)
+
+  defp battery(level) when is_binary(level) do
+    case Float.parse(level) do
+      {value, ""} when value >= 0 and value <= 100 -> round(value)
+      _not_a_reading -> nil
+    end
+  end
+
   defp battery(_absent), do: nil
 
   # HA's vacuum activity vocabulary is closed. Anything outside it is a

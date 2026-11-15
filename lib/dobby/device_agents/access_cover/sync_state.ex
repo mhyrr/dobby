@@ -71,6 +71,10 @@ defmodule Dobby.DeviceAgents.AccessCover.SyncState do
   defp position(_value), do: nil
 
   # `:closing` is the echo still in flight; `:closed` is it landing.
+  # Accepted on a device that was already there: nothing will echo, so
+  # nothing is ours (see the command action).
+  defp commanded?(%{last_command: %{echoed: true}}, _next), do: false
+
   defp commanded?(%{last_command: %{result: :accepted, action: :close}}, next),
     do: next.cover_state in [:closing, :closed]
 

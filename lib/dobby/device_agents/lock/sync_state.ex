@@ -61,6 +61,10 @@ defmodule Dobby.DeviceAgents.Lock.SyncState do
 
   # `:locking` is the echo still in flight on hardware that reports it;
   # `:locked` is the echo landing.
+  # Accepted on a device that was already there: nothing will echo, so
+  # nothing is ours (see the command action).
+  defp commanded?(%{last_command: %{echoed: true}}, _next), do: false
+
   defp commanded?(%{last_command: %{result: :accepted, action: :secure}}, next),
     do: next.lock_state in [:locking, :locked]
 

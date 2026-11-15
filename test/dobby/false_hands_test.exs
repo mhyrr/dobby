@@ -113,6 +113,77 @@ defmodule Dobby.FalseHandsTest do
     end
   end
 
+  describe "securing what is already secure (case 4)" do
+    # Home Assistant sends no state change when nothing changed, so a lock
+    # command to a locked door never echoes. The nightly "lock the doors" does
+    # exactly that most nights. If the accepted command stood waiting for an
+    # echo, the next hand to lock that door would read as Dobby's.
+    test "a hand that locks the door after Dobby locked a locked door is listed" do
+      seed_house(%{"lock.front_door" => %{state: "locked", attributes: %{}}})
+      settle_watcher!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+      settle_watcher!()
+
+      echo!("lock.front_door", %{state: "unlocked", attributes: %{}})
+      echo!("lock.front_door", %{state: "locked", attributes: %{}})
+
+      assert [
+               %{text: "front door lock", meta: %{"value" => "Unlocked", "via" => via}},
+               %{text: "front door lock", meta: %{"value" => "Locked", "via" => via}}
+             ] = system_lines()
+
+      assert via == "changed at the front door lock"
+    end
+
+    test "a hand that closes the garage after Dobby closed a closed garage is listed" do
+      seed_house(%{
+        "cover.garage_door" => %{state: "closed", attributes: %{current_position: 0}}
+      })
+
+      settle_watcher!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.AccessCoverClose, %{device: "cover:garage"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "cover.garage_door"}}, 2_000
+      settle_watcher!()
+
+      echo!("cover.garage_door", %{state: "open", attributes: %{current_position: 100}})
+      echo!("cover.garage_door", %{state: "closed", attributes: %{current_position: 0}})
+
+      assert [
+               %{text: "garage door", meta: %{"via" => via}},
+               %{text: "garage door", meta: %{"value" => "Closed", "via" => via}}
+             ] = system_lines()
+
+      assert via == "changed at the garage door"
+    end
+
+    # The ordinary path still works: a command that does move the lock is ours
+    # when its echo lands, and a later hand is somebody's.
+    test "a lock Dobby actually moved is still Dobby's, once" do
+      seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+      settle_watcher!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle_watcher!()
+      assert system_lines() == []
+
+      echo!("lock.front_door", %{state: "unlocked", attributes: %{}})
+      echo!("lock.front_door", %{state: "locked", attributes: %{}})
+
+      assert [%{meta: %{"value" => "Unlocked"}}, %{meta: %{"value" => "Locked"}}] =
+               system_lines()
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   # Home Assistant's answer, as the integration sends it. The command itself is

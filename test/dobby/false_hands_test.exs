@@ -184,6 +184,27 @@ defmodule Dobby.FalseHandsTest do
     end
   end
 
+  describe "a lock that reports locked some seconds later (case 8)" do
+    # Home Assistant core does not synthesise a locking state, so a Z-Wave,
+    # August or Schlage lock says nothing until the bolt has thrown and the
+    # report has come back, which takes seconds, not a second.
+    test "an echo a second and a half after the command is not NOT KNOWN" do
+      seed_house(%{"lock.front_door" => %{state: "unlocked", attributes: %{}}})
+      settle_watcher!()
+      Fake.silence_next("lock.front_door")
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
+      Process.sleep(1_500)
+
+      echo!("lock.front_door", %{state: "locked", attributes: %{}})
+
+      assert system_lines() == []
+    end
+  end
+
   # -- helpers ---------------------------------------------------------------
 
   # Home Assistant's answer, as the integration sends it. The command itself is

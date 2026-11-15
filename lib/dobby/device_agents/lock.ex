@@ -86,8 +86,12 @@ defmodule Dobby.DeviceAgents.Lock do
 
   def command_arrived?(_command, _snapshot), do: false
 
-  @impl Dobby.DeviceAgent
-  def confirmation_timeout, do: 1_000
+  # No override: a lock takes the thirty-second default. One second was here
+  # with no reason recorded, and it assumed an answer Home Assistant does not
+  # give. HA core does not synthesise a `locking` state, so a Z-Wave, August
+  # or Schlage lock says nothing until the bolt has thrown and the report has
+  # come back, seconds later. Each of those tripped the deadline and wrote a
+  # NOT KNOWN line that the late echo then could not take back.
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :lock)

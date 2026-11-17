@@ -24,16 +24,31 @@ defmodule Dobby.DeviceAgents.PowerSwitch.SyncState do
         {:ok, next}
 
       %{changed: changed, moved: moved} ->
-        {:ok, next,
+        commanded? = commanded?(previous, next)
+
+        {:ok, spend(next, previous.last_command),
          [
            DeviceEvents.emit(previous.dobby_id, snapshot(previous, next),
              changed: changed,
              moved: moved,
-             commanded?: commanded?(previous, next)
+             commanded?: commanded?
            )
          ]}
     end
   end
+
+  # The echo is one-shot, as the lock's is (Greg, 2026-11-16, TK-064). On and
+  # off are two values, so a standing command read every hand that put the
+  # switch back where Dobby had once sent it as Dobby's: half of all hands,
+  # forever. The command is spent by the first report it is judged against,
+  # whether that report is its echo or a hand, so a command to a switch that
+  # was already there, which Home Assistant never echoes, is spent by the next
+  # hand instead of swallowing it. A switch that goes quiet has not answered
+  # either way, so the command outlives that.
+  defp spend(%{available: true} = next, %{result: :accepted}),
+    do: Map.put(next, :last_command, nil)
+
+  defp spend(next, _command), do: next
 
   @spec snapshot(map()) :: map()
   def snapshot(state), do: snapshot(state, state)

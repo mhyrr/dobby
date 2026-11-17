@@ -289,11 +289,11 @@ defmodule Dobby.FalseHandsTest do
       assert [%{meta: %{"via" => "changed at the dining room shade"}}] = system_lines()
     end
 
-    # Once the command has arrived its travel is over, and the shade judges
-    # reports as it did before: a hand that moves it again writes its lines.
-    # The final report of a hand that returns it to the commanded end is
-    # still swallowed by the standing echo; that is case 5, open in TK-064,
-    # and this does not widen it.
+    # Once the command has arrived it is spent, and every report after it is
+    # judged as anybody's. This test used to stop short of the last report,
+    # because the standing echo swallowed a hand that returned the shade to
+    # the commanded end. It now asserts that report too (case 5, TK-064,
+    # Greg 2026-11-16).
     test "after the command arrives, a hand's travel is a hand's again" do
       command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
       echo!(@shade, shade(:open, 100))
@@ -302,11 +302,107 @@ defmodule Dobby.FalseHandsTest do
       echo!(@shade, shade(:closing, 50))
       echo!(@shade, shade(:closed, 0))
       echo!(@shade, shade(:opening, 50))
+      echo!(@shade, shade(:open, 100))
 
-      assert [%{meta: %{"value" => "Closing"}}, %{meta: %{"value" => "Closed"}}, %{meta: opening}] =
-               system_lines()
+      assert ["Closing", "Closed", "Opening", "Open"] =
+               Enum.map(system_lines(), & &1.meta["value"])
+    end
+  end
 
-      assert opening["value"] == "Opening"
+  describe "a hand that returns a device to what Dobby once commanded (case 5)" do
+    # Open and closed, on and off, are two values. A standing echo read every
+    # hand that put the device back where Dobby had once sent it as Dobby's,
+    # which is half of all hand actions, forever. The echo is spent at arrival
+    # now, the way the lock's is (Greg, 2026-11-16, TK-064).
+    test "a shade a hand closes and opens again is listed both times" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+      echo!(@shade, shade(:open, 100))
+
+      echo!(@shade, shade(:closed, 0))
+      echo!(@shade, shade(:open, 100))
+
+      assert ["Closed", "Open"] = Enum.map(system_lines(), & &1.meta["value"])
+    end
+
+    test "a shade a hand returns to the position Dobby set is listed" do
+      command!(shade(:open, 100), Dobby.Tools.ShadeSetPosition, %{position: 50})
+      echo!(@shade, shade(:open, 50))
+
+      echo!(@shade, shade(:open, 80))
+      echo!(@shade, shade(:open, 50))
+
+      assert ["80%", "50%"] = Enum.map(system_lines(), & &1.meta["value"])
+    end
+
+    test "a switch a hand turns off and on again is listed both times" do
+      seed_house(%{"switch.coffee_station" => %{state: "off", attributes: %{}}})
+      settle_watcher!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.PowerSwitchTurnOn, %{device: "switch:coffee"})
+
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+      settle_watcher!()
+      assert system_lines() == []
+
+      echo!("switch.coffee_station", %{state: "off", attributes: %{}})
+      echo!("switch.coffee_station", %{state: "on", attributes: %{}})
+
+      assert ["Off", "On"] = Enum.map(system_lines(), & &1.meta["value"])
+    end
+
+    # Home Assistant sends nothing for a switch already in the commanded state,
+    # so that command must not wait for an echo, or it would swallow the next
+    # hand, as case 4 found for the lock.
+    test "a switch Dobby turned on while it was on still lists the next hand" do
+      seed_house(%{"switch.coffee_station" => %{state: "on", attributes: %{}}})
+      settle_watcher!()
+
+      assert {:ok, %{accepted: true}} =
+               Jido.Exec.run(Dobby.Tools.PowerSwitchTurnOn, %{device: "switch:coffee"})
+
+      assert_receive {:ha_call, %HACall{entity_id: "switch.coffee_station"}}, 2_000
+      settle_watcher!()
+
+      echo!("switch.coffee_station", %{state: "off", attributes: %{}})
+      echo!("switch.coffee_station", %{state: "on", attributes: %{}})
+
+      assert ["Off", "On"] = Enum.map(system_lines(), & &1.meta["value"])
+    end
+
+    # A shade can report its arrival and then settle a notch: open at 99,
+    # then open at 100. Both are Dobby's open, not a hand nudging it.
+    test "a shade that settles a notch after arriving is still Dobby's" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+      echo!(@shade, shade(:open, 99))
+      echo!(@shade, shade(:open, 100))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
+    end
+
+    # With no in-flight state a shade is `open` from the first notch up, so
+    # `open` at 40 is the open travelling, not arriving. Spending the echo
+    # there would write the rest of the trip as a hand.
+    test "a shade that opens under open all the way is Dobby's until it is open" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeOpen, %{})
+      echo!(@shade, shade(:open, 40))
+      echo!(@shade, shade(:open, 70))
+      echo!(@shade, shade(:open, 100))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
+    end
+
+    # The reviewer's gap on case 1: a position that lands one notch past the
+    # target. One notch is now an arrival, the shape of cases 6 and 7.
+    test "a position that lands a notch past the target is Dobby's" do
+      command!(shade(:closed, 0), Dobby.Tools.ShadeSetPosition, %{position: 50})
+      echo!(@shade, shade(:opening, 30))
+      echo!(@shade, shade(:open, 51))
+      deadline_passes!("shade:dining")
+
+      assert system_lines() == []
     end
   end
 

@@ -87,9 +87,10 @@ defmodule Dobby.DeviceAgents.Shade do
 
   def command_arrived?(
         %{result: :accepted, action: :set_position, position: expected},
-        snapshot
-      ),
-      do: snapshot.position == expected
+        %{position: reported}
+      )
+      when is_integer(expected) and is_integer(reported),
+      do: abs(reported - expected) <= 1
 
   def command_arrived?(_command, _snapshot), do: false
 

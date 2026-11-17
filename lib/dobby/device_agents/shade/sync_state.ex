@@ -18,12 +18,18 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
   back), or a deadline's worth of silence since the last report on the way.
   A shade that goes unavailable mid-travel is still in flight when it answers.
 
-  The bound is the point. The arrival keeps its standing echo, unchanged, so
-  a hand that later returns the shade to a commanded end still has its last
-  report read as ours; that is case 5, open in TK-064. A travel allowance with
-  no end would have widened it to the hand's whole movement. An earlier
-  attempt at this file was reverted for exactly that kind of trade, a
-  suppression fixed by a fabrication.
+  The bound is the point. A travel allowance with no end would read a hand's
+  whole movement as ours. An earlier attempt at this file was reverted for
+  exactly that kind of trade, a suppression fixed by a fabrication.
+
+  ## The echo is spent at the arrival
+
+  One-shot, as the lock's is (Greg, 2026-11-16, TK-064). Open and closed are
+  two values, so a standing echo read every hand that put the shade back
+  where Dobby had once sent it as Dobby's. The arrival is the state for open
+  and close, or a position within one notch of the target, and it may claim
+  one more report: a settle of one notch in the same state toward its end.
+  Every report after that is anybody's.
   """
 
   use Jido.Action,
@@ -78,22 +84,57 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
   # flight survives it; going quiet is not movement and writes no line either
   # way (`DeviceAgent.changes/3`). Each report on the way pushes the window
   # on, so a slow awning stays in flight for as long as it keeps travelling.
+  #
+  # After the arrival the command has one report left to claim: a settle of
+  # one notch in the same state, toward its end (open at 99, then 100). Any
+  # report after that, or any other report, spends it. Spent is `nil`, not a
+  # key removed: Jido deep-merges an action's result into agent state, so a
+  # key dropped from the nested command would survive.
   defp judge(%{last_command: command} = previous, next) do
     cond do
       next.available != true -> {false, command}
-      commanded?(previous, next) -> {true, landed(command)}
+      match?(%{arrived: true}, command) -> {settling?(command, previous, next), nil}
+      in_flight?(command) and commanded?(previous, next) -> {true, arrived(command)}
       travelling?(command, previous, next) -> {true, still_in_flight(command)}
-      true -> {false, landed(command)}
+      true -> {false, nil}
     end
   end
 
   defp still_in_flight(command),
     do: %{command | in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()}
 
-  # Set to nil rather than deleted: Jido deep-merges an action's result into
-  # agent state, so a key dropped from the nested command would survive.
-  defp landed(%{in_flight_until: _} = command), do: %{command | in_flight_until: nil}
-  defp landed(command), do: command
+  defp arrived(command),
+    do:
+      Map.merge(command, %{
+        arrived: true,
+        in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()
+      })
+
+  # The arrival is bounded by the deadline too. A command whose shade never
+  # moved would otherwise wait for ever, and the next hand to close the shade,
+  # an hour later, would arrive as its echo.
+  defp in_flight?(%{in_flight_until: until}) when is_integer(until),
+    do: System.monotonic_time(:millisecond) <= until
+
+  defp in_flight?(_command), do: false
+
+  # One notch, in the same state, and closer to the end than the arrival was.
+  # A notch away from the end is somebody nudging it.
+  defp settling?(command, previous, next) do
+    from = previous.position
+    to = next.position
+    target = end_position(command)
+
+    in_flight?(command) and next.shade_state == previous.shade_state and
+      is_integer(from) and is_integer(to) and abs(to - from) <= 1 and
+      abs(to - target) < abs(from - target)
+  end
+
+  defp settling?(_command, _previous, _next), do: false
+
+  defp end_position(%{action: :open}), do: 100
+  defp end_position(%{action: :close}), do: 0
+  defp end_position(%{position: position}), do: position
 
   defp travelling?(%{result: :accepted, in_flight_until: until} = command, previous, next)
        when is_integer(until) do
@@ -171,14 +212,21 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
 
   defp supports?(_features, _flag), do: false
 
+  # `open` is every position above closed, so with a position it arrives only
+  # within a notch of fully open; below that it is the open still travelling.
+  # A shade with no position has only the word to go on.
   defp commanded?(%{last_command: %{result: :accepted, action: :open}}, next),
-    do: next.shade_state == :open
+    do: next.shade_state == :open and (is_nil(next.position) or next.position >= 99)
 
   defp commanded?(%{last_command: %{result: :accepted, action: :close}}, next),
     do: next.shade_state == :closed
 
-  defp commanded?(%{last_command: %{result: :accepted, position: position}}, next),
-    do: next.position == position
+  # One notch either side, the shape of the thermostat's and the dimmer's
+  # tolerance: a motor lands where its encoder lands, and 51 for 50 is the
+  # command arriving, not a hand.
+  defp commanded?(%{last_command: %{result: :accepted, position: position}}, next)
+       when is_integer(position) and is_integer(next.position),
+       do: abs(next.position - position) <= 1
 
   defp commanded?(_previous, _next), do: false
 end

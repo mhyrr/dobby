@@ -22,7 +22,11 @@ defmodule Dobby.DeviceAgents.Shade.Move do
            ref: ref,
            action: movement,
            result: :accepted,
-           in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until()
+           in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until(),
+           # Named so the deep merge into agent state clears what the last
+           # command left: an earlier position, or an arrival not yet spent.
+           position: nil,
+           arrived: nil
          }
        },
        [

@@ -14,6 +14,7 @@ What changed for the house, in the voice of the commit messages. Empty headings 
 - A garage door that reports no closing state no longer writes "changed at the garage door" for every report on the way down when Dobby closes it. Its position falling under Dobby's close is that close travelling; a door that goes back up is still somebody's
 - A shade Dobby opens, closes or sets no longer writes "changed at the shade" for every report it sends on the way. While the command is in flight, travel toward its end is the command; the flight ends when the shade arrives, turns back, or passes its deadline, so a hand that moves the shade afterwards is listed as it was before
 - A shade or garage door that Home Assistant reports as `unknown`, one that cannot say where it is, is no longer treated as unavailable. It takes commands again; its card reads SET or AWAKE with no value until the board learns to say NOT KNOWN for it
+- A shade or a switch that somebody puts back where Dobby once sent it is now listed in the thread. Dobby's command is spent when it arrives, as a lock's is, where before it stood forever and read half of all hands as Dobby's. A shade that lands one notch from its target, or settles one notch after arriving, is still Dobby's
 
 ##### Removed
 -

@@ -21,7 +21,10 @@ defmodule Dobby.DeviceAgents.ShadeTest do
       {%{result: :accepted, action: :open}, %{shade_state: :opening}, %{shade_state: :closed}},
       {%{result: :accepted, action: :close}, %{shade_state: :closing}, %{shade_state: :open}},
       {%{result: :accepted, action: :set_position, position: 40}, %{position: 40},
-       %{position: 60}}
+       %{position: 60}},
+      # One notch is the motor landing where its encoder lands; two is not.
+      {%{result: :accepted, action: :set_position, position: 40}, %{position: 41},
+       %{position: 42}}
     ],
     # `move` takes a direction (open/close) that is not a value of
     # `shade_state` (open/closed/opening/closing), so a choice row could not
@@ -170,6 +173,54 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     assert back.data.commanded?
   end
 
+  # Jido deep-merges a new command into the old one. A command accepted while
+  # the last one had arrived but not yet settled must not inherit `arrived`,
+  # or its own travel reads as a hand.
+  test "a new command after an arrival is in flight, not arrived" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.SetPosition.run(%{position: 50, ref: "a"}, %{state: state})
+    {state, _emit} = sync(merge(state, command), "open", %{"current_position" => 50})
+    assert state.last_command.arrived
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "b"}, %{state: state})
+    state = merge(state, command)
+
+    {_state, %Emit{signal: travel}} = sync(state, "closing", %{"current_position" => 30})
+    assert travel.data.commanded?
+  end
+
+  # The settle after an arrival is toward the end. A nudge away from it, even
+  # by one notch, is somebody's hand.
+  test "a notch away from the end after an arrival is a hand" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    {state, _emit} = sync(merge(state, command), "open", %{"current_position" => 100})
+
+    {_state, %Emit{signal: nudge}} = sync(state, "open", %{"current_position" => 99})
+    refute nudge.data.commanded?
+  end
+
+  # A command whose shade never moved does not wait forever: past its
+  # deadline, a hand that closes the shade is a hand.
+  test "an arrival long after the command is somebody's" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "cmd"}, %{state: state})
+
+    stale =
+      state
+      |> merge(command)
+      |> put_in([:last_command, :in_flight_until], System.monotonic_time(:millisecond) - 1)
+
+    {_state, %Emit{signal: hand}} = sync(stale, "closed", %{"current_position" => 0})
+    refute hand.data.commanded?
+  end
+
   # No position at all: the in-flight state for the command's direction is the
   # only evidence, and the opposite one is not this command.
   test "a shade with no position travels by its in-flight state alone" do
@@ -201,6 +252,15 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     }
 
     Shade.new(id: device.id, state: Shade.initial_state(device)).state
+  end
+
+  # A command lands in agent state the way Jido puts it there: deep-merged
+  # into what is already there, so a key the new command leaves out survives.
+  defp merge(state, result) do
+    Map.merge(state, result, fn
+      _key, old, new when is_map(old) and is_map(new) -> Map.merge(old, new)
+      _key, _old, new -> new
+    end)
   end
 
   defp sync(state, entity_state, attributes) do

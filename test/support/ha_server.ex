@@ -15,7 +15,13 @@ defmodule Dobby.HAServer do
   server by messaging the handler:
 
     * `{:push, map}` — push a JSON frame (events, out-of-order results);
-    * `:close` — drop the connection, for reconnect scenarios.
+    * `:close` — drop the connection, for reconnect scenarios;
+    * `:mute` — keep the socket open and never send another frame, which is
+      what a half-open connection looks like from the client's side: a router
+      rebooted, a VM paused, a host asleep. Commands are still forwarded to the
+      owner, so a test can watch the client keep talking into the void.
+
+  It answers `ping` with `pong`, as Home Assistant does, until muted.
 
   Options (all but `:owner` optional):
 
@@ -74,12 +80,16 @@ defmodule Dobby.HAServer do
     def handle_in({text, opcode: :text}, config) do
       message = Jason.decode!(text)
       send(config.owner, {:ha_server, :received, message})
-      handle_message(message, config)
+
+      if Map.get(config, :muted, false),
+        do: {:ok, config},
+        else: handle_message(message, config)
     end
 
     @impl WebSock
     def handle_info({:push, message}, config), do: {:push, frame(message), config}
     def handle_info(:close, config), do: {:stop, :normal, config}
+    def handle_info(:mute, config), do: {:ok, Map.put(config, :muted, true)}
     def handle_info(_message, config), do: {:ok, config}
 
     defp handle_message(%{"type" => "auth", "access_token" => token}, %{token: token} = config),
@@ -87,6 +97,9 @@ defmodule Dobby.HAServer do
 
     defp handle_message(%{"type" => "auth"}, config),
       do: {:push, frame(%{type: "auth_invalid", message: "Invalid access token"}), config}
+
+    defp handle_message(%{"type" => "ping", "id" => id}, config),
+      do: {:push, frame(%{id: id, type: "pong"}), config}
 
     defp handle_message(%{"type" => "subscribe_events", "id" => id}, config),
       do: {:push, frame(%{id: id, type: "result", success: true, result: nil}), config}

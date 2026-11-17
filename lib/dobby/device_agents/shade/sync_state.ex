@@ -119,22 +119,22 @@ defmodule Dobby.DeviceAgents.Shade.SyncState do
   defp in_flight?(_command), do: false
 
   # One notch, in the same state, and closer to the end than the arrival was.
-  # A notch away from the end is somebody nudging it.
+  # A notch away from the end is somebody nudging it. One clause answers for
+  # every command: no deadline, no position, or no end each makes it false.
   defp settling?(command, previous, next) do
     from = previous.position
     to = next.position
     target = end_position(command)
 
     in_flight?(command) and next.shade_state == previous.shade_state and
-      is_integer(from) and is_integer(to) and abs(to - from) <= 1 and
+      is_integer(from) and is_integer(to) and is_integer(target) and abs(to - from) <= 1 and
       abs(to - target) < abs(from - target)
   end
-
-  defp settling?(_command, _previous, _next), do: false
 
   defp end_position(%{action: :open}), do: 100
   defp end_position(%{action: :close}), do: 0
   defp end_position(%{position: position}), do: position
+  defp end_position(_command), do: nil
 
   defp travelling?(%{result: :accepted, in_flight_until: until} = command, previous, next)
        when is_integer(until) do

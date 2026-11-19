@@ -423,6 +423,58 @@ defmodule Dobby.HomeAssistant.ClientTest do
     end
   end
 
+  describe "a connection that goes half-open (TK-042)" do
+    # A router reboot, a paused VM, a host asleep: the socket stays open on
+    # this side and nobody is on the other. No close frame, no TCP error, and
+    # until the heartbeat, no reconnect either — the client said :connected
+    # forever while the board went NOT KNOWN around it.
+    #
+    # The intervals are injected small so the clock runs in milliseconds. The
+    # waits below are `assert_receive` deadlines, not sleeps.
+    @interval 40
+    @deadline 200
+
+    test "a server that goes silent without closing is torn down and reconnected within the deadline" do
+      url = HAServer.start!(owner: self())
+
+      start_client!(url, heartbeat_interval: @interval, heartbeat_deadline: @deadline)
+
+      assert_receive {:ha_server, :connected, handler}, 1_000
+      assert_receive {:ha_server, :received, %{"type" => "subscribe_events"}}, 1_000
+
+      send(handler, :mute)
+      muted_at = System.monotonic_time(:millisecond)
+
+      # The client keeps asking, and nothing answers.
+      assert_receive {:ha_server, :received, %{"type" => "ping"}}, 1_000
+
+      assert_receive {:ha_server, :connected, _new_handler}, 1_000
+      elapsed = System.monotonic_time(:millisecond) - muted_at
+
+      # The deadline, then the 50ms backoff, then a loopback connect. Generous
+      # slack for a loaded CI box; the failure this guards is "never".
+      assert elapsed < @deadline + 50 + 400,
+             "reconnected #{elapsed}ms after the server went silent; deadline is #{@deadline}ms"
+    end
+
+    test "a server that answers pings is left alone" do
+      url = HAServer.start!(owner: self())
+
+      start_client!(url, heartbeat_interval: @interval, heartbeat_deadline: @deadline)
+
+      assert_receive {:ha_server, :connected, _handler}, 1_000
+
+      # Nothing but pongs comes back after the initial sync, so the only thing
+      # keeping this connection alive is the client hearing its own pings
+      # answered. Enough of them to span the deadline twice over.
+      for _ <- 1..div(@deadline * 2, @interval) do
+        assert_receive {:ha_server, :received, %{"type" => "ping"}}, 1_000
+      end
+
+      refute_received {:ha_server, :connected, _handler}
+    end
+  end
+
   describe "the entity registry" do
     defp registry_client!(url) do
       client = start_client!(url)
@@ -471,7 +523,7 @@ defmodule Dobby.HomeAssistant.ClientTest do
       url = HAServer.start!(owner: self())
       :ok = Connection.subscribe()
 
-      start_client!(url, name: Client)
+      start_client!(url, name: Client, heartbeat_interval: 40, heartbeat_deadline: 200)
 
       assert_receive {:ha_server, :connected, handler}, 1_000
       assert_receive {:home_assistant, :connected}, 1_000
@@ -485,8 +537,20 @@ defmodule Dobby.HomeAssistant.ClientTest do
       assert_receive {:home_assistant, :reconnecting}, 1_000
 
       # And back, as the backoff reconnects.
+      assert_receive {:ha_server, :connected, handler}, 1_000
       assert_receive {:home_assistant, :connected}, 1_000
       assert Connection.status(Client) == :connected
+
+      # A socket that goes half-open is announced the same way, which is what
+      # turns the Home Assistant row on /admin to Quiet (`Dobby.Health`) while
+      # nothing answers, rather than Awake forever (TK-042). One test, because
+      # `Connection` keeps one cell per module and only a transition is news:
+      # two named clients in two tests would each depend on the other's
+      # leftovers.
+      send(handler, :mute)
+
+      assert_receive {:home_assistant, :reconnecting}, 1_000
+      assert_receive {:home_assistant, :connected}, 1_000
     end
   end
 end

@@ -29,6 +29,20 @@ defmodule Dobby.HomeAssistant.Client do
   waiting for something to change, and a reconnect heals whatever events the
   outage swallowed.
 
+  **A connection is trusted only while it speaks (TK-042).** Once
+  authenticated, the client sends Home Assistant's application-level `ping`
+  every `@heartbeat_interval` and holds the socket to a deadline: no frame of
+  any kind (a pong, an event, a result, HA's own WebSocket ping) for
+  `@heartbeat_deadline` and the socket is declared dead, closed, and handed to
+  the same reconnect path a close frame takes. That path is what tells the
+  house: `Connection` goes `:reconnecting` and `/admin` reads Quiet. Without
+  it a half-open TCP connection (a router reboot, a paused VM, a host asleep)
+  stayed `:connected` indefinitely: every service call burned its full timeout
+  and no state change ever arrived, while the health page said Awake. TCP
+  keepalive was the rejected alternative: the OS default fires after two
+  hours, and it proves only that a kernel answered, not that Home Assistant
+  did.
+
   Requests are correlated by Home Assistant's message `id`, so any number may
   be in flight at once. `execute/1` returns `:ok` when HA reports the service
   call succeeded — acceptance, not physical confirmation, which arrives
@@ -62,6 +76,16 @@ defmodule Dobby.HomeAssistant.Client do
   # against a house that was merely slow.
   @handshake_timeout 10_000
 
+  # The heartbeat. Ping every 15s; declare the socket dead after 45s with no
+  # frame at all. The deadline is three intervals so one late pong (HA's event
+  # loop busy with an integration reload, a GC pause here) never costs a
+  # reconnect, and a reconnect is a resubscribe plus a full `get_states`. 45s
+  # is how long the board can trust a dead socket, down from forever. Shorter
+  # catches an outage sooner and buys a reconnect loop against a house that
+  # was merely slow.
+  @heartbeat_interval 15_000
+  @heartbeat_deadline 45_000
+
   @initial_backoff 1_000
   @max_backoff 30_000
 
@@ -91,7 +115,13 @@ defmodule Dobby.HomeAssistant.Client do
     next_id: 1,
     backoff: @initial_backoff,
     initial_backoff: @initial_backoff,
-    handshake_timeout: @handshake_timeout
+    handshake_timeout: @handshake_timeout,
+    heartbeat_interval: @heartbeat_interval,
+    heartbeat_deadline: @heartbeat_deadline,
+    # Monotonic milliseconds at the last frame of any kind. The deadline is
+    # measured from here, not from the last ping, so a house that is busy
+    # talking never needs to answer one.
+    last_frame_at: nil
   ]
 
   # -- client ----------------------------------------------------------------
@@ -166,6 +196,8 @@ defmodule Dobby.HomeAssistant.Client do
       backoff: initial_backoff,
       initial_backoff: initial_backoff,
       handshake_timeout: Keyword.get(opts, :handshake_timeout, @handshake_timeout),
+      heartbeat_interval: Keyword.get(opts, :heartbeat_interval, @heartbeat_interval),
+      heartbeat_deadline: Keyword.get(opts, :heartbeat_deadline, @heartbeat_deadline),
       # The seam client tests observe delivery through. Production always
       # dispatches to the routed device agent.
       dispatch: Keyword.get(opts, :dispatch, &Dobby.HomeAssistant.dispatch_state_changed/4)
@@ -241,6 +273,35 @@ defmodule Dobby.HomeAssistant.Client do
       do: {:noreply, disconnect(state, :handshake_timeout)}
 
   def handle_info({:handshake_timeout, _attempt}, state), do: {:noreply, state}
+
+  # Both heartbeat timers carry the attempt they were armed for, so a timer
+  # from a connection already given up on finds nothing to do.
+  def handle_info({:heartbeat_ping, attempt}, %{attempt: attempt, status: :connected} = state) do
+    Process.send_after(self(), {:heartbeat_ping, attempt}, state.heartbeat_interval)
+    {:noreply, send_command(state, %{type: "ping"}, :ping)}
+  end
+
+  def handle_info({:heartbeat_ping, _attempt}, state), do: {:noreply, state}
+
+  def handle_info({:heartbeat_deadline, attempt}, %{attempt: attempt, status: :connected} = state) do
+    silent_for = now() - state.last_frame_at
+
+    if silent_for >= state.heartbeat_deadline do
+      Logger.warning(
+        "Home Assistant at #{state.url} has sent nothing for #{silent_for}ms " <>
+          "(deadline #{state.heartbeat_deadline}ms); treating the socket as dead"
+      )
+
+      {:noreply, disconnect(state, :heartbeat_timeout)}
+    else
+      # Something arrived since this was armed. Re-arm from that frame rather
+      # than from now, so the deadline is exact and not up to twice as long.
+      arm_deadline(state, state.heartbeat_deadline - silent_for)
+      {:noreply, state}
+    end
+  end
+
+  def handle_info({:heartbeat_deadline, _attempt}, state), do: {:noreply, state}
 
   def handle_info(_message, %{conn: nil} = state), do: {:noreply, state}
 
@@ -398,6 +459,8 @@ defmodule Dobby.HomeAssistant.Client do
   end
 
   defp handle_response(state, {:data, ref, data}) when ref == state.ref do
+    state = %{state | last_frame_at: now()}
+
     case Mint.WebSocket.decode(state.websocket, data) do
       {:ok, websocket, frames} ->
         Enum.reduce(frames, %{state | websocket: websocket}, &handle_frame(&2, &1))
@@ -447,6 +510,9 @@ defmodule Dobby.HomeAssistant.Client do
     # answer. See `Dobby.HomeAssistant.Connection`.
     Connection.publish(__MODULE__, :connected)
 
+    Process.send_after(self(), {:heartbeat_ping, state.attempt}, state.heartbeat_interval)
+    arm_deadline(state, state.heartbeat_deadline)
+
     %{state | status: :connected, backoff: state.initial_backoff}
     |> send_command(%{type: "subscribe_events", event_type: "state_changed"}, :subscription)
     |> send_command(
@@ -463,6 +529,11 @@ defmodule Dobby.HomeAssistant.Client do
     Logger.error("Home Assistant rejected the access token: #{message["message"]}")
     disconnect(state, :auth_invalid)
   end
+
+  # Its arrival already moved `last_frame_at`; all that is left is to stop
+  # waiting on it.
+  defp handle_message(state, %{"type" => "pong", "id" => id}),
+    do: %{state | pending: Map.delete(state.pending, id)}
 
   defp handle_message(state, %{"type" => "result", "id" => id} = message) do
     {tag, pending} = Map.pop(state.pending, id)
@@ -614,6 +685,14 @@ defmodule Dobby.HomeAssistant.Client do
   end
 
   defp maybe_sync(state), do: state
+
+  # -- heartbeat -------------------------------------------------------------
+
+  defp arm_deadline(state, after_ms) do
+    Process.send_after(self(), {:heartbeat_deadline, state.attempt}, after_ms)
+  end
+
+  defp now, do: System.monotonic_time(:millisecond)
 
   # -- sending ---------------------------------------------------------------
 

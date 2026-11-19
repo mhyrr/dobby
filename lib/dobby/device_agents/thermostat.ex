@@ -139,13 +139,41 @@ defmodule Dobby.DeviceAgents.Thermostat do
   def intervention?(_attribute), do: false
 
   @impl Dobby.DeviceAgent
-  def command_arrived?(
-        %{result: :accepted, temperature_f: expected},
-        %{target_temperature_f: reported}
-      ),
-      do: expected == reported
+  def command_arrived?(%{result: :accepted, temperature_f: _} = command, %{
+        target_temperature_f: reported
+      }),
+      do: echoes?(command, reported)
 
   def command_arrived?(_command, _snapshot), do: false
+
+  @doc """
+  Whether a reported setpoint is what Home Assistant sends back for this command.
+
+  Not the number Dobby sent. `ClimateEntity` reports its target through
+  `show_temp` at the entity's precision, which is whole degrees on a Fahrenheit
+  house, and integrations snap a target to the device's step before sending it.
+  "Seventy and a half" therefore comes back as 70 (or 71), and comparing at
+  float equality called that a command that never arrived and a hand on the
+  dial at once: a NOT KNOWN line and a "changed at the thermostat" line, both
+  for Dobby's own command.
+
+  Half a reporting step is the most rounding can move a value, so that is the
+  tolerance, inclusive because 70.5 is exactly half a degree from both
+  neighbours and Python rounds half to even. The step is the one the device
+  reported when the command was accepted (`target_temp_step`), and never less
+  than a whole degree, because precision, which HA does not publish, is whole
+  degrees on a Fahrenheit house however fine the step. A hand still reads as a
+  hand: it moves the dial by at least one step, which is twice the tolerance.
+
+  The cost, stated: a command between two steps accepts either neighbour as
+  its echo, so a hand that moves 70.5 to 71 straight after is read as ours.
+  """
+  @spec echoes?(map(), number() | nil) :: boolean()
+  def echoes?(%{temperature_f: expected} = command, reported)
+      when is_number(expected) and is_number(reported),
+      do: abs(expected - reported) <= max(command[:step_f] || 1, 1) / 2
+
+  def echoes?(_command, _reported), do: false
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device),

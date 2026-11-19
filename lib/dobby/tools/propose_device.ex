@@ -186,12 +186,19 @@ defmodule Dobby.Tools.ProposeDevice do
     end)
   end
 
+  # One entity names one binding only when exactly one of the type's bindings
+  # makes a device by itself. A vacuum subscribes to its own entity and an
+  # optional battery sensor, and the vacuum entity alone is a vacuum; asking
+  # the type's own validation keeps that knowledge in the type rather than a
+  # list of optional keys here.
   defp known_bindings(module, nil, entity_id) when is_binary(entity_id) do
-    case module.subscribed_bindings() do
+    case Enum.filter(module.subscribed_bindings(), &stands_alone?(module, &1, entity_id)) do
       [only] ->
         {:ok, %{Atom.to_string(only) => entity_id}}
 
-      several ->
+      _none_or_several ->
+        several = module.subscribed_bindings()
+
         {:error,
          "a #{module.config_type()} needs bindings: #{Enum.map_join(several, ", ", &Atom.to_string/1)}"}
     end
@@ -202,6 +209,18 @@ defmodule Dobby.Tools.ProposeDevice do
 
   defp known_bindings(_module, other, _entity_id),
     do: {:error, "bindings must be an object, got #{inspect(other)}"}
+
+  defp stands_alone?(module, binding, entity_id) do
+    device = %Dobby.Home.Device{
+      id: "#{module.config_type()}:proposed",
+      name: "proposed",
+      agent_module: module,
+      bindings: %{binding => entity_id},
+      settings: %{}
+    }
+
+    module.validate_device(device) == :ok
+  end
 
   defp known_settings(module, raw) when is_map(raw) do
     declared = Keyword.keys(module.config_schema())

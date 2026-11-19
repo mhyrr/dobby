@@ -87,14 +87,26 @@ defmodule Dobby.DeviceAgents.Shade do
 
   def command_arrived?(
         %{result: :accepted, action: :set_position, position: expected},
-        snapshot
-      ),
-      do: snapshot.position == expected
+        %{position: reported}
+      )
+      when is_integer(expected) and is_integer(reported),
+      do: abs(reported - expected) <= 1
 
   def command_arrived?(_command, _snapshot), do: false
 
   @impl Dobby.DeviceAgent
   def confirmation_timeout, do: 60_000
+
+  @doc """
+  When an accepted command stops counting reports on the way as its own.
+
+  The shade's confirmation deadline from now, on the monotonic clock. Set when
+  the command is accepted and again at each report on the way, so the flight
+  ends a deadline's worth of silence after the shade last travelled toward
+  its end; after that, anything it does is judged as anybody's (`SyncState`).
+  """
+  @spec in_flight_until() :: integer()
+  def in_flight_until, do: System.monotonic_time(:millisecond) + confirmation_timeout()
 
   @impl Dobby.DeviceAgent
   def initial_state(%Device{} = device), do: Dobby.DeviceAgent.initial_state(device, :cover)

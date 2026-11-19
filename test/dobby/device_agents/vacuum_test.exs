@@ -53,6 +53,57 @@ defmodule Dobby.DeviceAgents.VacuumTest do
     end
   end
 
+  # Home Assistant 2026.8 took `battery_level` off the vacuum entity; the
+  # charge is a `sensor` with `device_class: battery` on the same device.
+  describe "a battery sensor" do
+    @battery "sensor.robo_battery"
+
+    setup do
+      boot_house!([
+        %{
+          vacuum_device(@vacuum, "robot vacuum")
+          | bindings: %{vacuum: @entity, battery: @battery}
+        }
+      ])
+
+      seed_house(%{
+        @entity => %{state: "docked", attributes: %{}},
+        @battery => %{state: "87", attributes: %{device_class: "battery"}}
+      })
+
+      :ok
+    end
+
+    test "is the vacuum's battery, and the vacuum's own reports leave it alone" do
+      assert {:ok, %{battery_percent: 87, activity: :docked}} =
+               Jido.Exec.run(VacuumGetStatus, %{device: @vacuum})
+
+      :ok = Fake.inject_state_changed(@entity, %{state: "cleaning", attributes: %{}})
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+
+      assert {:ok, %{battery_percent: 87, activity: :cleaning}} =
+               Jido.Exec.run(VacuumGetStatus, %{device: @vacuum})
+
+      :ok = Fake.inject_state_changed(@battery, %{state: "unavailable", attributes: %{}})
+      assert_receive %Jido.Signal{type: "dobby.device.state_changed"}, 2_000
+
+      assert {:ok, %{battery_percent: nil, activity: :cleaning}} =
+               Jido.Exec.run(VacuumGetStatus, %{device: @vacuum})
+    end
+  end
+
+  test "discovery binds the battery sensor on the vacuum's own device" do
+    entity = &struct!(Dobby.HomeAssistant.Entity, &1)
+    vacuum = entity.(entity_id: "vacuum.robo")
+
+    assert {:ok, %{vacuum: "vacuum.robo", battery: "sensor.robo_battery"}} =
+             Dobby.DeviceAgent.discovery_bindings(Dobby.DeviceAgents.Vacuum, vacuum, [
+               vacuum,
+               entity.(entity_id: "sensor.robo_temperature", device_class: "temperature"),
+               entity.(entity_id: "sensor.robo_battery", device_class: "battery")
+             ])
+  end
+
   describe "start and dock" do
     setup do
       seed_house(%{@entity => vacuum_entity(activity: "docked")})

@@ -33,7 +33,7 @@ defmodule Dobby.DeviceAgents.Thermostat.SetTemperature do
 
     case authorize(state, temperature) do
       :ok ->
-        {:ok, %{last_command: accepted(ref, temperature)},
+        {:ok, %{last_command: accepted(ref, temperature, state.capabilities[:step_f])},
          [
            %HACall{
              domain: "climate",
@@ -66,8 +66,17 @@ defmodule Dobby.DeviceAgents.Thermostat.SetTemperature do
     end
   end
 
-  defp accepted(ref, temperature) do
-    %{ref: ref, action: :set_temperature, result: :accepted, temperature_f: temperature}
+  # The step rides on the command so its echo is judged by what the device
+  # said it would do at the moment it accepted, not by whatever it reports
+  # later (`Thermostat.echoes?/2`).
+  defp accepted(ref, temperature, step) do
+    %{
+      ref: ref,
+      action: :set_temperature,
+      result: :accepted,
+      temperature_f: temperature,
+      step_f: step
+    }
   end
 
   defp rejected(ref, reason) do

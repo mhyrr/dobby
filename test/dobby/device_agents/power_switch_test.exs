@@ -51,11 +51,14 @@ defmodule Dobby.DeviceAgents.PowerSwitchTest do
     {state, %Emit{signal: echo}} = sync(state, "on")
     assert echo.data.commanded?
 
-    # The switch's echo stands the way the thermostat's does: it misses only a
-    # hand returning it to the exact commanded value, which for on/off means
-    # `moved` back and forth. The flip *away* from the command is always a hand.
-    {_state, %Emit{signal: hand}} = sync(state, "off")
+    # The echo is one-shot (TK-064, 2026-11-16). This used to pin a standing
+    # echo, under which a hand turning the switch back on was read as Dobby's;
+    # both of the hand's flips are now hands.
+    {state, %Emit{signal: hand}} = sync(state, "off")
     refute hand.data.commanded?
+
+    {_state, %Emit{signal: back_on}} = sync(state, "on")
+    refute back_on.data.commanded?
   end
 
   test "a flipped switch is somebody's doing; availability is not" do

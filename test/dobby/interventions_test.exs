@@ -387,10 +387,7 @@ defmodule Dobby.InterventionsTest do
 
     test "a missing echo writes NOT KNOWN once and puts it on the board" do
       seed_unlocked_lock!()
-      Fake.silence_next("lock.front_door")
-
-      assert {:ok, %{accepted: true}} =
-               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+      silent_secure!()
 
       assert_receive {:system_line, %Message{text: "front door lock", meta: meta}}, 2_000
       assert meta["word"] == "Not known"
@@ -512,10 +509,7 @@ defmodule Dobby.InterventionsTest do
 
     test "a late echo clears NOT KNOWN without another thread line" do
       seed_unlocked_lock!()
-      Fake.silence_next("lock.front_door")
-
-      assert {:ok, %{accepted: true}} =
-               Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
+      silent_secure!()
 
       assert_receive %Jido.Signal{
                        type: "dobby.device.command_status_changed",
@@ -569,8 +563,10 @@ defmodule Dobby.InterventionsTest do
     |> Enum.filter(&(&1.device == device))
   end
 
-  # One accepted command Home Assistant never answers. The silence is armed per
-  # call, so two of these are two separate unanswered commands.
+  # One accepted command Home Assistant never answers, past its deadline. The
+  # silence is armed per call, so two of these are two separate unanswered
+  # commands. The deadline is sent rather than waited for: a lock's is the
+  # thirty-second default, because real locks answer in seconds.
   defp silent_secure! do
     Fake.silence_next("lock.front_door")
 
@@ -578,7 +574,17 @@ defmodule Dobby.InterventionsTest do
              Jido.Exec.run(Dobby.Tools.LockSecure, %{device: "lock:front"})
 
     assert_receive {:ha_call, %HACall{entity_id: "lock.front_door"}}, 2_000
-    :ok
+    settle!()
+
+    Dobby.Interventions.Watcher
+    |> :sys.get_state()
+    |> Map.fetch!(:expectations)
+    |> Enum.filter(fn {_ref, expectation} -> expectation.device == "lock:front" end)
+    |> Enum.each(fn {ref, _expectation} ->
+      send(Dobby.Interventions.Watcher, {:expectation_expired, ref})
+    end)
+
+    settle!()
   end
 
   defp create!(overrides) do

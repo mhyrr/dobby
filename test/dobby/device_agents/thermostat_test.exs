@@ -17,7 +17,11 @@ defmodule Dobby.DeviceAgents.ThermostatTest do
     entity: [entity_id: "climate.contract"],
     arrivals: [
       {%{result: :accepted, action: :set_temperature, temperature_f: 70.0},
-       %{target_temperature_f: 70.0}, %{target_temperature_f: 68.0}}
+       %{target_temperature_f: 70.0}, %{target_temperature_f: 68.0}},
+      # A Fahrenheit house reports whole degrees, so a half degree comes back
+      # rounded; a whole step away is somebody else's number.
+      {%{result: :accepted, action: :set_temperature, temperature_f: 70.5, step_f: 1},
+       %{target_temperature_f: 70}, %{target_temperature_f: 69}}
     ],
     controls: %{
       available: true,

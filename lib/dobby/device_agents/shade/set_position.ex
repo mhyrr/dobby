@@ -25,7 +25,16 @@ defmodule Dobby.DeviceAgents.Shade.SetPosition do
       true ->
         {:ok,
          %{
-           last_command: %{ref: ref, action: :set_position, result: :accepted, position: position}
+           last_command: %{
+             ref: ref,
+             action: :set_position,
+             result: :accepted,
+             position: position,
+             in_flight_until: Dobby.DeviceAgents.Shade.in_flight_until(),
+             # Cleared by name: the deep merge into agent state would keep an
+             # arrival the last command had not yet spent (`Move`).
+             arrived: nil
+           }
          },
          [
            %HACall{

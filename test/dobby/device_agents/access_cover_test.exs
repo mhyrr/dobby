@@ -34,6 +34,23 @@ defmodule Dobby.DeviceAgents.AccessCoverTest do
     assert reason =~ "unavailable"
   end
 
+  # Home Assistant reports `unknown` for a cover that is answering but cannot
+  # say where it is, such as an RF opener with assumed state. That is a cover
+  # Dobby does not know the state of, not one that stopped answering, and the
+  # safe direction still goes out to it.
+  test "an unknown cover is answering, and a close still goes out" do
+    {state, _emit} = sync(booted_state(), "unknown", %{})
+
+    assert state.available
+    assert state.cover_state == nil
+
+    assert {:ok, %{last_command: %{result: :accepted}}, [%HACall{service: "close_cover"}]} =
+             AccessCover.Close.run(%{ref: "cmd"}, %{state: state})
+
+    {state, _emit} = sync(state, "unavailable", %{})
+    refute state.available
+  end
+
   test "an accepted close emits exactly HA's close_cover call" do
     {state, _emit} = sync(booted_state(), "open", %{"current_position" => 100})
 

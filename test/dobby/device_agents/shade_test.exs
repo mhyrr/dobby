@@ -21,7 +21,10 @@ defmodule Dobby.DeviceAgents.ShadeTest do
       {%{result: :accepted, action: :open}, %{shade_state: :opening}, %{shade_state: :closed}},
       {%{result: :accepted, action: :close}, %{shade_state: :closing}, %{shade_state: :open}},
       {%{result: :accepted, action: :set_position, position: 40}, %{position: 40},
-       %{position: 60}}
+       %{position: 60}},
+      # One notch is the motor landing where its encoder lands; two is not.
+      {%{result: :accepted, action: :set_position, position: 40}, %{position: 41},
+       %{position: 42}}
     ],
     # `move` takes a direction (open/close) that is not a value of
     # `shade_state` (open/closed/opening/closing), so a choice row could not
@@ -38,6 +41,22 @@ defmodule Dobby.DeviceAgents.ShadeTest do
              Shade.SetPosition.run(%{position: 40, ref: "boot"}, %{state: booted_state()})
 
     assert reason =~ "unavailable"
+  end
+
+  # `unknown` is a legal steady state for a cover that cannot report where it
+  # is. It is answering, so it takes open and close; `unavailable` is the word
+  # for one that is not.
+  test "an unknown shade is answering, and takes open and close" do
+    {state, _emit} = sync(booted_state(), "unknown", %{"supported_features" => 3})
+
+    assert state.available
+    assert state.shade_state == nil
+
+    assert {:ok, %{last_command: %{result: :accepted}}, [%HACall{service: "open_cover"}]} =
+             Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+
+    {state, _emit} = sync(state, "unavailable", %{})
+    refute state.available
   end
 
   test "a shade without the position feature refuses a percentage, and no call leaves" do
@@ -93,6 +112,129 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     refute hand.data.commanded?
   end
 
+  # The travel allowance is bounded by the shade's deadline. A shade still
+  # moving toward a commanded end long after the command is somebody's hand,
+  # and crediting it to an old command would hide that person (TK-070 case 1).
+  test "a report on the way counts as the command's only while it is in flight" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    in_flight = Map.merge(state, command)
+
+    {_state, %Emit{signal: travelling}} =
+      sync(in_flight, "opening", %{"current_position" => 40})
+
+    assert travelling.data.commanded?
+
+    expired =
+      put_in(in_flight.last_command.in_flight_until, System.monotonic_time(:millisecond) - 1)
+
+    {_state, %Emit{signal: late}} = sync(expired, "opening", %{"current_position" => 40})
+    refute late.data.commanded?
+  end
+
+  # An awning or a big shutter can take longer than the deadline. Each report
+  # on the way pushes the window on, so travel ends when the reports stop,
+  # not at a fixed minute.
+  test "each report on the way keeps the command in flight" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "cmd"}, %{state: state})
+    nearly_over = System.monotonic_time(:millisecond) + 5
+
+    in_flight =
+      state
+      |> Map.merge(command)
+      |> put_in([:last_command, :in_flight_until], nearly_over)
+
+    {state, %Emit{signal: first}} = sync(in_flight, "closing", %{"current_position" => 70})
+    assert first.data.commanded?
+    assert state.last_command.in_flight_until > nearly_over + 1_000
+
+    Process.sleep(10)
+    {_state, %Emit{signal: later}} = sync(state, "closing", %{"current_position" => 40})
+    assert later.data.commanded?
+  end
+
+  # A shade that drops off the network mid-travel has not been turned back by
+  # anybody; when it answers again it is still on Dobby's errand.
+  test "a shade that goes quiet on its way is still in flight when it answers" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    {state, _emit} = sync(Map.merge(state, command), "opening", %{"current_position" => 40})
+    {state, _emit} = sync(state, "unavailable", %{})
+    {state, _emit} = sync(state, "opening", %{"current_position" => 40})
+
+    {_state, %Emit{signal: back}} = sync(state, "opening", %{"current_position" => 70})
+    assert back.data.commanded?
+  end
+
+  # Jido deep-merges a new command into the old one. A command accepted while
+  # the last one had arrived but not yet settled must not inherit `arrived`,
+  # or its own travel reads as a hand.
+  test "a new command after an arrival is in flight, not arrived" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.SetPosition.run(%{position: 50, ref: "a"}, %{state: state})
+    {state, _emit} = sync(merge(state, command), "open", %{"current_position" => 50})
+    assert state.last_command.arrived
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "b"}, %{state: state})
+    state = merge(state, command)
+
+    {_state, %Emit{signal: travel}} = sync(state, "closing", %{"current_position" => 30})
+    assert travel.data.commanded?
+  end
+
+  # The settle after an arrival is toward the end. A nudge away from it, even
+  # by one notch, is somebody's hand.
+  test "a notch away from the end after an arrival is a hand" do
+    {state, _emit} =
+      sync(booted_state(), "closed", %{"current_position" => 0, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    {state, _emit} = sync(merge(state, command), "open", %{"current_position" => 100})
+
+    {_state, %Emit{signal: nudge}} = sync(state, "open", %{"current_position" => 99})
+    refute nudge.data.commanded?
+  end
+
+  # A command whose shade never moved does not wait forever: past its
+  # deadline, a hand that closes the shade is a hand.
+  test "an arrival long after the command is somebody's" do
+    {state, _emit} =
+      sync(booted_state(), "open", %{"current_position" => 100, "supported_features" => 4})
+
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :close, ref: "cmd"}, %{state: state})
+
+    stale =
+      state
+      |> merge(command)
+      |> put_in([:last_command, :in_flight_until], System.monotonic_time(:millisecond) - 1)
+
+    {_state, %Emit{signal: hand}} = sync(stale, "closed", %{"current_position" => 0})
+    refute hand.data.commanded?
+  end
+
+  # No position at all: the in-flight state for the command's direction is the
+  # only evidence, and the opposite one is not this command.
+  test "a shade with no position travels by its in-flight state alone" do
+    {state, _emit} = sync(booted_state(), "closed", %{})
+    {:ok, command, _calls} = Shade.Move.run(%{movement: :open, ref: "cmd"}, %{state: state})
+    in_flight = Map.merge(state, command)
+
+    {_state, %Emit{signal: opening}} = sync(in_flight, "opening", %{})
+    assert opening.data.commanded?
+
+    {_state, %Emit{signal: closing}} = sync(in_flight, "closing", %{})
+    refute closing.data.commanded?
+  end
+
   test "movement and position are somebody's doing; discovery and availability are not" do
     assert Shade.intervention?(:shade_state)
     assert Shade.intervention?(:position)
@@ -110,6 +252,15 @@ defmodule Dobby.DeviceAgents.ShadeTest do
     }
 
     Shade.new(id: device.id, state: Shade.initial_state(device)).state
+  end
+
+  # A command lands in agent state the way Jido puts it there: deep-merged
+  # into what is already there, so a key the new command leaves out survives.
+  defp merge(state, result) do
+    Map.merge(state, result, fn
+      _key, old, new when is_map(old) and is_map(new) -> Map.merge(old, new)
+      _key, _old, new -> new
+    end)
   end
 
   defp sync(state, entity_state, attributes) do

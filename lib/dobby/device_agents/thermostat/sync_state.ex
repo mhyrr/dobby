@@ -76,15 +76,16 @@ defmodule Dobby.DeviceAgents.Thermostat.SyncState do
   somebody had gone and turned the dial by hand.
 
   So the setpoint we asked for and got is ours, and any other setpoint is
-  somebody's hand. The one case this rounds off is a person setting the dial
-  back to a value Dobby had already commanded, which reads as ours and is not
-  worth a timestamp to catch.
+  somebody's hand. "Got" is Home Assistant's rounding of what we asked for, not
+  the float itself: see `Thermostat.echoes?/2`. The one case this rounds off is
+  a person setting the dial back to a value Dobby had already commanded, which
+  reads as ours and is not worth a timestamp to catch.
   """
   @spec commanded?(map(), map()) :: boolean()
   def commanded?(previous, next) do
     case Map.get(previous, :last_command) do
-      %{result: :accepted, temperature_f: temperature} ->
-        temperature == next.target_temperature_f
+      %{result: :accepted, temperature_f: _} = command ->
+        Thermostat.echoes?(command, next.target_temperature_f)
 
       _never_or_refused ->
         false

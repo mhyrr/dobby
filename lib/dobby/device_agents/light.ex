@@ -147,11 +147,20 @@ defmodule Dobby.DeviceAgents.Light do
   def command_arrived?(%{result: :accepted, action: :set_power, on: on}, snapshot),
     do: snapshot.power == if(on, do: :on, else: :off)
 
+  # Within one point, because Home Assistant does not always echo the number
+  # it was sent. HA turns a percentage into 0-255 and that round-trips
+  # exactly, but Z-Wave JS stores 0-99 on the dimmer and reports that back:
+  # 50% is brightness 128, the dimmer holds round(128/255*99) = 50, and HA
+  # reports round(50/99*255) = 129, which is 51%. Fifteen of the hundred
+  # percentages come back one point off that way and none come back two off,
+  # so one point is the tolerance. At equality every one of the fifteen wrote
+  # NOT KNOWN under a light that had dimmed exactly as asked.
   def command_arrived?(
         %{result: :accepted, action: :set_brightness, brightness_percent: expected},
-        snapshot
-      ),
-      do: snapshot.power == :on and snapshot.brightness_percent == expected
+        %{power: :on, brightness_percent: reported}
+      )
+      when is_number(expected) and is_number(reported),
+      do: abs(expected - reported) <= 1
 
   def command_arrived?(_command, _snapshot), do: false
 
